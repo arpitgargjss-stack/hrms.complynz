@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Salary rules and signatories</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Inter',system-ui,sans-serif;color:#1a2036;background:#f5f6fa}
+a{color:#2f4bd6}a:hover{color:#1f3399}
+.nav a{display:block;padding:12px;border-radius:8px;color:#3a4260;text-decoration:none;font-size:14px}
+.nav a:hover{background:#eef1fb}
+.nav a.on{background:#e4e9fb;color:#2438a8;font-weight:500}
+.card{background:#fff;border:1px solid #e3e6ef;border-radius:12px;padding:20px}
+.chip{display:inline-block;font-size:12px;font-weight:500;padding:3px 10px;border-radius:999px}
+.ok{background:#e3f5ea;color:#11663a}.warn{background:#fff1cc;color:#6e4a00}.info{background:#e4e9fb;color:#2438a8}
+.t{width:100%;border-collapse:collapse;font-size:14px}
+.t th{text-align:left;font-weight:500;color:#5b6478;font-size:12px;padding:10px 12px;border-bottom:1px solid #d9dde8;background:#fafbfd}
+.t td{padding:12px;border-bottom:1px solid #eceef4}
+.k{font-size:12px;color:#5b6478}
+.btn{font:inherit;font-size:14px;font-weight:500;padding:10px 16px;border-radius:8px;border:1px solid #c9cfe0;background:#fff;color:#1a2036;cursor:pointer;min-height:44px}
+.up{border:1px dashed #9aa3bd;border-radius:10px;height:84px;display:flex;align-items:center;justify-content:center;font-size:13px;color:#5b6478;background:#fafbfd}
+</style>
+</helmet>
+<div style="display:flex;flex-wrap:wrap;min-height:100vh">
+  <aside style="flex:0 0 240px;background:#fff;border-right:1px solid #e3e6ef;padding:20px 16px;box-sizing:border-box">
+    <div style="font-weight:600;font-size:20px;color:#2f4bd6">Complynz</div>
+    <div style="font-size:12px;color:#5b6478;margin:2px 0 20px">HR · hr.complynz.com</div>
+    <nav class="nav" aria-label="HR sections">
+      <a href="Employee.dc.html">People</a>
+      <a href="Candidates.dc.html">Hiring</a>
+      <a href="Organisation.dc.html">Organisation</a>
+      <a href="Assets.dc.html">Assets</a>
+      <a href="Main.dc.html">Payroll</a>
+      <a href="BankAdvice.dc.html">Bank advice</a>
+      <a href="Payslip.dc.html">Payslips</a>
+      <a href="OfferShort.dc.html">Letters</a>
+      <a href="Policies.dc.html">Policies</a>
+      <a class="on" href="Settings.dc.html" aria-current="page">Settings</a>
+    </nav>
+  </aside>
+  <main style="flex:999 1 560px;min-width:0;padding:28px 32px;box-sizing:border-box">
+    <h1 style="margin:0 0 4px;font-size:26px;font-weight:600">Salary rules and signatories</h1>
+    <p style="margin:0 0 20px;font-size:14px;color:#5b6478">Set once here. Payroll, payslips, offer letters and the bank advice all read from these settings.</p>
+
+    <div class="card" style="padding:0;overflow-x:auto;margin-bottom:16px">
+      <div style="padding:16px 20px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center"><div style="font-weight:500">Statutory rules (effective-dated)</div><button class="btn">Add rule</button></div>
+      <table class="t" style="min-width:680px">
+        <thead><tr><th>Rule</th><th>Status</th><th>Effective from</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>Provident fund</td><td><span class="chip warn">Off</span></td><td>[Date]</td><td>Company under the threshold. Turn on when headcount requires it.</td></tr>
+          <tr><td>ESI</td><td><span class="chip warn">Not configured</span></td><td>—</td><td>Enter rates and ceiling after you confirm them with ESIC.</td></tr>
+          <tr><td>Professional tax (Uttar Pradesh)</td><td><span class="chip info">None levied</span></td><td>[Date]</td><td>Add slabs here if you add another state.</td></tr>
+          <tr><td>Income tax (TDS)</td><td><span class="chip info">Manual entry</span></td><td>[Date]</td><td>Monthly figure entered per employee. Projection comes later.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card" style="padding:0;overflow-x:auto;margin-bottom:16px">
+      <div style="padding:16px 20px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center"><div style="font-weight:500">Salary template: Standard India</div><button class="btn">Add component</button></div>
+      <table class="t" style="min-width:680px">
+        <thead><tr><th>Component</th><th>Type</th><th>Formula</th><th>Taxable</th></tr></thead>
+        <tbody>
+          <tr><td>Basic salary</td><td>Earning</td><td>50% of gross</td><td>Yes</td></tr>
+          <tr><td>House rent allowance</td><td>Earning</td><td>40% of Basic</td><td>Yes</td></tr>
+          <tr><td>Special allowance</td><td>Earning</td><td>Balance of gross</td><td>Yes</td></tr>
+          <tr><td>Income tax (TDS)</td><td>Deduction</td><td>Entered monthly</td><td>—</td></tr>
+        </tbody>
+      </table>
+      <div style="padding:12px 20px;font-size:13px;color:#11663a;background:#f1faf4">Check passed: Basic is at least 50% of gross.</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-bottom:16px">
+      <div class="card">
+        <div style="font-weight:500;margin-bottom:4px">Signatory</div>
+        <div class="k" style="margin-bottom:12px">Authorised signatory · linked login: a***@complynz.com</div>
+        <div class="up">Signature image (PNG, transparent)</div>
+        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button class="btn">Upload signature</button><button class="btn">Replace</button></div>
+      </div>
+      <div class="card">
+        <div style="font-weight:500;margin-bottom:4px">Company stamp</div>
+        <div class="k" style="margin-bottom:12px">Applied together with the signature when a document is signed</div>
+        <div class="up">Stamp image (PNG, transparent)</div>
+        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button class="btn">Upload stamp</button><button class="btn">Replace</button></div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px">
+      <div class="card">
+        <div style="font-weight:500;margin-bottom:10px">Numbering</div>
+        <div style="display:grid;grid-template-columns:140px 1fr;gap:8px 12px;font-size:14px">
+          <span class="k">Employee code</span><span>CMPZ + 3 digits</span>
+          <span class="k">Letter reference</span><span>CMPZ/HR/year/sequence</span>
+          <span class="k">Bank advice ref</span><span>SAL/financial year/month</span>
+        </div>
+      </div>
+      <div class="card">
+        <div style="font-weight:500;margin-bottom:10px">Company details used in letters</div>
+        <div style="display:grid;grid-template-columns:140px 1fr;gap:8px 12px;font-size:14px">
+          <span class="k">Privacy contact</span><span>dpo@complynz.com</span>
+          <span class="k">Salary debit account</span><span>XXXXXXXX0001</span>
+          <span class="k">Offer validity</span><span>7 days by default</span>
+        </div>
+      </div>
+    </div>
+    <p style="font-size:12px;color:#5b6478;margin:16px 0 0">Sample screen. Statutory values are left blank until confirmed from the official sources.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1360,"height":1040}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

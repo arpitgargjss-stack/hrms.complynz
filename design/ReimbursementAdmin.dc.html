@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Reimbursements: trends, claims and policy</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Inter',system-ui,sans-serif;color:#1a2036;background:#f5f6fa}
+a{color:#2f4bd6}a:hover{color:#1f3399}
+.nav a{display:block;padding:12px;border-radius:8px;color:#3a4260;text-decoration:none;font-size:14px}
+.nav a:hover{background:#eef1fb}
+.nav a.on{background:#e4e9fb;color:#2438a8;font-weight:500}
+.card{background:#fff;border:1px solid #e3e6ef;border-radius:12px;padding:20px}
+.chip{display:inline-block;font-size:12px;font-weight:500;padding:3px 10px;border-radius:999px}
+.ok{background:#e3f5ea;color:#11663a}.warn{background:#fff1cc;color:#6e4a00}.info{background:#e4e9fb;color:#2438a8}.mute{background:#eceef4;color:#444c63}.bad{background:#fde8e8;color:#8a1c1c}
+.t{width:100%;border-collapse:collapse;font-size:13px}
+.t th{text-align:left;font-weight:500;color:#5b6478;font-size:12px;padding:10px 12px;border-bottom:1px solid #d9dde8;background:#fafbfd}
+.t td{padding:11px 12px;border-bottom:1px solid #eceef4}
+.r{text-align:right;font-variant-numeric:tabular-nums}
+.k{font-size:12px;color:#5b6478}
+.btn{font:inherit;font-size:14px;font-weight:500;padding:10px 16px;border-radius:8px;border:1px solid #c9cfe0;background:#fff;color:#1a2036;cursor:pointer;min-height:44px}
+.btn.p{background:#2f4bd6;border-color:#2f4bd6;color:#fff}
+.btn.s{min-height:36px;padding:6px 12px;font-size:13px}
+h2{font-size:16px;font-weight:600;margin:0}
+.lg{display:flex;justify-content:space-between;gap:10px;font-size:14px;padding:7px 0;border-top:1px solid #eceef4;align-items:center}
+.sw{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:8px;vertical-align:-1px}
+.col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end}
+</style>
+</helmet>
+<div style="display:flex;flex-wrap:wrap;min-height:100vh">
+  <aside style="flex:0 0 240px;background:#fff;border-right:1px solid #e3e6ef;padding:20px 16px;box-sizing:border-box">
+    <div style="font-weight:600;font-size:20px;color:#2f4bd6">Complynz</div>
+    <div style="font-size:12px;color:#5b6478;margin:2px 0 20px">HR · hr.complynz.com</div>
+    <nav class="nav" aria-label="HR sections">
+      <a href="RoleViews.dc.html">Dashboard</a>
+      <a href="Employee.dc.html">People</a>
+      <a href="Candidates.dc.html">Hiring</a>
+      <a href="AttendanceAdmin.dc.html">Attendance</a>
+      <a href="LeaveAdmin.dc.html">Leave and calendar</a>
+      <a class="on" href="ReimbursementAdmin.dc.html" aria-current="page">Reimbursements</a>
+      <a href="Main.dc.html">Payroll</a>
+      <a href="Policies.dc.html">Policies</a>
+      <a href="Settings.dc.html">Settings</a>
+    </nav>
+  </aside>
+
+  <main style="flex:999 1 560px;min-width:0;padding:28px 32px;box-sizing:border-box">
+    <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div><h1 style="margin:0;font-size:26px;font-weight:600">Reimbursements</h1><p style="margin:4px 0 0;font-size:14px;color:#5b6478">Claims, monthly trends and the reimbursement policy.</p></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn">Export month (CSV)</button><button class="btn p">Add approved claims to payroll</button></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:16px">
+      <div class="card" style="padding:16px"><div class="k">Claimed this month</div><div style="font-size:26px;font-weight:600;margin-top:4px">₹16,200</div></div>
+      <div class="card" style="padding:16px"><div class="k">Waiting for finance check</div><div style="font-size:26px;font-weight:600;margin-top:4px">2</div></div>
+      <div class="card" style="padding:16px"><div class="k">Waiting for approval</div><div style="font-size:26px;font-weight:600;margin-top:4px">1</div></div>
+      <div class="card" style="padding:16px"><div class="k">Policy exceptions</div><div style="font-size:26px;font-weight:600;margin-top:4px">1</div></div>
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;margin-bottom:16px">
+      <div class="card" style="flex:999 1 440px;min-width:0">
+        <h2>Monthly trend</h2>
+        <div class="k" style="margin:2px 0 14px">Total reimbursed per month, last 6 months</div>
+        <div style="display:flex;align-items:flex-end;gap:12px;height:190px">
+          <div class="col"><div style="font-size:12px;margin-bottom:4px">6,200</div><div style="width:100%;height:60px;background:#2f4bd6;border-radius:4px 4px 0 0"></div><div class="k" style="margin-top:6px">May</div></div>
+          <div class="col"><div style="font-size:12px;margin-bottom:4px">9,800</div><div style="width:100%;height:95px;background:#2f4bd6;border-radius:4px 4px 0 0"></div><div class="k" style="margin-top:6px">Jun</div></div>
+          <div class="col"><div style="font-size:12px;margin-bottom:4px">14,500</div><div style="width:100%;height:140px;background:#2f4bd6;border-radius:4px 4px 0 0"></div><div class="k" style="margin-top:6px">Jul</div></div>
+          <div class="col"><div style="font-size:12px;margin-bottom:4px">20,449</div><div style="width:100%;height:170px;background:#2f4bd6;border-radius:4px 4px 0 0"></div><div class="k" style="margin-top:6px">Aug</div></div>
+          <div class="col"><div style="font-size:12px;margin-bottom:4px">11,300</div><div style="width:100%;height:110px;background:#2f4bd6;border-radius:4px 4px 0 0"></div><div class="k" style="margin-top:6px">Sep</div></div>
+          <div class="col"><div style="font-size:12px;margin-bottom:4px">16,200</div><div style="width:100%;height:156px;background:#8fa2f0;border-radius:4px 4px 0 0"></div><div class="k" style="margin-top:6px">Oct</div></div>
+        </div>
+        <div class="k" style="margin-top:12px">October is lighter because claims are still open.</div>
+      </div>
+
+      <div class="card" style="flex:1 1 360px;min-width:0">
+        <h2>Breakdown by category</h2>
+        <div class="k" style="margin:2px 0 14px">This year, ₹78,449 in total</div>
+        <div style="display:flex;flex-wrap:wrap;gap:20px;align-items:center">
+          <div role="img" aria-label="Pie chart: Travel and conveyance 38 percent, Expenses 22 percent, Technology 40 percent" style="width:170px;height:170px;border-radius:50%;background:conic-gradient(#2f4bd6 0 38.1%, #1d9e75 38.1% 60.5%, #e0922f 60.5% 100%);flex:0 0 170px"></div>
+          <div style="flex:1 1 180px;min-width:0">
+            <div class="lg" style="border-top:none"><span><span class="sw" style="background:#2f4bd6"></span>Travel and conveyance</span><span>₹29,849 · 38%</span></div>
+            <div class="lg"><span><span class="sw" style="background:#1d9e75"></span>Lodging, meals, other</span><span>₹17,600 · 22%</span></div>
+            <div class="lg"><span><span class="sw" style="background:#e0922f"></span>Technology</span><span>₹31,000 · 40%</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;margin-bottom:16px">
+      <div class="card" style="flex:999 1 440px;min-width:0">
+        <h2>By department</h2>
+        <div class="k" style="margin:2px 0 14px">This year</div>
+        <div style="display:flex;flex-direction:column;gap:12px;font-size:14px">
+          <div><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Engineering</span><strong>₹36,000</strong></div><div style="height:10px;border-radius:5px;background:#e3e6ef"><div style="height:10px;border-radius:5px;background:#2f4bd6;width:46%"></div></div></div>
+          <div><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Sales</span><strong>₹24,449</strong></div><div style="height:10px;border-radius:5px;background:#e3e6ef"><div style="height:10px;border-radius:5px;background:#2f4bd6;width:31%"></div></div></div>
+          <div><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Operations</span><strong>₹18,000</strong></div><div style="height:10px;border-radius:5px;background:#e3e6ef"><div style="height:10px;border-radius:5px;background:#2f4bd6;width:23%"></div></div></div>
+        </div>
+      </div>
+      <div class="card" style="flex:1 1 360px;min-width:0">
+        <h2>By travel mode</h2>
+        <div class="k" style="margin:2px 0 8px">This year</div>
+        <div class="lg" style="border-top:none"><span>Self car (per km)</span><span>₹12,400</span></div>
+        <div class="lg"><span>Cab</span><span>₹9,300</span></div>
+        <div class="lg"><span>Flight and train</span><span>₹6,100</span></div>
+        <div class="lg"><span>Metro, bus, auto, two wheeler</span><span>₹2,049</span></div>
+      </div>
+    </div>
+
+    <div class="card" style="padding:0;overflow-x:auto;margin-bottom:16px">
+      <div style="padding:16px 20px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px"><h2>Claims</h2><span class="k">October 2026</span></div>
+      <table class="t" style="min-width:820px">
+        <thead><tr><th>Reference</th><th>Employee</th><th>Period</th><th class="r">Gross (₹)</th><th>Flags</th><th>Stage</th><th></th></tr></thead>
+        <tbody>
+          <tr><td>TR/2026/[Seq]</td><td>A*** K****</td><td>[Dates]</td><td class="r">4,450</td><td><span class="chip ok">None</span></td><td><span class="chip warn">Finance check</span></td><td style="text-align:right"><button class="btn s">Verify</button></td></tr>
+          <tr><td>TR/2026/[Seq]</td><td>R*** S****</td><td>[Dates]</td><td class="r">6,750</td><td><span class="chip bad">Bill missing above ₹500</span></td><td><span class="chip warn">Finance check</span></td><td style="text-align:right"><button class="btn s">Review</button></td></tr>
+          <tr><td>TR/2026/[Seq]</td><td>M*** T****</td><td>[Dates]</td><td class="r">5,000</td><td><span class="chip ok">None</span></td><td><span class="chip info">Manager approval</span></td><td style="text-align:right"><span class="k">Waiting</span></td></tr>
+          <tr><td>TR/2026/[Seq]</td><td>A*** K****</td><td>[Dates]</td><td class="r">1,800</td><td><span class="chip ok">None</span></td><td><span class="chip ok">Paid</span></td><td></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start">
+      <div class="card" style="flex:1 1 380px;min-width:0">
+        <div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:4px"><h2>Travel rates</h2><button class="btn s">Edit policy</button></div>
+        <div class="k" style="margin-bottom:6px">These rates drive the amount on every claim.</div>
+        <div class="lg" style="border-top:none"><span>Self car</span><span>₹10 per km</span></div>
+        <div class="lg"><span>Two wheeler</span><span>₹5 per km</span></div>
+        <div class="lg"><span>Cab, auto, metro, bus</span><span>Actual fare</span></div>
+        <div class="lg"><span>Train</span><span>Actual, sleeper or 3AC</span></div>
+        <div class="lg"><span>Flight</span><span>Actual, economy, approval before booking</span></div>
+      </div>
+      <div class="card" style="flex:1 1 380px;min-width:0">
+        <div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:4px"><h2>Rules and limits</h2><button class="btn s">Edit policy</button></div>
+        <div class="k" style="margin-bottom:6px">Edited by finance and HR admins only.</div>
+        <div class="lg" style="border-top:none"><span>Bill needed above</span><span>₹500 per item</span></div>
+        <div class="lg"><span>Manager approval above</span><span>₹5,000</span></div>
+        <div class="lg"><span>CEO approval above</span><span>₹10,000</span></div>
+        <div class="lg"><span>Submit within</span><span>7 days of month end</span></div>
+        <div class="lg"><span>Expense caps by city grade</span><span class="chip warn">Not set yet</span></div>
+      </div>
+    </div>
+    <p style="font-size:12px;color:#5b6478;margin:16px 0 0">Sample data. Names are masked and totals are illustrative. Rates and limits are taken from your current reimbursement workbook.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1360,"height":1300}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

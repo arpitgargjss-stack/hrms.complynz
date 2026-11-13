@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Bank advice</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Inter',system-ui,sans-serif;color:#1a2036;background:#f5f6fa}
+a{color:#2f4bd6}a:hover{color:#1f3399}
+.nav a{display:block;padding:12px;border-radius:8px;color:#3a4260;text-decoration:none;font-size:14px}
+.nav a:hover{background:#eef1fb}
+.nav a.on{background:#e4e9fb;color:#2438a8;font-weight:500}
+.card{background:#fff;border:1px solid #e3e6ef;border-radius:12px;padding:20px}
+.chip{display:inline-block;font-size:12px;font-weight:500;padding:3px 10px;border-radius:999px}
+.ok{background:#e3f5ea;color:#11663a}.warn{background:#fff1cc;color:#6e4a00}
+.t{width:100%;border-collapse:collapse;font-size:13px}
+.t th{text-align:left;font-weight:600;padding:8px 10px;border:1px solid #c9cfe0;background:#eef1fb}
+.t td{padding:8px 10px;border:1px solid #d9dde8}
+.r{text-align:right;font-variant-numeric:tabular-nums}
+.btn{font:inherit;font-size:14px;font-weight:500;padding:10px 16px;border-radius:8px;border:1px solid #c9cfe0;background:#fff;color:#1a2036;cursor:pointer;min-height:44px;width:100%}
+.btn.p{background:#2f4bd6;border-color:#2f4bd6;color:#fff}
+</style>
+</helmet>
+<div style="display:flex;flex-wrap:wrap;min-height:100vh">
+  <aside style="flex:0 0 240px;background:#fff;border-right:1px solid #e3e6ef;padding:20px 16px;box-sizing:border-box">
+    <div style="font-weight:600;font-size:20px;color:#2f4bd6">Complynz</div>
+    <div style="font-size:12px;color:#5b6478;margin:2px 0 20px">HR · hr.complynz.com</div>
+    <nav class="nav" aria-label="HR sections">
+      <a href="Employee.dc.html">People</a>
+      <a href="Candidates.dc.html">Hiring</a>
+      <a href="Organisation.dc.html">Organisation</a>
+      <a href="Assets.dc.html">Assets</a>
+      <a href="Main.dc.html">Payroll</a>
+      <a class="on" href="BankAdvice.dc.html" aria-current="page">Bank advice</a>
+      <a href="Payslip.dc.html">Payslips</a>
+      <a href="OfferShort.dc.html">Letters</a>
+      <a href="Policies.dc.html">Policies</a>
+      <a href="Settings.dc.html">Settings</a>
+    </nav>
+  </aside>
+  <main style="flex:999 1 560px;min-width:0;padding:28px 32px;box-sizing:border-box">
+    <div style="font-size:13px;color:#5b6478">Payroll / October 2026 / Bank advice</div>
+    <h1 style="margin:4px 0 20px;font-size:26px;font-weight:600">Bank advice <span class="chip ok" style="vertical-align:middle;margin-left:8px">Run locked</span></h1>
+
+    <div style="display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start">
+      <div style="flex:999 1 560px;min-width:0;background:#fff;border:1px solid #e3e6ef;border-radius:4px;padding:40px 44px;box-sizing:border-box;overflow-x:auto">
+        <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:13px;color:#3a4260">
+          <span>Ref: SAL/2026-27/10</span><span>Date: 1 November 2026</span>
+        </div>
+        <div style="margin-top:24px;font-size:14px;line-height:1.6">
+          To,<br><strong>The Branch Manager</strong><br>[Bank name], [Branch name]<br>[Branch address]
+        </div>
+        <p style="font-size:14px;line-height:1.6;margin:20px 0 6px"><strong>Subject: Salary disbursement for October 2026</strong></p>
+        <p style="font-size:14px;line-height:1.7;margin:0 0 20px;color:#2b3350">Please debit our account no. XXXXXXXX0001 with ₹1,27,000.00 (Rupees One Lakh Twenty-Seven Thousand only) and credit the salary to the accounts listed in the annexure below.</p>
+        <table class="t" style="min-width:600px">
+          <thead><tr><th>Sr No</th><th>Name</th><th>Bank name</th><th>Bank account no</th><th>IFSC</th><th class="r">Amount (₹)</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>A*** K****</td><td>HDFC Bank</td><td>XXXXXXXX4821</td><td>HDFC0001234</td><td class="r">59,900.00</td></tr>
+            <tr><td>2</td><td>R*** S****</td><td>ICICI Bank</td><td>XXXXXXXX7730</td><td>ICIC0005678</td><td class="r">47,100.00</td></tr>
+            <tr><td>3</td><td>M*** T****</td><td>State Bank of India</td><td>XXXXXXXX1956</td><td style="color:#8a5a00">Missing</td><td class="r">20,000.00</td></tr>
+          </tbody>
+          <tfoot><tr><td colspan="5" class="r" style="font-weight:600">Total</td><td class="r" style="font-weight:600">1,27,000.00</td></tr></tfoot>
+        </table>
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:16px;margin-top:36px">
+          <div style="font-size:13px;line-height:1.6;color:#3a4260">For Complynz Labs Private Limited<br><br><br>Authorised Signatory<br>Name and designation</div>
+          <div style="display:flex;gap:12px">
+            <div style="width:130px;height:70px;border:1px dashed #9aa3bd;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#5b6478">Company stamp</div>
+            <div style="width:130px;height:70px;border:1px dashed #9aa3bd;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#5b6478">Signature</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="flex:1 1 280px;min-width:0;display:flex;flex-direction:column;gap:12px;max-width:380px">
+        <div class="card">
+          <div style="font-weight:500;margin-bottom:10px">Checks</div>
+          <div style="font-size:14px;line-height:1.8;color:#3a4260">
+            <span class="chip ok">OK</span> Totals match the locked run<br>
+            <span class="chip ok">OK</span> 2 of 3 employees have full bank details<br>
+            <span class="chip warn">Fix</span> 1 employee missing IFSC
+          </div>
+        </div>
+        <div class="card">
+          <div style="font-weight:500;margin-bottom:10px">Sign and send</div>
+          <div style="font-size:13px;color:#5b6478;margin-bottom:12px">Signing applies the saved stamp and signature, then locks the PDF. Only the linked signatory can do this.</div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <button class="btn p">Sign and generate PDF</button>
+            <button class="btn">Download bank upload file (CSV)</button>
+          </div>
+        </div>
+        <div class="card" style="font-size:13px;color:#5b6478;line-height:1.6">Full account numbers appear here only for HR admins and finance. Every generate and download is logged.</div>
+      </div>
+    </div>
+    <p style="font-size:12px;color:#5b6478;margin:16px 0 0">Sample data. Names and account numbers are masked placeholders.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1360,"height":1080}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

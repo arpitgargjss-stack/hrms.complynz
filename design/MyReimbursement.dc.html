@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Reimbursements: my months and new claim</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Inter',system-ui,sans-serif;color:#1a2036;background:#f5f6fa}
+a{color:#2f4bd6}a:hover{color:#1f3399}
+.nav a{display:block;padding:12px;border-radius:8px;color:#3a4260;text-decoration:none;font-size:14px}
+.nav a:hover{background:#eef1fb}
+.nav a.on{background:#e4e9fb;color:#2438a8;font-weight:500}
+.card{background:#fff;border:1px solid #e3e6ef;border-radius:12px;padding:20px}
+.chip{display:inline-block;font-size:12px;font-weight:500;padding:3px 10px;border-radius:999px}
+.ok{background:#e3f5ea;color:#11663a}.warn{background:#fff1cc;color:#6e4a00}.info{background:#e4e9fb;color:#2438a8}.mute{background:#eceef4;color:#444c63}
+.t{width:100%;border-collapse:collapse;font-size:13px}
+.t th{text-align:left;font-weight:500;color:#5b6478;font-size:12px;padding:9px 10px;border-bottom:1px solid #d9dde8;background:#fafbfd}
+.t td{padding:9px 10px;border-bottom:1px solid #eceef4;vertical-align:middle}
+.r{text-align:right;font-variant-numeric:tabular-nums}
+.calc{background:#f1f2f6;border-radius:6px;padding:6px 8px;display:inline-block;min-width:44px;text-align:right}
+.k{font-size:12px;color:#5b6478}
+.btn{font:inherit;font-size:14px;font-weight:500;padding:10px 16px;border-radius:8px;border:1px solid #c9cfe0;background:#fff;color:#1a2036;cursor:pointer;min-height:44px}
+.btn.p{background:#2f4bd6;border-color:#2f4bd6;color:#fff}
+.btn.s{min-height:36px;padding:6px 12px;font-size:13px}
+.fld{display:block;font-size:13px;color:#3a4260;margin:0 0 4px}
+.in{font:inherit;font-size:13px;width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #c9cfe0;border-radius:8px;min-height:40px;background:#fff;color:#1a2036}
+.tab{font:inherit;font-size:14px;background:none;border:none;padding:12px 16px;cursor:pointer;min-height:44px}
+h2{font-size:16px;font-weight:600;margin:0}
+.sum{display:flex;justify-content:space-between;gap:8px;padding:9px 0;border-top:1px solid #eceef4;font-size:14px}
+</style>
+</helmet>
+<div style="display:flex;flex-wrap:wrap;min-height:100vh">
+  <aside style="flex:0 0 240px;background:#fff;border-right:1px solid #e3e6ef;padding:20px 16px;box-sizing:border-box">
+    <div style="font-weight:600;font-size:20px;color:#2f4bd6">Complynz</div>
+    <div style="font-size:12px;color:#5b6478;margin:2px 0 20px">HR · hr.complynz.com</div>
+    <nav class="nav" aria-label="Sections">
+      <a href="RoleViews.dc.html">Home</a>
+      <a href="MyAttendance.dc.html">Punch in and out</a>
+      <a href="MyLeave.dc.html">My leave</a>
+      <a class="on" href="MyReimbursement.dc.html" aria-current="page">Reimbursements</a>
+      <a href="Employee.dc.html">My profile</a>
+      <a href="Payslip.dc.html">My payslips</a>
+      <a href="Policies.dc.html">Policies</a>
+      <a href="MyFeedback.dc.html">Share feedback</a>
+    </nav>
+  </aside>
+
+  <main style="flex:999 1 560px;min-width:0;padding:28px 32px;box-sizing:border-box">
+    <h1 style="margin:0 0 4px;font-size:26px;font-weight:600">Reimbursements</h1>
+    <p style="margin:0 0 12px;font-size:14px;color:#5b6478">Claim travel, expenses and technology bills each month, and see what you were paid.</p>
+
+    <div role="tablist" aria-label="Reimbursement sections" style="display:flex;gap:4px;border-bottom:1px solid #e3e6ef;margin-bottom:20px;overflow-x:auto">
+      <sc-for list="{{tabs}}" as="t" hint-placeholder-count="2">
+        <button class="tab" role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="border-bottom:2px solid {{t.line}};color:{{t.fg}};font-weight:{{t.weight}};margin-bottom:-1px">{{t.label}}</button>
+      </sc-for>
+    </div>
+
+    <sc-if value="{{showMonths}}" hint-placeholder-val="{{ true }}">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px">
+        <div class="card" style="padding:16px"><div class="k">This month, so far</div><div style="font-size:26px;font-weight:600;margin-top:4px">₹4,450</div><span class="chip warn" style="margin-top:6px">Draft claim</span></div>
+        <div class="card" style="padding:16px"><div class="k">Reimbursed this year</div><div style="font-size:26px;font-weight:600;margin-top:4px">₹12,950</div></div>
+        <div class="card" style="padding:16px"><div class="k">Last credited</div><div style="font-size:26px;font-weight:600;margin-top:4px">₹61,700</div><div class="k" style="margin-top:4px">Salary and reimbursement, Sep</div></div>
+      </div>
+
+      <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start">
+        <div class="card" style="flex:999 1 520px;min-width:0;padding:0;overflow-x:auto">
+          <div style="padding:16px 20px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px"><h2>Every month</h2><span class="k">Only you can see this</span></div>
+          <table class="t" style="min-width:560px">
+            <thead><tr><th>Month</th><th class="r">Net salary (₹)</th><th class="r">Reimbursement (₹)</th><th class="r">Total credited (₹)</th><th>Claim</th><th></th></tr></thead>
+            <tbody>
+              <tr><td>May 2026</td><td class="r">59,900</td><td class="r">0</td><td class="r">59,900</td><td><span class="chip mute">No claim</span></td><td></td></tr>
+              <tr><td>Jun 2026</td><td class="r">59,900</td><td class="r">1,250</td><td class="r">61,150</td><td><span class="chip ok">Paid</span></td><td><a href="MyReimbursement.dc.html">View</a></td></tr>
+              <tr><td>Jul 2026</td><td class="r">59,900</td><td class="r">2,300</td><td class="r">62,200</td><td><span class="chip ok">Paid</span></td><td><a href="MyReimbursement.dc.html">View</a></td></tr>
+              <tr><td>Aug 2026</td><td class="r">59,900</td><td class="r">4,450</td><td class="r">64,350</td><td><span class="chip ok">Paid</span></td><td><a href="MyReimbursement.dc.html">View</a></td></tr>
+              <tr><td>Sep 2026</td><td class="r">59,900</td><td class="r">1,800</td><td class="r">61,700</td><td><span class="chip ok">Paid</span></td><td><a href="MyReimbursement.dc.html">View</a></td></tr>
+              <tr><td>Oct 2026</td><td class="r">59,900</td><td class="r">3,150</td><td class="r">63,050</td><td><span class="chip warn">Waiting for approval</span></td><td><a href="MyReimbursement.dc.html">View</a></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card" style="flex:1 1 300px;max-width:400px">
+          <h2 style="margin-bottom:4px">Reimbursement by month</h2>
+          <div class="k" style="margin-bottom:12px">Amounts claimed and paid, last 6 months</div>
+          <div style="display:flex;align-items:flex-end;gap:10px;height:150px">
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end"><div style="font-size:11px;margin-bottom:3px">0</div><div style="width:100%;height:3px;background:#2f4bd6"></div><div class="k" style="margin-top:6px">May</div></div>
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end"><div style="font-size:11px;margin-bottom:3px">1,250</div><div style="width:100%;height:28px;background:#2f4bd6;border-radius:4px 4px 0 0"></div><div class="k" style="margin-top:6px">Jun</div></div>
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end"><div style="font-size:11px;margin-bottom:3px">2,300</div><div style="width:100%;height:52px;background:#2f4bd6;border-radius:4px 4px 0 0"></div><div class="k" style="margin-top:6px">Jul</div></div>
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end"><div style="font-size:11px;margin-bottom:3px">4,450</div><div style="width:100%;height:100px;background:#2f4bd6;border-radius:4px 4px 0 0"></div><div class="k" style="margin-top:6px">Aug</div></div>
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end"><div style="font-size:11px;margin-bottom:3px">1,800</div><div style="width:100%;height:40px;background:#2f4bd6;border-radius:4px 4px 0 0"></div><div class="k" style="margin-top:6px">Sep</div></div>
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end"><div style="font-size:11px;margin-bottom:3px">3,150</div><div style="width:100%;height:71px;background:#8fa2f0;border-radius:4px 4px 0 0"></div><div class="k" style="margin-top:6px">Oct</div></div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{showClaim}}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start">
+        <div style="flex:999 1 620px;min-width:0;display:flex;flex-direction:column;gap:16px">
+
+          <div class="card">
+            <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px"><h2>Claim details</h2><span class="chip warn">Draft</span></div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px">
+              <div><span class="fld">Employee</span><div class="calc" style="text-align:left;width:100%;box-sizing:border-box">A*** K****</div></div>
+              <div><span class="fld">Employee ID</span><div class="calc" style="text-align:left;width:100%;box-sizing:border-box">CMPZ001</div></div>
+              <div><span class="fld">Department</span><div class="calc" style="text-align:left;width:100%;box-sizing:border-box">[Department]</div></div>
+              <div><span class="fld">Designation</span><div class="calc" style="text-align:left;width:100%;box-sizing:border-box">[Designation]</div></div>
+              <div><span class="fld">Claim reference</span><div class="calc" style="text-align:left;width:100%;box-sizing:border-box">TR/2026/[Seq]</div></div>
+              <div><label class="fld" for="pf">Claim period from</label><input class="in" id="pf" type="date"></div>
+              <div><label class="fld" for="pt">Claim period to</label><input class="in" id="pt" type="date"></div>
+              <div><span class="fld">Date of submission</span><div class="calc" style="text-align:left;width:100%;box-sizing:border-box">Set on submit</div></div>
+            </div>
+          </div>
+
+          <div class="card" style="padding:0;overflow-x:auto">
+            <div style="padding:16px 20px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center"><div><h2>A. Travel and conveyance</h2><div class="k" style="margin-top:2px">One row per journey. Per-km modes use your km. Other modes use the actual fare.</div></div><button class="btn s">Add journey</button></div>
+            <table class="t" style="min-width:860px">
+              <thead><tr><th>Date</th><th>From</th><th>To</th><th>Purpose</th><th>Mode</th><th class="r">Km run</th><th class="r">Rate / km</th><th class="r">Actual fare</th><th class="r">Amount (₹)</th><th>Bill</th></tr></thead>
+              <tbody>
+                <tr><td>[Date]</td><td>Noida</td><td>Delhi</td><td>Official visit</td><td>Cab</td><td class="r">—</td><td class="r"><span class="calc">0</span></td><td class="r">500</td><td class="r"><span class="calc">500</span></td><td><span class="chip ok">cab-bill.pdf</span></td></tr>
+                <tr><td>[Date]</td><td>Noida</td><td>Gurugram</td><td>Meeting</td><td>Self car</td><td class="r">70</td><td class="r"><span class="calc">10</span></td><td class="r">—</td><td class="r"><span class="calc">700</span></td><td><button class="btn s">Upload bill</button></td></tr>
+              </tbody>
+              <tfoot><tr><td colspan="8" style="font-weight:600">Total travel</td><td class="r" style="font-weight:600">1,200</td><td class="k">1 of 2 billed</td></tr></tfoot>
+            </table>
+          </div>
+
+          <div class="card" style="padding:0;overflow-x:auto">
+            <div style="padding:16px 20px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center"><div><h2>B. Lodging, meals and other expenses</h2><div class="k" style="margin-top:2px">One row per bill. Amounts above the cap for the city grade show as excess and aren’t claimed.</div></div><button class="btn s">Add expense</button></div>
+            <table class="t" style="min-width:860px">
+              <thead><tr><th>Date</th><th>Category</th><th>City grade</th><th>Description or vendor</th><th class="r">Nights / days</th><th class="r">Claimed (₹)</th><th class="r">Cap (₹)</th><th class="r">Excess (₹)</th><th>Bill</th></tr></thead>
+              <tbody>
+                <tr><td>[Date]</td><td>Meals</td><td>Metro (A)</td><td>Lunch, client meeting</td><td class="r">1</td><td class="r">1,250</td><td class="r"><span class="calc">—</span></td><td class="r"><span class="calc">0</span></td><td><span class="chip ok">lunch.jpg</span></td></tr>
+              </tbody>
+              <tfoot><tr><td colspan="5" style="font-weight:600">Total expenses</td><td class="r" style="font-weight:600">1,250</td><td colspan="3"></td></tr></tfoot>
+            </table>
+          </div>
+
+          <div class="card" style="padding:0;overflow-x:auto">
+            <div style="padding:16px 20px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center"><div><h2>C. Technology bills</h2><div class="k" style="margin-top:2px">Software and tools used for work. Attach each bill.</div></div><button class="btn s">Add bill</button></div>
+            <table class="t" style="min-width:620px">
+              <thead><tr><th>Date</th><th>Category</th><th>Description or vendor</th><th class="r">Claimed (₹)</th><th>Bill</th></tr></thead>
+              <tbody>
+                <tr><td>[Date]</td><td>Technology</td><td>Software subscription for [Month]</td><td class="r">2,000</td><td><span class="chip ok">invoice.pdf</span></td></tr>
+              </tbody>
+              <tfoot><tr><td colspan="3" style="font-weight:600">Total technology</td><td class="r" style="font-weight:600">2,000</td><td></td></tr></tfoot>
+            </table>
+          </div>
+
+          <div class="card" style="border:1px dashed #9aa3bd;background:#fafbfd;text-align:center;padding:24px">
+            <div style="font-weight:600;margin-bottom:4px">Upload bills</div>
+            <div class="k" style="margin-bottom:12px">Drag files here, or choose them. PDF, JPG or PNG. Each file is matched to a row above.</div>
+            <button class="btn">Choose files</button>
+          </div>
+        </div>
+
+        <div style="flex:1 1 300px;max-width:380px;display:flex;flex-direction:column;gap:16px">
+          <div class="card">
+            <h2 style="margin-bottom:6px">Claim summary</h2>
+            <div class="sum" style="border-top:none"><span>A. Travel and conveyance</span><span>₹1,200</span></div>
+            <div class="sum"><span>B. Expenses</span><span>₹1,250</span></div>
+            <div class="sum"><span>C. Technology</span><span>₹2,000</span></div>
+            <div class="sum" style="font-weight:600"><span>Gross claim</span><span>₹4,450</span></div>
+            <div class="sum"><span>Less: travel advance received</span><span>₹0</span></div>
+            <div class="sum" style="font-weight:600;color:#2438a8"><span>Net payable to you</span><span>₹4,450</span></div>
+          </div>
+          <div class="card">
+            <h2 style="margin-bottom:6px">Checks</h2>
+            <div class="sum" style="border-top:none"><span>Approval needed</span><span class="chip info">Finance check</span></div>
+            <div class="sum"><span>Policy exceptions</span><span class="chip ok">0</span></div>
+            <div class="sum"><span>Disallowed against caps</span><span>₹0</span></div>
+            <div class="sum"><span>Submitted in time</span><span class="chip ok">Yes</span></div>
+            <div class="k" style="margin-top:10px;line-height:1.6">Bill needed for any single item above ₹500. Manager approval above ₹5,000. CEO approval above ₹10,000. Submit within 7 days of month end.</div>
+          </div>
+          <div class="card">
+            <label style="display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.5"><input type="checkbox" style="width:20px;height:20px;flex:0 0 20px;margin:2px 0 0">I certify that these expenses were incurred by me wholly and necessarily for official business, that the bills are genuine, and that none of this has been or will be claimed elsewhere.</label>
+            <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap"><button class="btn" style="flex:1">Save draft</button><button class="btn p" style="flex:1">Submit claim</button></div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+    <p style="font-size:12px;color:#5b6478;margin:20px 0 0">Sample screen. Amounts and names are illustrative. Rates and limits come from the reimbursement policy.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1360,"height":1500}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { tab: 'months' };
+  }
+  renderVals() {
+    const s = this.state;
+    const tabs = [['months', 'My months'], ['claim', 'New claim']].map((t) => {
+      const on = s.tab === t[0];
+      return { label: t[1], on: on, line: on ? '#2f4bd6' : 'transparent', fg: on ? '#2438a8' : '#3a4260', weight: on ? '600' : '400', pick: () => this.setState({ tab: t[0] }) };
+    });
+    return { tabs: tabs, showMonths: s.tab === 'months', showClaim: s.tab === 'claim' };
+  }
+}
+</script>
+</body>
+</html>

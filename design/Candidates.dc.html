@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hiring: add candidate</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Inter',system-ui,sans-serif;color:#1a2036;background:#f5f6fa}
+a{color:#2f4bd6}a:hover{color:#1f3399}
+.nav a{display:block;padding:12px;border-radius:8px;color:#3a4260;text-decoration:none;font-size:14px}
+.nav a:hover{background:#eef1fb}
+.nav a.on{background:#e4e9fb;color:#2438a8;font-weight:500}
+.card{background:#fff;border:1px solid #e3e6ef;border-radius:12px;padding:20px}
+.chip{display:inline-block;font-size:12px;font-weight:500;padding:3px 10px;border-radius:999px}
+.ok{background:#e3f5ea;color:#11663a}.warn{background:#fff1cc;color:#6e4a00}.info{background:#e4e9fb;color:#2438a8}.mute{background:#eceef4;color:#444c63}
+.t{width:100%;border-collapse:collapse;font-size:14px}
+.t th{text-align:left;font-weight:500;color:#5b6478;font-size:12px;padding:10px 12px;border-bottom:1px solid #d9dde8;background:#fafbfd}
+.t td{padding:12px;border-bottom:1px solid #eceef4}
+.k{font-size:12px;color:#5b6478}
+.btn{font:inherit;font-size:14px;font-weight:500;padding:10px 16px;border-radius:8px;border:1px solid #c9cfe0;background:#fff;color:#1a2036;cursor:pointer;min-height:44px}
+.btn.p{background:#2f4bd6;border-color:#2f4bd6;color:#fff}
+.f label{display:block;font-size:13px;color:#3a4260;margin:12px 0 4px}
+.f input,.f select{font:inherit;font-size:14px;width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #c9cfe0;border-radius:8px;min-height:44px;background:#fff;color:#1a2036}
+</style>
+</helmet>
+<div style="display:flex;flex-wrap:wrap;min-height:100vh">
+  <aside style="flex:0 0 240px;background:#fff;border-right:1px solid #e3e6ef;padding:20px 16px;box-sizing:border-box">
+    <div style="font-weight:600;font-size:20px;color:#2f4bd6">Complynz</div>
+    <div style="font-size:12px;color:#5b6478;margin:2px 0 20px">HR · hr.complynz.com</div>
+    <nav class="nav" aria-label="HR sections">
+      <a href="Employee.dc.html">People</a>
+      <a class="on" href="Candidates.dc.html" aria-current="page">Hiring</a>
+      <a href="Organisation.dc.html">Organisation</a>
+      <a href="Assets.dc.html">Assets</a>
+      <a href="Main.dc.html">Payroll</a>
+      <a href="BankAdvice.dc.html">Bank advice</a>
+      <a href="Payslip.dc.html">Payslips</a>
+      <a href="OfferShort.dc.html">Letters</a>
+      <a href="Policies.dc.html">Policies</a>
+      <a href="Settings.dc.html">Settings</a>
+    </nav>
+  </aside>
+  <main style="flex:999 1 560px;min-width:0;padding:28px 32px;box-sizing:border-box">
+    <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div>
+        <div class="k" style="font-size:13px">Hiring / Candidates</div>
+        <h1 style="margin:4px 0 0;font-size:26px;font-weight:600">Candidates</h1>
+      </div>
+      <button class="btn p">Add candidate</button>
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;font-size:13px">
+      <span class="chip info">All 4</span><span class="chip mute">Offer drafted 1</span><span class="chip mute">Offer sent 1</span><span class="chip mute">Accepted 1</span><span class="chip mute">Onboarding 1</span><span class="chip mute">Joined 0</span>
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start">
+      <div class="card" style="flex:999 1 560px;min-width:0;padding:0;overflow-x:auto">
+        <table class="t" style="min-width:680px">
+          <thead><tr><th>Candidate</th><th>Role</th><th>Location</th><th>Joining</th><th>Stage</th><th></th></tr></thead>
+          <tbody>
+            <tr><td>P*** N****<div class="k">p***@gmail.com</div></td><td>Product analyst<div class="k">Product</div></td><td>Noida</td><td>[Date]</td><td><span class="chip mute">Offer drafted</span></td><td><a href="OnboardingLink.dc.html">Create link</a></td></tr>
+            <tr><td>S*** V****<div class="k">s***@gmail.com</div></td><td>Sales associate<div class="k">Sales</div></td><td>Noida</td><td>[Date]</td><td><span class="chip warn">Offer sent</span></td><td><a href="OnboardingLink.dc.html">Resend link</a></td></tr>
+            <tr><td>D*** J****<div class="k">d***@gmail.com</div></td><td>Engineer<div class="k">Engineering</div></td><td>Remote</td><td>[Date]</td><td><span class="chip ok">Accepted</span></td><td><a href="OnboardingLink.dc.html">Onboarding link</a></td></tr>
+            <tr><td>K*** L****<div class="k">k***@gmail.com</div></td><td>Intern<div class="k">Operations</div></td><td>Noida</td><td>[Date]</td><td><span class="chip info">Onboarding</span></td><td><a href="OnboardingLink.dc.html">View progress</a></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <form class="card f" style="flex:1 1 340px;max-width:420px" aria-label="Add candidate">
+        <div style="font-weight:600;font-size:17px">Add new candidate</div>
+        <div class="k" style="margin-top:2px">The email you enter here receives the offer and the verification codes.</div>
+        <label for="nm">Full name</label><input id="nm" placeholder="Candidate name">
+        <label for="em">Personal email</label><input id="em" placeholder="name@example.com">
+        <label for="mb">Mobile number</label><input id="mb" placeholder="+91 ********10">
+        <label for="ds">Designation</label>
+        <select id="ds"><option>Select designation</option><option>Product analyst</option><option>Sales associate</option><option>Engineer</option><option>Intern</option></select>
+        <label for="dp">Department</label>
+        <select id="dp"><option>Select department</option><option>Product</option><option>Sales</option><option>Engineering</option><option>Operations</option></select>
+        <label for="lc">Location</label>
+        <select id="lc"><option>Noida, Uttar Pradesh</option><option>Remote</option></select>
+        <label for="mg">Reporting manager</label>
+        <select id="mg"><option>Select manager</option><option>R*** S****</option><option>A*** K****</option></select>
+        <label for="jd">Expected joining date</label><input id="jd" type="date">
+        <label for="sl">Salary template and monthly gross</label>
+        <div style="display:flex;gap:8px"><select id="sl" style="flex:1"><option>Standard India</option></select><input aria-label="Monthly gross" placeholder="₹ Gross" style="flex:1"></div>
+        <div style="margin-top:14px;font-size:13px;color:#3a4260">Offer package</div>
+        <label style="display:flex;gap:10px;align-items:center;font-size:14px;margin:6px 0"><input type="checkbox" checked style="width:20px;height:20px;flex:0 0 20px;min-height:0">Short welcome letter</label>
+        <label style="display:flex;gap:10px;align-items:center;font-size:14px;margin:6px 0"><input type="checkbox" checked style="width:20px;height:20px;flex:0 0 20px;min-height:0">Full offer letter with NDA annexure</label>
+        <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
+          <button type="button" class="btn">Save draft</button>
+          <button type="button" class="btn p">Save and create offer</button>
+        </div>
+      </form>
+    </div>
+    <p style="font-size:12px;color:#5b6478;margin:16px 0 0">Sample data. Names and emails are masked placeholders.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1360,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

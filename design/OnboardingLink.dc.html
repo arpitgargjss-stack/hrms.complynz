@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Create onboarding link</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Inter',system-ui,sans-serif;color:#1a2036;background:#f5f6fa}
+a{color:#2f4bd6}a:hover{color:#1f3399}
+.nav a{display:block;padding:12px;border-radius:8px;color:#3a4260;text-decoration:none;font-size:14px}
+.nav a:hover{background:#eef1fb}
+.nav a.on{background:#e4e9fb;color:#2438a8;font-weight:500}
+.card{background:#fff;border:1px solid #e3e6ef;border-radius:12px;padding:20px}
+.chip{display:inline-block;font-size:12px;font-weight:500;padding:3px 10px;border-radius:999px}
+.ok{background:#e3f5ea;color:#11663a}.info{background:#e4e9fb;color:#2438a8}.mute{background:#eceef4;color:#444c63}
+.k{font-size:12px;color:#5b6478}
+.btn{font:inherit;font-size:14px;font-weight:500;padding:10px 16px;border-radius:8px;border:1px solid #c9cfe0;background:#fff;color:#1a2036;cursor:pointer;min-height:44px}
+.btn.p{background:#2f4bd6;border-color:#2f4bd6;color:#fff}
+.ck{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-top:1px solid #eceef4;font-size:14px;line-height:1.5}
+.ck input{width:20px;height:20px;flex:0 0 20px;margin:2px 0 0}
+.f label{display:block;font-size:13px;color:#3a4260;margin:12px 0 4px}
+.f input,.f select{font:inherit;font-size:14px;width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #c9cfe0;border-radius:8px;min-height:44px;background:#fff;color:#1a2036}
+</style>
+</helmet>
+<div style="display:flex;flex-wrap:wrap;min-height:100vh">
+  <aside style="flex:0 0 240px;background:#fff;border-right:1px solid #e3e6ef;padding:20px 16px;box-sizing:border-box">
+    <div style="font-weight:600;font-size:20px;color:#2f4bd6">Complynz</div>
+    <div style="font-size:12px;color:#5b6478;margin:2px 0 20px">HR · hr.complynz.com</div>
+    <nav class="nav" aria-label="HR sections">
+      <a href="Employee.dc.html">People</a>
+      <a class="on" href="Candidates.dc.html" aria-current="page">Hiring</a>
+      <a href="Organisation.dc.html">Organisation</a>
+      <a href="Assets.dc.html">Assets</a>
+      <a href="Main.dc.html">Payroll</a>
+      <a href="BankAdvice.dc.html">Bank advice</a>
+      <a href="Payslip.dc.html">Payslips</a>
+      <a href="OfferShort.dc.html">Letters</a>
+      <a href="Policies.dc.html">Policies</a>
+      <a href="Settings.dc.html">Settings</a>
+    </nav>
+  </aside>
+  <main style="flex:999 1 560px;min-width:0;padding:28px 32px;box-sizing:border-box">
+    <div class="k" style="font-size:13px"><a href="Candidates.dc.html">Hiring</a> / D*** J**** / Onboarding link</div>
+    <h1 style="margin:4px 0 4px;font-size:26px;font-weight:600">Create onboarding link</h1>
+    <p style="margin:0 0 20px;font-size:14px;color:#5b6478">The candidate opens one link, verifies their email with a code, and completes everything you tick below.</p>
+
+    <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start">
+      <div class="card" style="flex:999 1 520px;min-width:0">
+        <div style="font-weight:600;font-size:17px;margin-bottom:2px">What the candidate completes</div>
+        <div class="k" style="margin-bottom:8px">Required steps are locked on. Choose the rest.</div>
+
+        <label class="ck" style="border-top:none"><input type="checkbox" checked disabled><span><strong>Verify email with a one-time code</strong><br><span class="k">Always on. The code goes to the email on file.</span></span></label>
+        <label class="ck"><input type="checkbox" checked><span><strong>Read and accept the offer package</strong><br><span class="k">Welcome letter, offer letter and Annexure A (NDA)</span></span></label>
+        <label class="ck"><input type="checkbox" checked><span><strong>Personal details form</strong><br><span class="k">Address, date of birth, parent or spouse name (for the NDA), emergency contact</span></span></label>
+        <label class="ck"><input type="checkbox" checked><span><strong>Bank details form</strong><br><span class="k">Bank name, account number, IFSC</span></span></label>
+        <label class="ck"><input type="checkbox" checked><span><strong>Privacy notice and optional choices</strong><br><span class="k">Six separate choices, recorded in the consent platform</span></span></label>
+        <label class="ck"><input type="checkbox" checked><span><strong>Acknowledge policies</strong><br><span class="k">POSH, attendance, leave, code of conduct</span></span></label>
+
+        <div style="font-weight:500;margin:16px 0 4px;font-size:14px">Documents to upload</div>
+        <label class="ck"><input type="checkbox" checked><span>Photo</span></label>
+        <label class="ck"><input type="checkbox" checked><span>PAN card</span></label>
+        <label class="ck"><input type="checkbox" checked><span>Aadhaar, first 8 digits masked<br><span class="k">Or another government photo ID</span></span></label>
+        <label class="ck"><input type="checkbox" checked><span>Proof of current address</span></label>
+        <label class="ck"><input type="checkbox" checked><span>Education certificates and mark sheets</span></label>
+        <label class="ck"><input type="checkbox"><span>Relieving letter and last three salary slips<br><span class="k">Only for candidates with previous employment</span></span></label>
+        <label class="ck"><input type="checkbox" checked><span>Cancelled cheque or bank proof</span></label>
+        <button class="btn" style="margin-top:12px">Add custom item</button>
+      </div>
+
+      <div style="flex:1 1 340px;max-width:440px;display:flex;flex-direction:column;gap:16px">
+        <form class="card f" aria-label="Link settings">
+          <div style="font-weight:600;font-size:17px">Link settings</div>
+          <label for="to">Send to</label><input id="to" value="d***@gmail.com">
+          <label for="ex">Link expires on</label><input id="ex" type="date">
+          <label for="rm">Reminder</label>
+          <select id="rm"><option>After 2 days if not completed</option><option>After 4 days</option><option>No reminder</option></select>
+          <div class="k" style="margin-top:12px;line-height:1.5">Code attempts are limited, and the link stops working after the expiry date or once it is completed.</div>
+          <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+            <button type="button" class="btn">Copy link</button>
+            <button type="button" class="btn p">Create and send</button>
+          </div>
+        </form>
+
+        <div class="card">
+          <div style="font-weight:600;font-size:15px;margin-bottom:8px">Link preview</div>
+          <div style="font-size:13px;word-break:break-all;background:#f1f4fd;border-radius:8px;padding:10px 12px">https://hr.complynz.com/join/••••••••••</div>
+        </div>
+
+        <div class="card">
+          <div style="font-weight:600;font-size:15px;margin-bottom:8px">Email the candidate receives</div>
+          <div class="k">Subject</div>
+          <div style="font-size:14px;margin-bottom:10px">Your Complynz offer and onboarding</div>
+          <div style="font-size:14px;line-height:1.6;color:#2b3350;border-left:3px solid #c9cfe0;padding-left:12px">Hi [First name], we’re excited to have you. Use the link below to read your offer and complete your onboarding. You’ll get a verification code at this email address. The link is valid until [Date].</div>
+          <button class="btn" style="margin-top:12px">Edit email template</button>
+        </div>
+      </div>
+    </div>
+    <p style="font-size:12px;color:#5b6478;margin:16px 0 0">Sample screen. Names and emails are masked placeholders.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1360,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

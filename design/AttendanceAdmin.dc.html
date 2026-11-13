@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Attendance: today and settings</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Inter',system-ui,sans-serif;color:#1a2036;background:#f5f6fa}
+a{color:#2f4bd6}a:hover{color:#1f3399}
+.nav a{display:block;padding:12px;border-radius:8px;color:#3a4260;text-decoration:none;font-size:14px}
+.nav a:hover{background:#eef1fb}
+.nav a.on{background:#e4e9fb;color:#2438a8;font-weight:500}
+.card{background:#fff;border:1px solid #e3e6ef;border-radius:12px;padding:20px}
+.chip{display:inline-block;font-size:12px;font-weight:500;padding:3px 10px;border-radius:999px}
+.ok{background:#e3f5ea;color:#11663a}.warn{background:#fff1cc;color:#6e4a00}.info{background:#e4e9fb;color:#2438a8}.mute{background:#eceef4;color:#444c63}
+.t{width:100%;border-collapse:collapse;font-size:14px}
+.t th{text-align:left;font-weight:500;color:#5b6478;font-size:12px;padding:10px 12px;border-bottom:1px solid #d9dde8;background:#fafbfd}
+.t td{padding:12px;border-bottom:1px solid #eceef4}
+.k{font-size:12px;color:#5b6478}
+.btn{font:inherit;font-size:14px;font-weight:500;padding:10px 16px;border-radius:8px;border:1px solid #c9cfe0;background:#fff;color:#1a2036;cursor:pointer;min-height:44px}
+.btn.p{background:#2f4bd6;border-color:#2f4bd6;color:#fff}
+.f label{display:block;font-size:13px;color:#3a4260;margin:12px 0 4px}
+.f input[type=text],.f input[type=time],.f select{font:inherit;font-size:14px;width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #c9cfe0;border-radius:8px;min-height:44px;background:#fff;color:#1a2036}
+.ck,.f .ck{display:flex;gap:10px;align-items:center;font-size:14px;color:#1a2036;margin:8px 0;min-height:28px}
+.ck input,.f .ck input{width:20px;height:20px;flex:0 0 20px;margin:0}
+</style>
+</helmet>
+<div style="display:flex;flex-wrap:wrap;min-height:100vh">
+  <aside style="flex:0 0 240px;background:#fff;border-right:1px solid #e3e6ef;padding:20px 16px;box-sizing:border-box">
+    <div style="font-weight:600;font-size:20px;color:#2f4bd6">Complynz</div>
+    <div style="font-size:12px;color:#5b6478;margin:2px 0 20px">HR · hr.complynz.com</div>
+    <nav class="nav" aria-label="HR sections">
+      <a href="RoleViews.dc.html">Dashboard</a>
+      <a href="Employee.dc.html">People</a>
+      <a href="Candidates.dc.html">Hiring</a>
+      <a href="Organisation.dc.html">Organisation</a>
+      <a href="Assets.dc.html">Assets</a>
+      <a class="on" href="AttendanceAdmin.dc.html" aria-current="page">Attendance</a>
+      <a href="LeaveAdmin.dc.html">Leave</a>
+      <a href="Main.dc.html">Payroll</a>
+      <a href="Policies.dc.html">Policies</a>
+      <a href="Feedback.dc.html">Feedback</a>
+      <a href="Settings.dc.html">Settings</a>
+    </nav>
+  </aside>
+  <main style="flex:999 1 560px;min-width:0;padding:28px 32px;box-sizing:border-box">
+    <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div><h1 style="margin:0;font-size:26px;font-weight:600">Attendance</h1><p style="margin:4px 0 0;font-size:14px;color:#5b6478">Today, [Date]</p></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn">Export month (CSV)</button><button class="btn p">Review corrections (1)</button></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px">
+      <div class="card" style="padding:16px"><div class="k">In office</div><div style="font-size:26px;font-weight:600;margin-top:4px">1</div></div>
+      <div class="card" style="padding:16px"><div class="k">Work from home</div><div style="font-size:26px;font-weight:600;margin-top:4px">1</div></div>
+      <div class="card" style="padding:16px"><div class="k">On leave</div><div style="font-size:26px;font-weight:600;margin-top:4px">1</div></div>
+      <div class="card" style="padding:16px"><div class="k">Not in yet</div><div style="font-size:26px;font-weight:600;margin-top:4px">0</div></div>
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start">
+      <div class="card" style="flex:999 1 560px;min-width:0;padding:0;overflow-x:auto">
+        <div style="padding:16px 20px;font-weight:600">Today</div>
+        <table class="t" style="min-width:640px">
+          <thead><tr><th>Employee</th><th>In</th><th>Out</th><th>Mode</th><th>Location result</th><th>Flag</th></tr></thead>
+          <tbody>
+            <tr><td>A*** K****</td><td>09:12</td><td>—</td><td>Office</td><td><span class="chip ok">Inside office area</span></td><td>—</td></tr>
+            <tr><td>R*** S****</td><td>09:51</td><td>—</td><td>Work from home</td><td><span class="chip mute">Not required</span></td><td><span class="chip warn">Late</span></td></tr>
+            <tr><td>M*** T****</td><td>—</td><td>—</td><td>—</td><td>—</td><td><span class="chip info">Casual leave</span></td></tr>
+          </tbody>
+        </table>
+        <div style="padding:14px 20px;font-size:13px;color:#5b6478">Other possible results: Outside office area (HR is asked to review), Permission denied, and Location unavailable. Exact positions are never shown here.</div>
+      </div>
+
+      <form class="card f" style="flex:1 1 340px;max-width:420px" aria-label="Attendance settings">
+        <div style="font-weight:600;font-size:17px">Attendance settings</div>
+        <div class="k" style="margin-top:2px">Set by HR admins.</div>
+        <div style="margin-top:12px;font-size:13px;color:#3a4260">Working days, hours, Saturdays and holidays</div>
+        <div class="k" style="margin-top:4px;line-height:1.5">Mon to Fri 09:30 to 18:30, Saturdays off (sample). Set in <a href="LeaveAdmin.dc.html">Leave and calendar</a>, so attendance, leave and payroll all use the same days.</div>
+        <label for="gr">Grace period for late marks (minutes)</label><input id="gr" type="text" value="15">
+        <label for="ol">Office location</label>
+        <select id="ol"><option>Noida, Uttar Pradesh (registered office)</option></select>
+        <label for="rd">Allowed distance from the office point (metres)</label><input id="rd" type="text" value="150">
+        <div style="margin-top:12px;font-size:13px;color:#3a4260">Location is required for</div>
+        <label class="ck"><input type="checkbox" checked>Office</label>
+        <label class="ck"><input type="checkbox">Work from home</label>
+        <label class="ck"><input type="checkbox">On site (client)</label>
+        <div style="margin-top:12px;font-size:13px;color:#3a4260">What is stored</div>
+        <label class="ck"><input type="checkbox" checked>Inside or outside result only, no coordinates</label>
+        <label class="ck"><input type="checkbox" checked>Ask for the browser’s location permission at each punch</label>
+        <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn">Cancel</button><button type="button" class="btn p">Save settings</button></div>
+      </form>
+    </div>
+    <p style="font-size:12px;color:#5b6478;margin:16px 0 0">Sample data. A browser location check can be wrong or faked, so it is a signal for HR review, not proof.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1360,"height":1100}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

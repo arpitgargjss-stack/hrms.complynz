@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Feedback: results and suggestion inbox</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Inter',system-ui,sans-serif;color:#1a2036;background:#f5f6fa}
+a{color:#2f4bd6}a:hover{color:#1f3399}
+.nav a{display:block;padding:12px;border-radius:8px;color:#3a4260;text-decoration:none;font-size:14px}
+.nav a:hover{background:#eef1fb}
+.nav a.on{background:#e4e9fb;color:#2438a8;font-weight:500}
+.card{background:#fff;border:1px solid #e3e6ef;border-radius:12px;padding:20px}
+.chip{display:inline-block;font-size:12px;font-weight:500;padding:3px 10px;border-radius:999px}
+.ok{background:#e3f5ea;color:#11663a}.warn{background:#fff1cc;color:#6e4a00}.info{background:#e4e9fb;color:#2438a8}.mute{background:#eceef4;color:#444c63}
+.k{font-size:12px;color:#5b6478}
+.btn{font:inherit;font-size:14px;font-weight:500;padding:10px 16px;border-radius:8px;border:1px solid #c9cfe0;background:#fff;color:#1a2036;cursor:pointer;min-height:44px}
+.btn.p{background:#2f4bd6;border-color:#2f4bd6;color:#fff}
+.bar{height:10px;border-radius:5px;background:#2f4bd6}
+.trk{height:10px;border-radius:5px;background:#e3e6ef;flex:1}
+.sg{padding:14px 0;border-top:1px solid #eceef4;font-size:14px;line-height:1.6}
+</style>
+</helmet>
+<div style="display:flex;flex-wrap:wrap;min-height:100vh">
+  <aside style="flex:0 0 240px;background:#fff;border-right:1px solid #e3e6ef;padding:20px 16px;box-sizing:border-box">
+    <div style="font-weight:600;font-size:20px;color:#2f4bd6">Complynz</div>
+    <div style="font-size:12px;color:#5b6478;margin:2px 0 20px">HR · hr.complynz.com</div>
+    <nav class="nav" aria-label="HR sections">
+      <a href="RoleViews.dc.html">Dashboard</a>
+      <a href="Employee.dc.html">People</a>
+      <a href="Candidates.dc.html">Hiring</a>
+      <a href="Organisation.dc.html">Organisation</a>
+      <a href="Assets.dc.html">Assets</a>
+      <a href="Main.dc.html">Payroll</a>
+      <a href="Policies.dc.html">Policies</a>
+      <a class="on" href="Feedback.dc.html" aria-current="page">Feedback</a>
+      <a href="Settings.dc.html">Settings</a>
+    </nav>
+  </aside>
+  <main style="flex:999 1 560px;min-width:0;padding:28px 32px;box-sizing:border-box">
+    <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <h1 style="margin:0;font-size:26px;font-weight:600">Employee feedback</h1>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn">Survey settings</button><button class="btn p">Start new survey round</button></div>
+    </div>
+    <p style="margin:0 0 16px;font-size:14px;color:#5b6478">Anonymous satisfaction survey and suggestion box. HR sees answers and comments, never who wrote them.</p>
+
+    <div class="card" style="background:#f1f4fd;border-color:#d5dcf5;margin-bottom:16px;font-size:14px;line-height:1.6;color:#2b3350">
+      <strong>How anonymity works.</strong> Answers are saved without a name, email or login, and without an IP address. The system records only that a person took part, in a separate list, so nobody answers twice. Results show only when at least 5 people have responded, because in a small team fewer answers could point to one person.
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px">
+      <div class="card"><div class="k">Satisfaction score</div><div style="font-size:26px;font-weight:600;margin-top:4px">4.1 <span style="font-size:14px;color:#5b6478;font-weight:400">of 5</span></div></div>
+      <div class="card"><div class="k">Responses</div><div style="font-size:26px;font-weight:600;margin-top:4px">7 <span style="font-size:14px;color:#5b6478;font-weight:400">of 9</span></div></div>
+      <div class="card"><div class="k">Round</div><div style="font-size:18px;font-weight:600;margin-top:8px">Q4 2026</div><span class="chip ok" style="margin-top:4px">Open until [Date]</span></div>
+      <div class="card"><div class="k">New suggestions</div><div style="font-size:26px;font-weight:600;margin-top:4px">2</div></div>
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start">
+      <div class="card" style="flex:1 1 380px;min-width:0">
+        <div style="font-weight:600;margin-bottom:12px">Score by theme</div>
+        <div style="display:flex;flex-direction:column;gap:14px;font-size:14px">
+          <div><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Manager support</span><strong>4.4</strong></div><div style="display:flex"><div class="trk"><div class="bar" style="width:88%"></div></div></div></div>
+          <div><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Work-life balance</span><strong>4.0</strong></div><div style="display:flex"><div class="trk"><div class="bar" style="width:80%"></div></div></div></div>
+          <div><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Learning and growth</span><strong>3.9</strong></div><div style="display:flex"><div class="trk"><div class="bar" style="width:78%"></div></div></div></div>
+          <div><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Tools and equipment</span><strong>4.3</strong></div><div style="display:flex"><div class="trk"><div class="bar" style="width:86%"></div></div></div></div>
+          <div><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Pay and recognition</span><strong>3.7</strong></div><div style="display:flex"><div class="trk"><div class="bar" style="width:74%"></div></div></div></div>
+        </div>
+        <div class="k" style="margin-top:14px">Sample scores. Compared with the previous round: [change] overall.</div>
+      </div>
+
+      <div class="card" style="flex:1 1 380px;min-width:0">
+        <div style="font-weight:600;margin-bottom:12px">Last 3 rounds</div>
+        <div style="display:flex;align-items:flex-end;gap:16px;height:150px">
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end"><div style="font-size:12px;margin-bottom:4px">3.8</div><div style="width:100%;height:76px;background:#2f4bd6;border-radius:6px 6px 0 0"></div><div class="k" style="margin-top:6px">Q2 2026</div></div>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end"><div style="font-size:12px;margin-bottom:4px">3.9</div><div style="width:100%;height:78px;background:#2f4bd6;border-radius:6px 6px 0 0"></div><div class="k" style="margin-top:6px">Q3 2026</div></div>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end"><div style="font-size:12px;margin-bottom:4px">4.1</div><div style="width:100%;height:82px;background:#2f4bd6;border-radius:6px 6px 0 0"></div><div class="k" style="margin-top:6px">Q4 2026</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;margin-top:16px">
+      <div class="card" style="flex:1 1 380px;min-width:0">
+        <div style="font-weight:600;margin-bottom:4px">Survey comments</div>
+        <div class="k" style="margin-bottom:6px">Shown in random order with no dates or names. Please avoid guessing who wrote one.</div>
+        <div class="sg">[Anonymous comment appears here.]</div>
+        <div class="sg">[Anonymous comment appears here.]</div>
+      </div>
+
+      <div class="card" style="flex:1 1 380px;min-width:0">
+        <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px"><div style="font-weight:600">Suggestion inbox</div><span class="chip info">2 new</span></div>
+        <div class="k" style="margin-bottom:6px">Replies go back through the sender’s anonymous reply code, so they can read them without being identified.</div>
+        <div class="sg"><span class="chip warn">New</span> <span class="chip mute">Workplace</span><div style="margin-top:6px">[Suggestion text appears here.]</div><div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn">Reply</button><button class="btn">Mark under review</button></div></div>
+        <div class="sg"><span class="chip warn">New</span> <span class="chip mute">Tools</span><div style="margin-top:6px">[Suggestion text appears here.]</div><div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn">Reply</button><button class="btn">Mark under review</button></div></div>
+        <div class="sg"><span class="chip ok">Done</span> <span class="chip mute">Benefits</span><div style="margin-top:6px">[Suggestion text appears here.]</div></div>
+      </div>
+    </div>
+    <p style="font-size:12px;color:#5b6478;margin:16px 0 0">Sample data and placeholder comments. Scores are illustrative.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1360,"height":1100}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Departments, designations, locations</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Inter',system-ui,sans-serif;color:#1a2036;background:#f5f6fa}
+a{color:#2f4bd6}a:hover{color:#1f3399}
+.nav a{display:block;padding:12px;border-radius:8px;color:#3a4260;text-decoration:none;font-size:14px}
+.nav a:hover{background:#eef1fb}
+.nav a.on{background:#e4e9fb;color:#2438a8;font-weight:500}
+.card{background:#fff;border:1px solid #e3e6ef;border-radius:12px}
+.chip{display:inline-block;font-size:12px;font-weight:500;padding:3px 10px;border-radius:999px}
+.info{background:#e4e9fb;color:#2438a8}.mute{background:#eceef4;color:#444c63}.ok{background:#e3f5ea;color:#11663a}
+.t{width:100%;border-collapse:collapse;font-size:14px}
+.t th{text-align:left;font-weight:500;color:#5b6478;font-size:12px;padding:10px 12px;border-bottom:1px solid #d9dde8;background:#fafbfd}
+.t td{padding:12px;border-bottom:1px solid #eceef4}
+.k{font-size:12px;color:#5b6478}
+.btn{font:inherit;font-size:14px;font-weight:500;padding:10px 16px;border-radius:8px;border:1px solid #c9cfe0;background:#fff;color:#1a2036;cursor:pointer;min-height:44px}
+.btn.p{background:#2f4bd6;border-color:#2f4bd6;color:#fff}
+.f label{display:block;font-size:13px;color:#3a4260;margin:12px 0 4px}
+.f input,.f select{font:inherit;font-size:14px;width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #c9cfe0;border-radius:8px;min-height:44px;background:#fff;color:#1a2036}
+.tab{display:inline-block;padding:12px 14px;font-size:14px;color:#3a4260;text-decoration:none;border-bottom:2px solid transparent}
+.tab.on{color:#2438a8;font-weight:500;border-bottom-color:#2f4bd6}
+</style>
+</helmet>
+<div style="display:flex;flex-wrap:wrap;min-height:100vh">
+  <aside style="flex:0 0 240px;background:#fff;border-right:1px solid #e3e6ef;padding:20px 16px;box-sizing:border-box">
+    <div style="font-weight:600;font-size:20px;color:#2f4bd6">Complynz</div>
+    <div style="font-size:12px;color:#5b6478;margin:2px 0 20px">HR · hr.complynz.com</div>
+    <nav class="nav" aria-label="HR sections">
+      <a href="Employee.dc.html">People</a>
+      <a href="Candidates.dc.html">Hiring</a>
+      <a class="on" href="Organisation.dc.html" aria-current="page">Organisation</a>
+      <a href="Assets.dc.html">Assets</a>
+      <a href="Main.dc.html">Payroll</a>
+      <a href="BankAdvice.dc.html">Bank advice</a>
+      <a href="Payslip.dc.html">Payslips</a>
+      <a href="OfferShort.dc.html">Letters</a>
+      <a href="Policies.dc.html">Policies</a>
+      <a href="Settings.dc.html">Settings</a>
+    </nav>
+  </aside>
+  <main style="flex:999 1 560px;min-width:0;padding:28px 32px;box-sizing:border-box">
+    <h1 style="margin:0 0 4px;font-size:26px;font-weight:600">Organisation</h1>
+    <p style="margin:0 0 12px;font-size:14px;color:#5b6478">Departments, designations and locations used by employee records, offer letters and the org chart.</p>
+    <div style="border-bottom:1px solid #e3e6ef;margin-bottom:16px;overflow-x:auto;white-space:nowrap">
+      <a class="tab on" href="Organisation.dc.html">Departments</a><a class="tab" href="Organisation.dc.html">Designations</a><a class="tab" href="Organisation.dc.html">Locations</a>
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;margin-bottom:16px">
+      <div class="card" style="flex:999 1 520px;min-width:0;padding:0;overflow-x:auto">
+        <div style="padding:16px 20px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center"><div style="font-weight:600;font-size:17px">Departments</div><span class="chip mute">5 departments</span></div>
+        <table class="t" style="min-width:520px">
+          <thead><tr><th>Department</th><th>Head</th><th>Parent</th><th>People</th></tr></thead>
+          <tbody>
+            <tr><td>Engineering</td><td>R*** S****</td><td>—</td><td>1</td></tr>
+            <tr><td>Product</td><td>A*** K****</td><td>—</td><td>1</td></tr>
+            <tr><td>Sales</td><td>[Head]</td><td>—</td><td>0</td></tr>
+            <tr><td>Operations</td><td>M*** T****</td><td>—</td><td>1</td></tr>
+            <tr><td>Finance and HR</td><td>[Head]</td><td>Operations</td><td>0</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <form class="card f" style="flex:1 1 320px;max-width:400px;padding:20px" aria-label="Create custom department">
+        <div style="font-weight:600;font-size:17px">Create custom department</div>
+        <label for="dn">Department name</label><input id="dn" placeholder="For example, Customer success">
+        <label for="dh">Department head</label><select id="dh"><option>Select a person</option><option>R*** S****</option><option>A*** K****</option></select>
+        <label for="dpar">Parent department</label><select id="dpar"><option>None (top level)</option><option>Operations</option></select>
+        <label for="dc">Cost centre code (optional)</label><input id="dc" placeholder="CC-001">
+        <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap"><button type="button" class="btn">Cancel</button><button type="button" class="btn p">Create department</button></div>
+      </form>
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;margin-bottom:16px">
+      <div class="card" style="flex:999 1 520px;min-width:0;padding:0;overflow-x:auto">
+        <div style="padding:16px 20px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center"><div style="font-weight:600;font-size:17px">Designations</div><button class="btn">Add designation</button></div>
+        <table class="t" style="min-width:520px">
+          <thead><tr><th>Designation</th><th>Department</th><th>Level</th><th>People</th></tr></thead>
+          <tbody>
+            <tr><td>Product analyst</td><td>Product</td><td>L2</td><td>1</td></tr>
+            <tr><td>Engineer</td><td>Engineering</td><td>L2</td><td>1</td></tr>
+            <tr><td>Sales associate</td><td>Sales</td><td>L1</td><td>0</td></tr>
+            <tr><td>Intern</td><td>Any</td><td>Intern</td><td>1</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card" style="flex:1 1 320px;max-width:400px;padding:0;overflow-x:auto">
+        <div style="padding:16px 20px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center"><div style="font-weight:600;font-size:17px">Locations</div><button class="btn">Add location</button></div>
+        <table class="t">
+          <thead><tr><th>Location</th><th>Mode</th><th>People</th></tr></thead>
+          <tbody>
+            <tr><td>Noida, Uttar Pradesh<div class="k">Registered office</div></td><td><span class="chip info">Office</span></td><td>2</td></tr>
+            <tr><td>Remote<div class="k">Work from home</div></td><td><span class="chip ok">Remote</span></td><td>1</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <p style="font-size:12px;color:#5b6478;margin:0">A location carries its state, so payroll knows which state rules apply. Sample data.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1360,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

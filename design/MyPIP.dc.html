@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>My performance plan (employee)</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Inter',system-ui,sans-serif;color:#1a2036;background:#f5f6fa}
+a{color:#2f4bd6}a:hover{color:#1f3399}
+.nav a{display:block;padding:12px;border-radius:8px;color:#3a4260;text-decoration:none;font-size:14px}
+.nav a:hover{background:#eef1fb}
+.nav a.on{background:#e4e9fb;color:#2438a8;font-weight:500}
+.card{background:#fff;border:1px solid #e3e6ef;border-radius:12px;padding:20px}
+.chip{display:inline-block;font-size:12px;font-weight:500;padding:3px 10px;border-radius:999px}
+.ok{background:#e3f5ea;color:#11663a}.warn{background:#fff1cc;color:#6e4a00}.info{background:#e4e9fb;color:#2438a8}.mute{background:#eceef4;color:#444c63}
+.t{width:100%;border-collapse:collapse;font-size:13px}
+.t th{text-align:left;font-weight:500;color:#5b6478;font-size:12px;padding:10px 12px;border-bottom:1px solid #d9dde8;background:#fafbfd}
+.t td{padding:12px;border-bottom:1px solid #eceef4;vertical-align:top}
+.k{font-size:12px;color:#5b6478}
+.btn{font:inherit;font-size:14px;font-weight:500;padding:10px 16px;border-radius:8px;border:1px solid #c9cfe0;background:#fff;color:#1a2036;cursor:pointer;min-height:44px}
+.btn.p{background:#2f4bd6;border-color:#2f4bd6;color:#fff}
+.in{font:inherit;font-size:14px;width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #c9cfe0;border-radius:8px;background:#fff;color:#1a2036}
+h2{font-size:16px;font-weight:600;margin:0}
+.row{display:flex;justify-content:space-between;gap:8px;padding:10px 0;border-top:1px solid #eceef4;font-size:14px;align-items:flex-start}
+.bar{height:8px;border-radius:4px;background:#e3e6ef}.bar div{height:8px;border-radius:4px;background:#2f4bd6}
+</style>
+</helmet>
+<div style="display:flex;flex-wrap:wrap;min-height:100vh">
+  <aside style="flex:0 0 240px;background:#fff;border-right:1px solid #e3e6ef;padding:20px 16px;box-sizing:border-box">
+    <div style="font-weight:600;font-size:20px;color:#2f4bd6">Complynz</div>
+    <div style="font-size:12px;color:#5b6478;margin:2px 0 20px">HR · hr.complynz.com</div>
+    <nav class="nav" aria-label="Sections">
+      <a href="RoleViews.dc.html">Home</a>
+      <a class="on" href="MyPIP.dc.html" aria-current="page">My performance plan</a>
+      <a href="MyAttendance.dc.html">Punch in and out</a>
+      <a href="MyLeave.dc.html">My leave</a>
+      <a href="MyReimbursement.dc.html">Reimbursements</a>
+      <a href="MyResignation.dc.html">Resignation</a>
+      <a href="Employee.dc.html">My profile</a>
+      <a href="Payslip.dc.html">My payslips</a>
+      <a href="Policies.dc.html">Policies</a>
+    </nav>
+  </aside>
+  <main style="flex:999 1 560px;min-width:0;padding:28px 32px;box-sizing:border-box">
+    <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <h1 style="margin:0;font-size:26px;font-weight:600">My performance plan</h1>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><span class="chip warn">Acknowledgement needed</span><span class="chip info">60 days</span></div>
+    </div>
+    <p style="margin:0 0 16px;font-size:14px;color:#5b6478">[Start date] to [End date] · Plan owner: R*** S**** (manager) with HR</p>
+
+    <div class="card" style="background:#f1f4fd;border-color:#d5dcf5;margin-bottom:16px;font-size:14px;line-height:1.6;color:#2b3350">
+      <strong>This plan is here to support you.</strong> It sets clear goals and review dates. Only you, your manager and HR can see it. Acknowledging it confirms you received it, not that you agree with it, and you can add your own response at any time.
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start">
+      <div style="flex:999 1 520px;min-width:0;display:flex;flex-direction:column;gap:16px">
+        <div class="card">
+          <h2 style="margin-bottom:6px">Areas of concern</h2>
+          <div style="font-size:14px;line-height:1.7;color:#2b3350">[Summary written by your manager, with examples.]</div>
+        </div>
+
+        <div class="card" style="padding:0;overflow-x:auto">
+          <div style="padding:16px 20px"><h2>Goals</h2></div>
+          <table class="t" style="min-width:560px">
+            <thead><tr><th>Goal</th><th>How it is measured</th><th>Due</th><th>Progress</th></tr></thead>
+            <tbody>
+              <tr><td>[Goal 1]</td><td>[Measure]</td><td>[Date]</td><td><span class="chip ok">Met</span></td></tr>
+              <tr><td>[Goal 2]</td><td>[Measure]</td><td>[Date]</td><td><span class="chip warn">In progress</span><div class="bar" style="margin-top:8px;width:120px"><div style="width:50%"></div></div></td></tr>
+              <tr><td>[Goal 3]</td><td>[Measure]</td><td>[Date]</td><td><span class="chip mute">Not started</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card">
+          <h2 style="margin-bottom:6px">Checkpoint notes</h2>
+          <div class="row" style="border-top:none"><span><strong>[Date]</strong><div class="k" style="margin-top:2px">Checkpoint 1 · R*** S****</div><div style="margin-top:6px;line-height:1.6;color:#2b3350">[Notes from the review conversation.]</div></span><span class="chip ok">Held</span></div>
+          <div class="row"><span><strong>[Date]</strong><div class="k" style="margin-top:2px">Checkpoint 2</div></span><span class="chip mute">Upcoming</span></div>
+          <div class="row"><span><strong>[Date]</strong><div class="k" style="margin-top:2px">Final review</div></span><span class="chip mute">Upcoming</span></div>
+        </div>
+      </div>
+
+      <div style="flex:1 1 300px;max-width:400px;display:flex;flex-direction:column;gap:16px">
+        <div class="card">
+          <h2 style="margin-bottom:6px">Support offered</h2>
+          <div style="font-size:14px;line-height:1.7;color:#2b3350">[Training, mentoring, tools and regular one-to-ones listed in the plan.]</div>
+        </div>
+        <div class="card">
+          <h2 style="margin-bottom:8px">Your response</h2>
+          <label for="rsp" class="k" style="display:block;margin-bottom:4px">Add your comments (optional)</label>
+          <textarea class="in" id="rsp" rows="5" placeholder="Share your view, or what would help you"></textarea>
+          <button class="btn" style="margin-top:10px;width:100%">Save response</button>
+        </div>
+        <div class="card">
+          <label style="display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.5"><input type="checkbox" style="width:20px;height:20px;flex:0 0 20px;margin:2px 0 0">I have received and read this plan. I understand that acknowledging it does not mean I agree with it.</label>
+          <button class="btn p" style="margin-top:12px;width:100%">Acknowledge receipt</button>
+        </div>
+        <div class="card"><div class="k" style="line-height:1.6">Questions about this plan? Contact HR at hello@complynz.com. Access to this page is logged.</div></div>
+      </div>
+    </div>
+    <p style="font-size:12px;color:#5b6478;margin:16px 0 0">Sample screen with placeholder text. This item appears in the menu only for the person who has a plan.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1360,"height":1100}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

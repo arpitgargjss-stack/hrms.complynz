@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Admin, manager and team member views</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Inter',system-ui,sans-serif;color:#1a2036;background:#f5f6fa}
+a{color:#2f4bd6}a:hover{color:#1f3399}
+.nav a{display:block;padding:12px;border-radius:8px;color:#3a4260;text-decoration:none;font-size:14px}
+.nav a.on{background:#e4e9fb;color:#2438a8;font-weight:500}
+.card{background:#fff;border:1px solid #e3e6ef;border-radius:12px;padding:20px}
+.chip{display:inline-block;font-size:12px;font-weight:500;padding:3px 10px;border-radius:999px}
+.ok{background:#e3f5ea;color:#11663a}.warn{background:#fff1cc;color:#6e4a00}.info{background:#e4e9fb;color:#2438a8}.mute{background:#eceef4;color:#444c63}
+.k{font-size:12px;color:#5b6478}
+.seg{font:inherit;font-size:14px;font-weight:500;padding:10px 16px;border:1px solid #c9cfe0;background:#fff;color:#1a2036;cursor:pointer;min-height:44px}
+.btn{font:inherit;font-size:14px;font-weight:500;padding:10px 16px;border-radius:8px;border:1px solid #c9cfe0;background:#fff;color:#1a2036;cursor:pointer;min-height:44px}
+.btn.p{background:#2f4bd6;border-color:#2f4bd6;color:#fff}
+.row{display:flex;justify-content:space-between;gap:8px;padding:10px 0;border-top:1px solid #eceef4;font-size:14px;align-items:center}
+</style>
+</helmet>
+<div style="padding:20px 32px;background:#fff;border-bottom:1px solid #e3e6ef;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between">
+  <div>
+    <div style="font-weight:600;font-size:16px">View the HR site as</div>
+    <div class="k">Same site, same login. What each person sees depends on their role.</div>
+  </div>
+  <div role="group" aria-label="Role" style="display:flex">
+    <button class="seg" style="border-radius:8px 0 0 8px;background:{{adminBg}};color:{{adminFg}}" aria-pressed="{{isAdmin}}" onClick="{{pickAdmin}}">HR admin</button>
+    <button class="seg" style="border-left:none;background:{{mgrBg}};color:{{mgrFg}}" aria-pressed="{{isMgr}}" onClick="{{pickMgr}}">Manager</button>
+    <button class="seg" style="border-left:none;border-radius:0 8px 8px 0;background:{{empBg}};color:{{empFg}}" aria-pressed="{{isEmp}}" onClick="{{pickEmp}}">Team member</button>
+  </div>
+</div>
+
+<div style="display:flex;flex-wrap:wrap;min-height:760px">
+  <aside style="flex:0 0 240px;background:#fff;border-right:1px solid #e3e6ef;padding:20px 16px;box-sizing:border-box">
+    <div style="font-weight:600;font-size:20px;color:#2f4bd6">Complynz</div>
+    <div style="font-size:12px;color:#5b6478;margin:2px 0 20px">HR · hr.complynz.com</div>
+    <nav class="nav" aria-label="Sections">
+      <sc-for list="{{navItems}}" as="n" hint-placeholder-count="6">
+        <a class="{{n.cls}}" href="RoleViews.dc.html">{{n.label}}</a>
+      </sc-for>
+    </nav>
+  </aside>
+
+  <main style="flex:999 1 560px;min-width:0;padding:28px 32px;box-sizing:border-box">
+    <sc-if value="{{isAdmin}}" hint-placeholder-val="{{ true }}">
+      <h1 style="margin:0 0 4px;font-size:26px;font-weight:600">HR dashboard</h1>
+      <p style="margin:0 0 18px;font-size:14px;color:#5b6478">Everything across the company. Salary, bank and ID documents are visible here, and every view is logged.</p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px">
+        <div class="card"><div class="k">Active employees</div><div style="font-size:26px;font-weight:600;margin-top:4px">3</div></div>
+        <div class="card"><div class="k">October payroll</div><div style="font-size:26px;font-weight:600;margin-top:4px">Draft</div></div>
+        <div class="card"><div class="k">Offers waiting</div><div style="font-size:26px;font-weight:600;margin-top:4px">2</div></div>
+        <div class="card"><div class="k">Policy acknowledgements due</div><div style="font-size:26px;font-weight:600;margin-top:4px">5</div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px">
+        <div class="card"><div style="font-weight:600;margin-bottom:6px">To do</div>
+          <div class="row"><span>Lock October payroll run</span><span class="chip warn">Due 1 Nov</span></div>
+          <div class="row"><span>Send onboarding link to D*** J****</span><span class="chip info">Hiring</span></div>
+          <div class="row"><span>Fix missing IFSC for M*** T****</span><span class="chip warn">Payroll</span></div>
+        </div>
+        <div class="card"><div style="font-weight:600;margin-bottom:6px">Recent activity</div>
+          <div class="row"><span>Bank advice downloaded</span><span class="k">Today</span></div>
+          <div class="row"><span>Payslip viewed (A*** K****)</span><span class="k">Yesterday</span></div>
+          <div class="row"><span>Policy v3 published (POSH)</span><span class="k">2 days ago</span></div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-top:16px">
+        <div class="card"><div style="font-weight:600">Salary cost</div><div class="k" style="margin-bottom:12px">Net payable, last 3 months</div>
+          <div style="display:flex;align-items:flex-end;gap:16px;height:130px">
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end"><div style="font-size:12px;margin-bottom:4px">₹1,05,000</div><div style="width:100%;height:58px;background:#2f4bd6;border-radius:6px 6px 0 0"></div><div class="k" style="margin-top:6px">Aug</div></div>
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end"><div style="font-size:12px;margin-bottom:4px">₹1,27,000</div><div style="width:100%;height:70px;background:#2f4bd6;border-radius:6px 6px 0 0"></div><div class="k" style="margin-top:6px">Sep</div></div>
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end"><div style="font-size:12px;margin-bottom:4px">₹1,27,000</div><div style="width:100%;height:70px;background:#2f4bd6;border-radius:6px 6px 0 0"></div><div class="k" style="margin-top:6px">Oct</div></div>
+          </div>
+        </div>
+        <div class="card"><div style="font-weight:600">Employees and new joiners</div><div class="k" style="margin-bottom:12px;display:flex;gap:14px;flex-wrap:wrap"><span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#2f4bd6;margin-right:5px"></span>Total employees</span><span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#1d9e75;margin-right:5px"></span>New joiners</span></div>
+          <div style="display:flex;align-items:flex-end;gap:16px;height:130px">
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end"><div style="display:flex;align-items:flex-end;gap:6px;justify-content:center;width:100%"><div style="flex:1;max-width:34px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end"><div style="font-size:12px;margin-bottom:3px">2</div><div style="width:100%;height:44px;background:#2f4bd6;border-radius:4px 4px 0 0"></div></div><div style="flex:1;max-width:34px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end"><div style="font-size:12px;margin-bottom:3px">0</div><div style="width:100%;height:3px;background:#1d9e75"></div></div></div><div class="k" style="margin-top:6px">Aug</div></div>
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end"><div style="display:flex;align-items:flex-end;gap:6px;justify-content:center;width:100%"><div style="flex:1;max-width:34px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end"><div style="font-size:12px;margin-bottom:3px">2</div><div style="width:100%;height:44px;background:#2f4bd6;border-radius:4px 4px 0 0"></div></div><div style="flex:1;max-width:34px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end"><div style="font-size:12px;margin-bottom:3px">1</div><div style="width:100%;height:22px;background:#1d9e75;border-radius:4px 4px 0 0"></div></div></div><div class="k" style="margin-top:6px">Sep</div></div>
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end"><div style="display:flex;align-items:flex-end;gap:6px;justify-content:center;width:100%"><div style="flex:1;max-width:34px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end"><div style="font-size:12px;margin-bottom:3px">3</div><div style="width:100%;height:66px;background:#2f4bd6;border-radius:4px 4px 0 0"></div></div><div style="flex:1;max-width:34px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end"><div style="font-size:12px;margin-bottom:3px">1</div><div style="width:100%;height:22px;background:#1d9e75;border-radius:4px 4px 0 0"></div></div></div><div class="k" style="margin-top:6px">Oct</div></div>
+          </div>
+        </div>
+        <div class="card"><div style="font-weight:600">Offboarding</div><div class="k" style="margin-bottom:12px">People who left, last 3 months</div>
+          <div style="display:flex;align-items:flex-end;gap:16px;height:130px">
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end"><div style="font-size:12px;margin-bottom:4px">0</div><div style="width:100%;height:3px;background:#c2410c"></div><div class="k" style="margin-top:6px">Aug</div></div>
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end"><div style="font-size:12px;margin-bottom:4px">1</div><div style="width:100%;height:40px;background:#c2410c;border-radius:6px 6px 0 0"></div><div class="k" style="margin-top:6px">Sep</div></div>
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end"><div style="font-size:12px;margin-bottom:4px">0</div><div style="width:100%;height:3px;background:#c2410c"></div><div class="k" style="margin-top:6px">Oct</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px;overflow-x:auto">
+        <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px"><div style="font-weight:600">Org chart</div><a href="Employee.dc.html" style="font-size:14px">Open full chart</a></div>
+        <div style="display:flex;flex-direction:column;align-items:center;min-width:480px">
+          <div style="border:1px solid #c9cfe0;border-radius:10px;padding:10px 16px;text-align:center;font-size:13px"><strong>Founder and CEO</strong><br><span class="k">CMPZ000</span></div>
+          <div style="width:2px;height:18px;background:#c9cfe0"></div>
+          <div style="height:2px;width:50%;background:#c9cfe0"></div>
+          <div style="display:flex;justify-content:space-around;width:100%;gap:12px">
+            <div style="display:flex;flex-direction:column;align-items:center"><div style="width:2px;height:18px;background:#c9cfe0"></div>
+              <div style="border:1px solid #c9cfe0;border-radius:10px;padding:10px 16px;text-align:center;font-size:13px"><strong>R*** S****</strong><br><span class="k">Engineering</span></div>
+              <div style="width:2px;height:18px;background:#c9cfe0"></div>
+              <div style="border:2px solid #2f4bd6;background:#f1f4fd;border-radius:10px;padding:10px 16px;text-align:center;font-size:13px"><strong>A*** K****</strong><br><span class="k">Product</span></div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center"><div style="width:2px;height:18px;background:#c9cfe0"></div>
+              <div style="border:1px solid #c9cfe0;border-radius:10px;padding:10px 16px;text-align:center;font-size:13px"><strong>M*** T****</strong><br><span class="k">Operations</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px;display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center">
+        <div><div style="font-weight:600">Employee feedback</div><div class="k" style="margin-top:2px">Satisfaction score 4.1 of 5 · 2 new anonymous suggestions</div></div>
+        <a href="Feedback.dc.html" style="font-size:14px">Open feedback</a>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{isMgr}}" hint-placeholder-val="{{ false }}">
+      <h1 style="margin:0 0 4px;font-size:26px;font-weight:600">My team</h1>
+      <p style="margin:0 0 18px;font-size:14px;color:#5b6478">You see your direct reports’ work details. Salary, bank and ID documents are not shown to managers.</p>
+      <div class="card" style="margin-bottom:16px"><div style="font-weight:600;margin-bottom:6px">Direct reports</div>
+        <div class="row"><span>A*** K**** <span class="k">· [Designation]</span></span><span class="chip ok">Active</span></div>
+        <div class="row"><span>M*** T**** <span class="k">· [Designation]</span></span><span class="chip info">Probation</span></div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px">
+        <div class="card"><div style="font-weight:600;margin-bottom:6px">Needs your attention</div>
+          <div class="row"><span>Confirm probation for M*** T****</span><span class="chip warn">Due soon</span></div>
+          <div class="row"><span>Policy acknowledgements pending</span><span class="chip mute">2 people</span></div>
+        </div>
+        <div class="card"><div style="font-weight:600;margin-bottom:6px">Hidden from managers</div>
+          <div style="font-size:14px;line-height:1.7;color:#3a4260">Compensation, payslips, bank details, ID documents and consent choices stay with HR and the employee.</div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{isEmp}}" hint-placeholder-val="{{ false }}">
+      <h1 style="margin:0 0 4px;font-size:26px;font-weight:600">Hello, A***</h1>
+      <p style="margin:0 0 18px;font-size:14px;color:#5b6478">Your own records only. Nobody else in the team can see your payslips or documents.</p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px">
+        <div class="card"><div style="font-weight:600;margin-bottom:6px">Latest payslip</div>
+          <div style="font-size:14px;color:#3a4260">October 2026</div>
+          <button class="btn p" style="margin-top:12px">Download PDF</button>
+        </div>
+        <div class="card"><div style="font-weight:600;margin-bottom:6px">To do</div>
+          <div class="row"><span>Acknowledge POSH policy v3</span><span class="chip warn">Pending</span></div>
+          <div class="row"><span>Upload bank proof</span><span class="chip warn">Pending</span></div>
+        </div>
+        <div class="card"><div style="font-weight:600;margin-bottom:6px">My privacy choices</div>
+          <div class="row"><span>Photo and video for marketing</span><span class="chip mute">Declined</span></div>
+          <div class="row"><span>Non-essential communication</span><span class="chip ok">Given</span></div>
+          <a href="RoleViews.dc.html" style="display:inline-block;margin-top:10px;font-size:14px">Change my choices</a>
+        </div>
+        <div class="card"><div style="font-weight:600;margin-bottom:6px">Today</div>
+          <div style="font-size:14px;color:#3a4260">You have not punched in yet.</div>
+          <a href="MyAttendance.dc.html" style="display:inline-block;margin-top:10px;font-size:14px">Punch in</a>
+          <span style="margin:0 8px;color:#9aa3bd">|</span><a href="MyLeave.dc.html" style="font-size:14px">Apply for leave</a>
+        </div>
+        <div class="card"><div style="font-weight:600;margin-bottom:6px">Have your say</div>
+          <div style="font-size:14px;line-height:1.6;color:#3a4260">Take the anonymous satisfaction survey, or drop a suggestion in the box.</div>
+          <a href="MyFeedback.dc.html" style="display:inline-block;margin-top:10px;font-size:14px">Share feedback</a>
+        </div>
+        <div class="card"><div style="font-weight:600;margin-bottom:6px">Announcements</div>
+          <div style="font-size:14px;line-height:1.6;color:#3a4260">[Company news and key updates appear here.]</div>
+        </div>
+      </div>
+    </sc-if>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-top:16px">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline;margin-bottom:4px"><div style="font-weight:600">Upcoming birthdays</div><span class="k">Next 30 days</span></div>
+        <div class="row" style="border-top:none"><span style="display:flex;align-items:center;gap:10px"><span style="width:32px;height:32px;border-radius:50%;background:#fde7f0;color:#9d174d;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:600">RS</span>R*** S****</span><span><span class="chip warn">Today</span> <a href="RoleViews.dc.html" style="font-size:13px;margin-left:6px">Send wishes</a></span></div>
+        <div class="row"><span style="display:flex;align-items:center;gap:10px"><span style="width:32px;height:32px;border-radius:50%;background:#fde7f0;color:#9d174d;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:600">MT</span>M*** T****</span><span class="k">In 4 days · [Day, month]</span></div>
+        <div class="row"><span style="display:flex;align-items:center;gap:10px"><span style="width:32px;height:32px;border-radius:50%;background:#fde7f0;color:#9d174d;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:600">AK</span>A*** K****</span><span class="k">In 19 days · [Day, month]</span></div>
+        <div class="k" style="margin-top:10px;line-height:1.5">Shows day and month only, never the year. Only people who chose to share their birthday appear here.</div>
+      </div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline;margin-bottom:4px"><div style="font-weight:600">Work anniversaries</div><span class="k">Next 30 days</span></div>
+        <div class="row" style="border-top:none"><span style="display:flex;align-items:center;gap:10px"><span style="width:32px;height:32px;border-radius:50%;background:#e4e9fb;color:#2438a8;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:600">AK</span>A*** K**** · 2 years</span><span class="k">In 6 days</span></div>
+        <div class="row"><span style="display:flex;align-items:center;gap:10px"><span style="width:32px;height:32px;border-radius:50%;background:#e4e9fb;color:#2438a8;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:600">MT</span>M*** T**** · 1 year</span><span class="k">In 21 days</span></div>
+        <div class="row"><span style="display:flex;align-items:center;gap:10px"><span style="width:32px;height:32px;border-radius:50%;background:#e4e9fb;color:#2438a8;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:600">RS</span>R*** S**** · 3 years</span><span class="k">In 27 days</span></div>
+        <div class="k" style="margin-top:10px;line-height:1.5">Based on each person’s joining date. Shown to everyone.</div>
+      </div>
+    </div>
+    <p style="font-size:12px;color:#5b6478;margin:18px 0 0">Sample data. Names are masked.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1360,"height":1000}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { role: 'admin' };
+  }
+  renderVals() {
+    const r = this.state.role;
+    const navs = {
+      admin: ['Dashboard', 'People', 'Hiring', 'Organisation', 'Assets', 'Attendance', 'Leave', 'Reimbursements', 'Exits and PIPs', 'Payroll', 'Bank advice', 'Letters', 'Policies', 'Feedback', 'Settings'],
+      mgr: ['My team', 'Attendance', 'Leave approvals', 'Claim approvals', 'Org chart', 'Policies', 'My profile', 'My payslips', 'Share feedback'],
+      emp: ['Home', 'Punch in and out', 'My leave', 'Reimbursements', 'Resignation', 'My profile', 'My payslips', 'My documents', 'Policies', 'Org chart', 'Share feedback', 'My privacy choices']
+    };
+    const navItems = navs[r].map((label, i) => ({ label: label, cls: i === 0 ? 'on' : '' }));
+    const on = (k) => (r === k ? '#2f4bd6' : '#fff');
+    const fg = (k) => (r === k ? '#fff' : '#1a2036');
+    return {
+      navItems: navItems,
+      isAdmin: r === 'admin', isMgr: r === 'mgr', isEmp: r === 'emp',
+      adminBg: on('admin'), adminFg: fg('admin'),
+      mgrBg: on('mgr'), mgrFg: fg('mgr'),
+      empBg: on('emp'), empFg: fg('emp'),
+      pickAdmin: () => this.setState({ role: 'admin' }),
+      pickMgr: () => this.setState({ role: 'mgr' }),
+      pickEmp: () => this.setState({ role: 'emp' })
+    };
+  }
+}
+</script>
+</body>
+</html>

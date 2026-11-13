@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Exits and PIPs (admin)</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Inter',system-ui,sans-serif;color:#1a2036;background:#f5f6fa}
+a{color:#2f4bd6}a:hover{color:#1f3399}
+.nav a{display:block;padding:12px;border-radius:8px;color:#3a4260;text-decoration:none;font-size:14px}
+.nav a:hover{background:#eef1fb}
+.nav a.on{background:#e4e9fb;color:#2438a8;font-weight:500}
+.card{background:#fff;border:1px solid #e3e6ef;border-radius:12px;padding:20px}
+.chip{display:inline-block;font-size:12px;font-weight:500;padding:3px 10px;border-radius:999px}
+.ok{background:#e3f5ea;color:#11663a}.warn{background:#fff1cc;color:#6e4a00}.info{background:#e4e9fb;color:#2438a8}.mute{background:#eceef4;color:#444c63}.bad{background:#fde8e8;color:#8a1c1c}
+.t{width:100%;border-collapse:collapse;font-size:13px}
+.t th{text-align:left;font-weight:500;color:#5b6478;font-size:12px;padding:10px 12px;border-bottom:1px solid #d9dde8;background:#fafbfd}
+.t td{padding:12px;border-bottom:1px solid #eceef4}
+.k{font-size:12px;color:#5b6478}
+.btn{font:inherit;font-size:14px;font-weight:500;padding:10px 16px;border-radius:8px;border:1px solid #c9cfe0;background:#fff;color:#1a2036;cursor:pointer;min-height:44px}
+.btn.p{background:#2f4bd6;border-color:#2f4bd6;color:#fff}
+.btn.s{min-height:36px;padding:6px 12px;font-size:13px}
+.fld{display:block;font-size:13px;color:#3a4260;margin:0 0 4px}
+.in{font:inherit;font-size:14px;width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid #c9cfe0;border-radius:8px;min-height:44px;background:#fff;color:#1a2036}
+.tab{font:inherit;font-size:14px;background:none;border:none;padding:12px 16px;cursor:pointer;min-height:44px}
+h2{font-size:16px;font-weight:600;margin:0}
+.ckr{display:flex;gap:10px;align-items:center;font-size:14px;min-height:32px}
+.ckr input{width:20px;height:20px;margin:0;flex:0 0 20px}
+</style>
+</helmet>
+<div style="display:flex;flex-wrap:wrap;min-height:100vh">
+  <aside style="flex:0 0 240px;background:#fff;border-right:1px solid #e3e6ef;padding:20px 16px;box-sizing:border-box">
+    <div style="font-weight:600;font-size:20px;color:#2f4bd6">Complynz</div>
+    <div style="font-size:12px;color:#5b6478;margin:2px 0 20px">HR · hr.complynz.com</div>
+    <nav class="nav" aria-label="HR sections">
+      <a href="RoleViews.dc.html">Dashboard</a>
+      <a href="Employee.dc.html">People</a>
+      <a href="Candidates.dc.html">Hiring</a>
+      <a href="AttendanceAdmin.dc.html">Attendance</a>
+      <a href="LeaveAdmin.dc.html">Leave and calendar</a>
+      <a href="ReimbursementAdmin.dc.html">Reimbursements</a>
+      <a class="on" href="Separations.dc.html" aria-current="page">Exits and PIPs</a>
+      <a href="Main.dc.html">Payroll</a>
+      <a href="Policies.dc.html">Policies</a>
+      <a href="Settings.dc.html">Settings</a>
+    </nav>
+  </aside>
+
+  <main style="flex:999 1 560px;min-width:0;padding:28px 32px;box-sizing:border-box">
+    <h1 style="margin:0 0 4px;font-size:26px;font-weight:600">Exits and PIPs</h1>
+    <p style="margin:0 0 12px;font-size:14px;color:#5b6478">Resignations and performance improvement plans. Visible to HR admins, and to a manager for their own direct reports.</p>
+
+    <div role="tablist" aria-label="Exits and PIPs sections" style="display:flex;gap:4px;border-bottom:1px solid #e3e6ef;margin-bottom:20px;overflow-x:auto">
+      <sc-for list="{{tabs}}" as="t" hint-placeholder-count="2">
+        <button class="tab" role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="border-bottom:2px solid {{t.line}};color:{{t.fg}};font-weight:{{t.weight}};margin-bottom:-1px">{{t.label}}</button>
+      </sc-for>
+    </div>
+
+    <sc-if value="{{showExits}}" hint-placeholder-val="{{ true }}">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:16px">
+        <div class="card" style="padding:16px"><div class="k">Open resignations</div><div style="font-size:26px;font-weight:600;margin-top:4px">1</div></div>
+        <div class="card" style="padding:16px"><div class="k">Leaving this month</div><div style="font-size:26px;font-weight:600;margin-top:4px">0</div></div>
+        <div class="card" style="padding:16px"><div class="k">Exits this year</div><div style="font-size:26px;font-weight:600;margin-top:4px">1</div></div>
+      </div>
+      <div class="card" style="padding:0;overflow-x:auto">
+        <table class="t" style="min-width:860px">
+          <thead><tr><th>Employee</th><th>Submitted</th><th>Notice</th><th>Proposed last day</th><th>Reason</th><th>Status</th><th>Exit checklist</th><th></th></tr></thead>
+          <tbody>
+            <tr><td>M*** T****</td><td>[Date]</td><td>[N] days</td><td>[Date]</td><td>Better opportunity</td><td><span class="chip warn">Awaiting HR</span></td><td><span class="chip mute">0 of 6</span></td><td style="white-space:nowrap;text-align:right"><button class="btn s">Change last day</button> <button class="btn s p">Accept</button></td></tr>
+            <tr><td>K*** L****</td><td>[Date]</td><td>[N] days</td><td>[Date]</td><td>Higher studies</td><td><span class="chip ok">Left</span></td><td><span class="chip ok">6 of 6</span></td><td style="text-align:right"><a href="Separations.dc.html">View</a></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <h2 style="margin-bottom:6px">When HR accepts a resignation</h2>
+        <div style="font-size:14px;line-height:1.7;color:#3a4260">The system sends the employee a confirmation letter, opens the exit checklist, lists assets to return, includes pending reimbursements in the final settlement, and can generate the experience and relieving letters once the checklist is clear.</div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{showPips}}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div class="k" style="font-size:13px;max-width:640px;line-height:1.6">A PIP is a written support plan with clear goals and review dates. The employee receives it, acknowledges it, and can respond. The outcome is decided at the final review, not by the system.</div>
+        <button class="btn p" onClick="{{toggleForm}}">{{formLabel}}</button>
+      </div>
+
+      <sc-if value="{{form}}" hint-placeholder-val="{{ false }}">
+        <form class="card" style="margin-bottom:16px;border-color:#c9d3f7" aria-label="Issue PIP">
+          <h2 style="margin-bottom:12px">Issue a performance improvement plan</h2>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
+            <div><label class="fld" for="pe">Employee</label><select class="in" id="pe"><option>Select a person</option><option>A*** K****</option><option>R*** S****</option><option>M*** T****</option></select></div>
+            <div><span class="fld">Reporting manager</span><div style="background:#f1f2f6;border-radius:8px;padding:11px 12px;font-size:14px">Filled from the profile</div></div>
+            <div><label class="fld" for="pd">Plan length</label><select class="in" id="pd"><option>30 days</option><option>60 days</option><option>90 days</option></select></div>
+            <div><label class="fld" for="ps">Start date</label><input class="in" id="ps" type="date"></div>
+            <div><label class="fld" for="pc">Review checkpoints</label><select class="in" id="pc"><option>Weekly</option><option>Every two weeks</option><option>Monthly</option></select></div>
+          </div>
+          <label class="fld" for="pn" style="margin-top:14px">Areas of concern</label>
+          <textarea class="in" id="pn" rows="3" placeholder="Describe what is not meeting expectations, with examples"></textarea>
+          <div style="margin-top:14px;font-weight:500;font-size:14px">Goals</div>
+          <div style="display:grid;grid-template-columns:2fr 2fr 1fr;gap:10px;margin-top:8px">
+            <input class="in" aria-label="Goal 1" placeholder="Goal 1">
+            <input class="in" aria-label="How it is measured 1" placeholder="How it is measured">
+            <input class="in" aria-label="Due 1" type="date">
+            <input class="in" aria-label="Goal 2" placeholder="Goal 2">
+            <input class="in" aria-label="How it is measured 2" placeholder="How it is measured">
+            <input class="in" aria-label="Due 2" type="date">
+            <input class="in" aria-label="Goal 3" placeholder="Goal 3 (optional)">
+            <input class="in" aria-label="How it is measured 3" placeholder="How it is measured">
+            <input class="in" aria-label="Due 3" type="date">
+          </div>
+          <label class="fld" for="pp" style="margin-top:14px">Support offered</label>
+          <textarea class="in" id="pp" rows="2" placeholder="Training, mentoring, tools, regular one-to-ones"></textarea>
+          <div style="display:flex;flex-wrap:wrap;gap:4px 24px;margin-top:12px">
+            <label class="ckr"><input type="checkbox" checked>Employee must acknowledge receipt</label>
+            <label class="ckr"><input type="checkbox" checked>Generate the PIP letter for signing</label>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end;flex-wrap:wrap"><button type="button" class="btn" onClick="{{toggleForm}}">Cancel</button><button type="button" class="btn">Save draft</button><button type="button" class="btn p" onClick="{{toggleForm}}">Issue PIP</button></div>
+        </form>
+      </sc-if>
+
+      <div class="card" style="padding:0;overflow-x:auto">
+        <table class="t" style="min-width:860px">
+          <thead><tr><th>Employee</th><th>Manager</th><th>Plan</th><th>Next checkpoint</th><th>Goals met</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            <tr><td>R*** S****</td><td>A*** K****</td><td>60 days · [Start] to [End]</td><td>[Date]</td><td>1 of 3</td><td><span class="chip warn">At risk</span></td><td style="text-align:right"><button class="btn s">Open</button></td></tr>
+            <tr><td>M*** T****</td><td>R*** S****</td><td>30 days · [Start] to [End]</td><td>[Date]</td><td>2 of 2</td><td><span class="chip ok">On track</span></td><td style="text-align:right"><button class="btn s">Open</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <h2 style="margin-bottom:6px">Final review outcomes</h2>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><span class="chip ok">Goals met, plan closed</span><span class="chip info">Plan extended</span><span class="chip mute">Further action by HR</span></div>
+        <div class="k" style="margin-top:10px;line-height:1.6">Each outcome is recorded with the reviewer’s notes and the employee’s response. Access to a PIP is logged, and it is visible only to HR, the manager and the employee.</div>
+      </div>
+    </sc-if>
+    <p style="font-size:12px;color:#5b6478;margin:20px 0 0">Sample data. Names are masked and dates are placeholders. Please have your legal advisor review the PIP and resignation templates before use.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1360,"height":1300}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { tab: 'exits', form: false };
+  }
+  renderVals() {
+    const s = this.state;
+    const tabs = [['exits', 'Resignations'], ['pips', 'Performance plans']].map((t) => {
+      const on = s.tab === t[0];
+      return { label: t[1], on: on, line: on ? '#2f4bd6' : 'transparent', fg: on ? '#2438a8' : '#3a4260', weight: on ? '600' : '400', pick: () => this.setState({ tab: t[0] }) };
+    });
+    return {
+      tabs: tabs, showExits: s.tab === 'exits', showPips: s.tab === 'pips',
+      form: s.form, formLabel: s.form ? 'Close' : 'Issue PIP',
+      toggleForm: () => this.setState({ form: !s.form })
+    };
+  }
+}
+</script>
+</body>
+</html>

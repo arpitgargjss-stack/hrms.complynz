@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Anonymous survey and suggestion box</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Inter',system-ui,sans-serif;color:#1a2036;background:#f5f6fa}
+a{color:#2f4bd6}a:hover{color:#1f3399}
+.nav a{display:block;padding:12px;border-radius:8px;color:#3a4260;text-decoration:none;font-size:14px}
+.nav a:hover{background:#eef1fb}
+.nav a.on{background:#e4e9fb;color:#2438a8;font-weight:500}
+.card{background:#fff;border:1px solid #e3e6ef;border-radius:12px;padding:20px}
+.k{font-size:12px;color:#5b6478}
+.btn{font:inherit;font-size:15px;font-weight:500;padding:10px 18px;border-radius:8px;border:1px solid #c9cfe0;background:#fff;color:#1a2036;cursor:pointer;min-height:44px}
+.btn.p{background:#2f4bd6;border-color:#2f4bd6;color:#fff}
+.q{border:none;padding:0;margin:0 0 18px}
+.q legend{font-size:14px;font-weight:500;margin-bottom:8px;padding:0}
+.sc{display:flex;gap:8px;flex-wrap:wrap}
+.sc label{display:flex;align-items:center;gap:6px;border:1px solid #c9cfe0;border-radius:8px;padding:0 14px;min-height:44px;font-size:14px;cursor:pointer;background:#fff}
+.sc input{width:18px;height:18px;margin:0}
+.f label{display:block;font-size:13px;color:#3a4260;margin:12px 0 4px}
+.f select,.f textarea,.f input[type=text]{font:inherit;font-size:14px;width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #c9cfe0;border-radius:8px;background:#fff;color:#1a2036}
+.f select,.f input[type=text]{min-height:44px}
+</style>
+</helmet>
+<div style="display:flex;flex-wrap:wrap;min-height:100vh">
+  <aside style="flex:0 0 240px;background:#fff;border-right:1px solid #e3e6ef;padding:20px 16px;box-sizing:border-box">
+    <div style="font-weight:600;font-size:20px;color:#2f4bd6">Complynz</div>
+    <div style="font-size:12px;color:#5b6478;margin:2px 0 20px">HR · hr.complynz.com</div>
+    <nav class="nav" aria-label="Sections">
+      <a href="RoleViews.dc.html">Home</a>
+      <a href="Employee.dc.html">My profile</a>
+      <a href="Payslip.dc.html">My payslips</a>
+      <a href="Policies.dc.html">Policies</a>
+      <a class="on" href="MyFeedback.dc.html" aria-current="page">Share feedback</a>
+    </nav>
+  </aside>
+  <main style="flex:999 1 560px;min-width:0;padding:28px 32px;box-sizing:border-box">
+    <h1 style="margin:0 0 4px;font-size:26px;font-weight:600">Share feedback</h1>
+    <p style="margin:0 0 16px;font-size:14px;color:#5b6478">Your voice, without your name on it.</p>
+
+    <div class="card" style="background:#f1f4fd;border-color:#d5dcf5;margin-bottom:16px;font-size:14px;line-height:1.6;color:#2b3350">
+      <strong>Your answers are anonymous.</strong> We don’t save your name, email, login or IP address with your answers. We only note that you took part, in a separate list, so the survey can be taken once. Results appear only when at least 5 people have answered.
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start">
+      <form class="card" style="flex:999 1 480px;min-width:0" aria-label="Satisfaction survey">
+        <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:baseline;margin-bottom:4px"><div style="font-weight:600;font-size:18px">Q4 2026 satisfaction survey</div><span class="k">Takes about 2 minutes · closes [Date]</span></div>
+        <p class="k" style="margin:0 0 16px">1 means strongly disagree and 5 means strongly agree.</p>
+
+        <fieldset class="q"><legend>My manager supports me when I need help.</legend>
+          <div class="sc"><label><input type="radio" name="q1">1</label><label><input type="radio" name="q1">2</label><label><input type="radio" name="q1">3</label><label><input type="radio" name="q1">4</label><label><input type="radio" name="q1">5</label></div></fieldset>
+        <fieldset class="q"><legend>I can balance work with my personal life.</legend>
+          <div class="sc"><label><input type="radio" name="q2">1</label><label><input type="radio" name="q2">2</label><label><input type="radio" name="q2">3</label><label><input type="radio" name="q2">4</label><label><input type="radio" name="q2">5</label></div></fieldset>
+        <fieldset class="q"><legend>I am learning and growing in this role.</legend>
+          <div class="sc"><label><input type="radio" name="q3">1</label><label><input type="radio" name="q3">2</label><label><input type="radio" name="q3">3</label><label><input type="radio" name="q3">4</label><label><input type="radio" name="q3">5</label></div></fieldset>
+        <fieldset class="q"><legend>I have the tools and equipment I need.</legend>
+          <div class="sc"><label><input type="radio" name="q4">1</label><label><input type="radio" name="q4">2</label><label><input type="radio" name="q4">3</label><label><input type="radio" name="q4">4</label><label><input type="radio" name="q4">5</label></div></fieldset>
+        <fieldset class="q"><legend>I feel fairly paid and recognised for my work.</legend>
+          <div class="sc"><label><input type="radio" name="q5">1</label><label><input type="radio" name="q5">2</label><label><input type="radio" name="q5">3</label><label><input type="radio" name="q5">4</label><label><input type="radio" name="q5">5</label></div></fieldset>
+        <fieldset class="q" style="margin-bottom:12px"><legend>Overall, how satisfied are you working here?</legend>
+          <div class="sc"><label><input type="radio" name="q6">1</label><label><input type="radio" name="q6">2</label><label><input type="radio" name="q6">3</label><label><input type="radio" name="q6">4</label><label><input type="radio" name="q6">5</label></div></fieldset>
+
+        <div class="f"><label for="cm">Anything else you’d like to say? (optional)</label>
+          <textarea id="cm" rows="3" placeholder="Avoid details that would identify you"></textarea></div>
+        <div style="margin-top:16px"><button type="button" class="btn p">Submit anonymously</button></div>
+      </form>
+
+      <div style="flex:1 1 340px;max-width:440px;display:flex;flex-direction:column;gap:16px">
+        <form class="card f" aria-label="Suggestion box">
+          <div style="font-weight:600;font-size:18px">Suggestion box</div>
+          <div class="k" style="margin-top:2px">Ideas for the workplace, tools, benefits or how we work.</div>
+          <label for="cat">Category</label>
+          <select id="cat"><option>Workplace</option><option>Tools and equipment</option><option>Benefits</option><option>How we work</option><option>Other</option></select>
+          <label for="sg">Your suggestion</label>
+          <textarea id="sg" rows="5" placeholder="Describe your idea"></textarea>
+          <label style="display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.5;margin-top:14px"><input type="checkbox" checked style="width:20px;height:20px;flex:0 0 20px;margin:2px 0 0">Send anonymously<span class="k" style="display:block">Untick to attach your name so HR can follow up with you directly.</span></label>
+          <div style="margin-top:14px"><button type="button" class="btn p">Send suggestion</button></div>
+          <div class="k" style="margin-top:12px;line-height:1.5">After sending anonymously you get a reply code. Keep it: it is the only way to read a reply, and we can’t recover it for you.</div>
+        </form>
+
+        <form class="card f" aria-label="Check a reply">
+          <div style="font-weight:600;font-size:16px">Check for a reply</div>
+          <label for="rc">Reply code</label>
+          <input type="text" id="rc" placeholder="Enter your reply code">
+          <div style="margin-top:12px"><button type="button" class="btn">Check reply</button></div>
+        </form>
+      </div>
+    </div>
+    <p style="font-size:12px;color:#5b6478;margin:16px 0 0">Sample screen. Questions are examples that HR can edit.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1360,"height":1100}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Resignation (employee)</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Inter',system-ui,sans-serif;color:#1a2036;background:#f5f6fa}
+a{color:#2f4bd6}a:hover{color:#1f3399}
+.nav a{display:block;padding:12px;border-radius:8px;color:#3a4260;text-decoration:none;font-size:14px}
+.nav a:hover{background:#eef1fb}
+.nav a.on{background:#e4e9fb;color:#2438a8;font-weight:500}
+.card{background:#fff;border:1px solid #e3e6ef;border-radius:12px;padding:20px}
+.chip{display:inline-block;font-size:12px;font-weight:500;padding:3px 10px;border-radius:999px}
+.ok{background:#e3f5ea;color:#11663a}.warn{background:#fff1cc;color:#6e4a00}.info{background:#e4e9fb;color:#2438a8}.mute{background:#eceef4;color:#444c63}
+.k{font-size:12px;color:#5b6478}
+.btn{font:inherit;font-size:14px;font-weight:500;padding:10px 16px;border-radius:8px;border:1px solid #c9cfe0;background:#fff;color:#1a2036;cursor:pointer;min-height:44px}
+.btn.p{background:#2f4bd6;border-color:#2f4bd6;color:#fff}
+.fld{display:block;font-size:13px;color:#3a4260;margin:14px 0 4px}
+.in{font:inherit;font-size:14px;width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid #c9cfe0;border-radius:8px;min-height:44px;background:#fff;color:#1a2036}
+h2{font-size:16px;font-weight:600;margin:0}
+.st{display:flex;gap:12px;padding:10px 0;font-size:14px;align-items:flex-start}
+.dot{width:22px;height:22px;border-radius:50%;flex:0 0 22px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600}
+.row{display:flex;justify-content:space-between;gap:8px;padding:10px 0;border-top:1px solid #eceef4;font-size:14px;align-items:center}
+</style>
+</helmet>
+<div style="display:flex;flex-wrap:wrap;min-height:100vh">
+  <aside style="flex:0 0 240px;background:#fff;border-right:1px solid #e3e6ef;padding:20px 16px;box-sizing:border-box">
+    <div style="font-weight:600;font-size:20px;color:#2f4bd6">Complynz</div>
+    <div style="font-size:12px;color:#5b6478;margin:2px 0 20px">HR · hr.complynz.com</div>
+    <nav class="nav" aria-label="Sections">
+      <a href="RoleViews.dc.html">Home</a>
+      <a href="MyAttendance.dc.html">Punch in and out</a>
+      <a href="MyLeave.dc.html">My leave</a>
+      <a href="MyReimbursement.dc.html">Reimbursements</a>
+      <a class="on" href="MyResignation.dc.html" aria-current="page">Resignation</a>
+      <a href="Employee.dc.html">My profile</a>
+      <a href="Payslip.dc.html">My payslips</a>
+      <a href="Policies.dc.html">Policies</a>
+    </nav>
+  </aside>
+  <main style="flex:999 1 560px;min-width:0;padding:28px 32px;box-sizing:border-box">
+    <h1 style="margin:0 0 4px;font-size:26px;font-weight:600">Resignation</h1>
+    <p style="margin:0 0 16px;font-size:14px;color:#5b6478">Submit your resignation and follow each step to your last day.</p>
+
+    <div class="card" style="background:#f1f4fd;border-color:#d5dcf5;margin-bottom:16px;font-size:14px;line-height:1.6;color:#2b3350">
+      <strong>This is confidential.</strong> Only your reporting manager and HR can see your resignation. You can withdraw it until HR accepts it.
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start">
+      <form class="card" style="flex:1 1 380px;max-width:520px" aria-label="Submit resignation">
+        <h2>Submit resignation</h2>
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:6px">
+          <div><span class="fld">Notice period</span><div style="background:#f1f2f6;border-radius:8px;padding:11px 12px;font-size:14px">[N] days</div></div>
+          <div><span class="fld">Reporting manager</span><div style="background:#f1f2f6;border-radius:8px;padding:11px 12px;font-size:14px">R*** S****</div></div>
+        </div>
+        <label class="fld" for="lw">Proposed last working day</label>
+        <input class="in" id="lw" type="date">
+        <div class="k" style="margin-top:6px;line-height:1.5">Pre-filled from your notice period. HR can agree a different date with you.</div>
+        <label class="fld" for="rs">Reason</label>
+        <select class="in" id="rs"><option>Better opportunity</option><option>Higher studies</option><option>Relocation</option><option>Health</option><option>Personal reasons</option><option>Other</option></select>
+        <label class="fld" for="cm">Anything you’d like to add (optional)</label>
+        <textarea class="in" id="cm" rows="4" placeholder="Share any context for your manager and HR"></textarea>
+        <label style="display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.5;margin-top:14px"><input type="checkbox" style="width:20px;height:20px;flex:0 0 20px;margin:2px 0 0">I understand my notice period, and that I must complete handover and return company assets before my last day.</label>
+        <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap"><button type="button" class="btn">Cancel</button><button type="button" class="btn p">Submit resignation</button></div>
+      </form>
+
+      <div style="flex:999 1 380px;min-width:0;display:flex;flex-direction:column;gap:16px">
+        <div class="card">
+          <h2 style="margin-bottom:6px">What happens next</h2>
+          <div class="st"><span class="dot" style="background:#e3f5ea;color:#11663a">1</span><div><strong>You submit</strong><div class="k">Your manager and HR are notified.</div></div></div>
+          <div class="st"><span class="dot" style="background:#e4e9fb;color:#2438a8">2</span><div><strong>Manager review</strong><div class="k">Your manager adds comments and a handover plan.</div></div></div>
+          <div class="st"><span class="dot" style="background:#e4e9fb;color:#2438a8">3</span><div><strong>HR accepts</strong><div class="k">HR confirms your last working day and sends a confirmation letter.</div></div></div>
+          <div class="st"><span class="dot" style="background:#e4e9fb;color:#2438a8">4</span><div><strong>Handover and exit checklist</strong><div class="k">Return assets, finish handover, exit interview.</div></div></div>
+          <div class="st"><span class="dot" style="background:#e4e9fb;color:#2438a8">5</span><div><strong>Last working day</strong><div class="k">Access is closed at the end of the day.</div></div></div>
+          <div class="st"><span class="dot" style="background:#e4e9fb;color:#2438a8">6</span><div><strong>Full and final settlement</strong><div class="k">Pay, pending reimbursements and your experience and relieving letters.</div></div></div>
+        </div>
+        <div class="card" style="padding:0">
+          <div style="padding:16px 20px 6px"><h2>Your exit checklist</h2><div class="k" style="margin-top:2px">Appears once HR accepts your resignation</div></div>
+          <div class="row" style="padding:10px 20px"><span>Return laptop and accessories</span><span class="chip mute">1 asset</span></div>
+          <div class="row" style="padding:10px 20px"><span>Handover notes shared</span><span class="chip mute">Pending</span></div>
+          <div class="row" style="padding:10px 20px"><span>Pending reimbursements settled</span><span class="chip mute">Pending</span></div>
+          <div class="row" style="padding:10px 20px"><span>Exit interview</span><span class="chip mute">Pending</span></div>
+        </div>
+      </div>
+    </div>
+    <p style="font-size:12px;color:#5b6478;margin:16px 0 0">Sample screen. The notice period comes from your offer letter and is shown as a placeholder.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1360,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

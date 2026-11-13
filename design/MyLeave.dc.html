@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>My leave</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Inter',system-ui,sans-serif;color:#1a2036;background:#f5f6fa}
+a{color:#2f4bd6}a:hover{color:#1f3399}
+.nav a{display:block;padding:12px;border-radius:8px;color:#3a4260;text-decoration:none;font-size:14px}
+.nav a:hover{background:#eef1fb}
+.nav a.on{background:#e4e9fb;color:#2438a8;font-weight:500}
+.card{background:#fff;border:1px solid #e3e6ef;border-radius:12px;padding:20px}
+.chip{display:inline-block;font-size:12px;font-weight:500;padding:3px 10px;border-radius:999px}
+.ok{background:#e3f5ea;color:#11663a}.warn{background:#fff1cc;color:#6e4a00}.info{background:#e4e9fb;color:#2438a8}.mute{background:#eceef4;color:#444c63}
+.t{width:100%;border-collapse:collapse;font-size:14px}
+.t th{text-align:left;font-weight:500;color:#5b6478;font-size:12px;padding:10px 12px;border-bottom:1px solid #d9dde8;background:#fafbfd}
+.t td{padding:12px;border-bottom:1px solid #eceef4}
+.k{font-size:12px;color:#5b6478}
+.btn{font:inherit;font-size:14px;font-weight:500;padding:10px 16px;border-radius:8px;border:1px solid #c9cfe0;background:#fff;color:#1a2036;cursor:pointer;min-height:44px}
+.btn.p{background:#2f4bd6;border-color:#2f4bd6;color:#fff}
+.f label{display:block;font-size:13px;color:#3a4260;margin:12px 0 4px}
+.f input[type=date],.f select,.f textarea{font:inherit;font-size:14px;width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #c9cfe0;border-radius:8px;background:#fff;color:#1a2036}
+.f input[type=date],.f select{min-height:44px}
+.bal{height:8px;border-radius:4px;background:#e3e6ef;margin-top:10px}
+.bal div{height:8px;border-radius:4px;background:#2f4bd6}
+</style>
+</helmet>
+<div style="display:flex;flex-wrap:wrap;min-height:100vh">
+  <aside style="flex:0 0 240px;background:#fff;border-right:1px solid #e3e6ef;padding:20px 16px;box-sizing:border-box">
+    <div style="font-weight:600;font-size:20px;color:#2f4bd6">Complynz</div>
+    <div style="font-size:12px;color:#5b6478;margin:2px 0 20px">HR · hr.complynz.com</div>
+    <nav class="nav" aria-label="Sections">
+      <a href="RoleViews.dc.html">Home</a>
+      <a href="MyAttendance.dc.html">Punch in and out</a>
+      <a class="on" href="MyLeave.dc.html" aria-current="page">My leave</a>
+      <a href="Employee.dc.html">My profile</a>
+      <a href="Payslip.dc.html">My payslips</a>
+      <a href="Policies.dc.html">Policies</a>
+      <a href="MyFeedback.dc.html">Share feedback</a>
+    </nav>
+  </aside>
+  <main style="flex:999 1 560px;min-width:0;padding:28px 32px;box-sizing:border-box">
+    <h1 style="margin:0 0 4px;font-size:26px;font-weight:600">My leave</h1>
+    <p style="margin:0 0 16px;font-size:14px;color:#5b6478">Leave year [Start date] to [End date]. Balances follow the leave types your HR team has set up.</p>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px">
+      <div class="card" style="padding:16px"><div class="k">Casual leave</div><div style="font-size:24px;font-weight:600;margin-top:4px">8 <span style="font-size:13px;font-weight:400;color:#5b6478">of 12 left</span></div><div class="bal"><div style="width:66%"></div></div></div>
+      <div class="card" style="padding:16px"><div class="k">Sick leave</div><div style="font-size:24px;font-weight:600;margin-top:4px">5 <span style="font-size:13px;font-weight:400;color:#5b6478">of 6 left</span></div><div class="bal"><div style="width:83%"></div></div></div>
+      <div class="card" style="padding:16px"><div class="k">Earned leave</div><div style="font-size:24px;font-weight:600;margin-top:4px">9 <span style="font-size:13px;font-weight:400;color:#5b6478">of 15 left</span></div><div class="bal"><div style="width:60%"></div></div></div>
+      <div class="card" style="padding:16px"><div class="k">Comp-off</div><div style="font-size:24px;font-weight:600;margin-top:4px">1 <span style="font-size:13px;font-weight:400;color:#5b6478">day left</span></div><div class="bal"><div style="width:100%"></div></div></div>
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start">
+      <form class="card f" style="flex:1 1 340px;max-width:440px" aria-label="Apply for leave">
+        <div style="font-weight:600;font-size:17px">Apply for leave</div>
+        <label for="lt">Leave type</label>
+        <select id="lt"><option>Casual leave</option><option>Sick leave</option><option>Earned leave</option><option>Comp-off</option><option>Unpaid leave</option></select>
+        <div style="display:flex;gap:8px">
+          <div style="flex:1"><label for="fd">From</label><input id="fd" type="date"></div>
+          <div style="flex:1"><label for="td">To</label><input id="td" type="date"></div>
+        </div>
+        <label style="display:flex;gap:10px;align-items:center;font-size:14px;margin-top:12px"><input type="checkbox" style="width:20px;height:20px;flex:0 0 20px;margin:0">Half day</label>
+        <label for="rs">Reason (optional)</label>
+        <textarea id="rs" rows="3" placeholder="Add a short note for your manager"></textarea>
+        <div class="k" style="margin-top:10px;line-height:1.5">Days requested: 2 · Balance after: 6 · Goes to: R*** S**** (manager)<br>A medical document is needed for sick leave longer than [N] days.</div>
+        <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap"><button type="button" class="btn">Cancel</button><button type="button" class="btn p">Submit request</button></div>
+      </form>
+
+      <div style="flex:999 1 440px;min-width:0;display:flex;flex-direction:column;gap:16px">
+        <div class="card" style="padding:0;overflow-x:auto">
+          <div style="padding:16px 20px;font-weight:600">My requests</div>
+          <table class="t" style="min-width:520px">
+            <thead><tr><th>Dates</th><th>Type</th><th>Days</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td>[Dates]</td><td>Casual leave</td><td>1</td><td><span class="chip ok">Approved</span></td></tr>
+              <tr><td>[Dates]</td><td>Earned leave</td><td>3</td><td><span class="chip warn">Waiting for approval</span></td></tr>
+              <tr><td>[Dates]</td><td>Sick leave</td><td>1</td><td><span class="chip ok">Approved</span></td></tr>
+              <tr><td>[Dates]</td><td>Casual leave</td><td>1</td><td><span class="chip mute">Cancelled</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card" style="padding:0">
+          <div style="padding:16px 20px;font-weight:600">Upcoming holidays</div>
+          <div style="font-size:14px;border-top:1px solid #eceef4;padding:12px 20px;display:flex;justify-content:space-between"><span>[Holiday name]</span><span class="k">[Date]</span></div>
+          <div style="font-size:14px;border-top:1px solid #eceef4;padding:12px 20px;display:flex;justify-content:space-between"><span>[Holiday name]</span><span class="k">[Date]</span></div>
+          <div style="font-size:14px;border-top:1px solid #eceef4;padding:12px 20px;display:flex;justify-content:space-between"><span>[Holiday name]</span><span class="k">[Date]</span></div>
+        </div>
+      </div>
+    </div>
+    <p style="font-size:12px;color:#5b6478;margin:16px 0 0">Sample screen. Leave types and numbers are examples that HR sets in the leave configuration.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1360,"height":1060}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

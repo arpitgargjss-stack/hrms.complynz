@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Payroll run</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Inter',system-ui,sans-serif;color:#1a2036;background:#f5f6fa}
+a{color:#2f4bd6}a:hover{color:#1f3399}
+.nav a{display:block;padding:12px;border-radius:8px;color:#3a4260;text-decoration:none;font-size:14px}
+.nav a:hover{background:#eef1fb}
+.nav a.on{background:#e4e9fb;color:#2438a8;font-weight:500}
+.card{background:#fff;border:1px solid #e3e6ef;border-radius:12px;padding:20px}
+.chip{display:inline-block;font-size:12px;font-weight:500;padding:3px 10px;border-radius:999px}
+.ok{background:#e3f5ea;color:#11663a}.warn{background:#fff1cc;color:#6e4a00}.info{background:#e4e9fb;color:#2438a8}
+.t{width:100%;border-collapse:collapse;font-size:14px}
+.t th{text-align:left;font-weight:500;color:#5b6478;font-size:12px;padding:10px 12px;border-bottom:1px solid #d9dde8;background:#fafbfd}
+.t td{padding:12px;border-bottom:1px solid #eceef4}
+.r{text-align:right;font-variant-numeric:tabular-nums}
+.btn{font:inherit;font-size:14px;font-weight:500;padding:10px 16px;border-radius:8px;border:1px solid #c9cfe0;background:#fff;color:#1a2036;cursor:pointer;min-height:44px}
+.btn.p{background:#2f4bd6;border-color:#2f4bd6;color:#fff}
+</style>
+</helmet>
+<div style="display:flex;flex-wrap:wrap;min-height:100vh">
+  <aside style="flex:0 0 240px;background:#fff;border-right:1px solid #e3e6ef;padding:20px 16px;box-sizing:border-box">
+    <div style="font-weight:600;font-size:20px;color:#2f4bd6">Complynz</div>
+    <div style="font-size:12px;color:#5b6478;margin:2px 0 20px">HR · hr.complynz.com</div>
+    <nav class="nav" aria-label="HR sections">
+      <a href="Employee.dc.html">People</a>
+      <a href="Candidates.dc.html">Hiring</a>
+      <a href="Organisation.dc.html">Organisation</a>
+      <a href="Assets.dc.html">Assets</a>
+      <a class="on" href="Main.dc.html" aria-current="page">Payroll</a>
+      <a href="BankAdvice.dc.html">Bank advice</a>
+      <a href="Payslip.dc.html">Payslips</a>
+      <a href="OfferShort.dc.html">Letters</a>
+      <a href="Policies.dc.html">Policies</a>
+      <a href="Settings.dc.html">Settings</a>
+    </nav>
+  </aside>
+  <main style="flex:999 1 560px;min-width:0;padding:28px 32px;box-sizing:border-box">
+    <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <div>
+        <div style="font-size:13px;color:#5b6478">Payroll / Runs</div>
+        <h1 style="margin:4px 0 0;font-size:26px;font-weight:600">October 2026 run <span class="chip warn" style="vertical-align:middle;margin-left:8px">Draft</span></h1>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn">Compare with September</button>
+        <button class="btn p">Lock run</button>
+      </div>
+    </div>
+
+    <ol style="list-style:none;margin:0 0 20px;padding:0;display:flex;flex-wrap:wrap;gap:8px;font-size:13px">
+      <li class="chip info">1 Enter days</li>
+      <li class="chip info">2 Preview</li>
+      <li class="chip" style="background:#eceef4;color:#444c63">3 Lock</li>
+      <li class="chip" style="background:#eceef4;color:#444c63">4 Publish payslips</li>
+      <li class="chip" style="background:#eceef4;color:#444c63">5 Bank advice</li>
+    </ol>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:20px">
+      <div class="card"><div style="font-size:13px;color:#5b6478">Employees</div><div style="font-size:26px;font-weight:600;margin-top:4px">3</div></div>
+      <div class="card"><div style="font-size:13px;color:#5b6478">Gross</div><div style="font-size:26px;font-weight:600;margin-top:4px">₹1,30,000</div></div>
+      <div class="card"><div style="font-size:13px;color:#5b6478">Deductions</div><div style="font-size:26px;font-weight:600;margin-top:4px">₹3,000</div></div>
+      <div class="card"><div style="font-size:13px;color:#5b6478">Net payable</div><div style="font-size:26px;font-weight:600;margin-top:4px;color:#2438a8">₹1,27,000</div></div>
+    </div>
+
+    <div class="card" style="padding:0;overflow-x:auto;margin-bottom:20px">
+      <table class="t" style="min-width:720px">
+        <thead><tr><th>Employee</th><th>Code</th><th class="r">Days paid</th><th class="r">Gross (₹)</th><th class="r">TDS (₹)</th><th class="r">Net (₹)</th><th>Check</th></tr></thead>
+        <tbody>
+          <tr><td>A*** K****</td><td>CMPZ001</td><td class="r">31 / 31</td><td class="r">62,000</td><td class="r">2,100</td><td class="r">59,900</td><td><span class="chip ok">Ready</span></td></tr>
+          <tr><td>R*** S****</td><td>CMPZ002</td><td class="r">31 / 31</td><td class="r">48,000</td><td class="r">900</td><td class="r">47,100</td><td><span class="chip ok">Ready</span></td></tr>
+          <tr><td>M*** T****</td><td>CMPZ003</td><td class="r">31 / 31</td><td class="r">20,000</td><td class="r">0</td><td class="r">20,000</td><td><span class="chip warn">Bank IFSC missing</span></td></tr>
+        </tbody>
+        <tfoot><tr><td colspan="3" style="font-weight:500">Total</td><td class="r" style="font-weight:500">1,30,000</td><td class="r" style="font-weight:500">3,000</td><td class="r" style="font-weight:500">1,27,000</td><td></td></tr></tfoot>
+      </table>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px">
+      <div class="card">
+        <div style="font-weight:500;margin-bottom:8px">Rules used by this run</div>
+        <div style="font-size:14px;line-height:1.7;color:#3a4260">Sample rules v1, effective 1 Apr 2026<br>PF: off (company under the threshold)<br>Professional tax: none for Uttar Pradesh<br>TDS: entered monthly</div>
+      </div>
+      <div class="card">
+        <div style="font-weight:500;margin-bottom:8px">Before you can lock</div>
+        <div style="font-size:14px;line-height:1.7;color:#3a4260">1 employee has no IFSC on file. Fix it in People, then the bank advice can be generated.</div>
+      </div>
+    </div>
+    <p style="font-size:12px;color:#5b6478;margin:16px 0 0">Sample data. Names are masked and figures are placeholders, not verified statutory values.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1360,"height":960}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Assets and tagging</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Inter',system-ui,sans-serif;color:#1a2036;background:#f5f6fa}
+a{color:#2f4bd6}a:hover{color:#1f3399}
+.nav a{display:block;padding:12px;border-radius:8px;color:#3a4260;text-decoration:none;font-size:14px}
+.nav a:hover{background:#eef1fb}
+.nav a.on{background:#e4e9fb;color:#2438a8;font-weight:500}
+.card{background:#fff;border:1px solid #e3e6ef;border-radius:12px}
+.chip{display:inline-block;font-size:12px;font-weight:500;padding:3px 10px;border-radius:999px}
+.ok{background:#e3f5ea;color:#11663a}.warn{background:#fff1cc;color:#6e4a00}.info{background:#e4e9fb;color:#2438a8}.mute{background:#eceef4;color:#444c63}
+.t{width:100%;border-collapse:collapse;font-size:14px}
+.t th{text-align:left;font-weight:500;color:#5b6478;font-size:12px;padding:10px 12px;border-bottom:1px solid #d9dde8;background:#fafbfd}
+.t td{padding:12px;border-bottom:1px solid #eceef4}
+.k{font-size:12px;color:#5b6478}
+.btn{font:inherit;font-size:14px;font-weight:500;padding:10px 16px;border-radius:8px;border:1px solid #c9cfe0;background:#fff;color:#1a2036;cursor:pointer;min-height:44px}
+.btn.p{background:#2f4bd6;border-color:#2f4bd6;color:#fff}
+.f label{display:block;font-size:13px;color:#3a4260;margin:12px 0 4px}
+.f input,.f select{font:inherit;font-size:14px;width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #c9cfe0;border-radius:8px;min-height:44px;background:#fff;color:#1a2036}
+.tag{font-family:ui-monospace,Menlo,monospace;font-size:13px;background:#f1f4fd;border:1px solid #d5dcf5;border-radius:6px;padding:2px 8px}
+</style>
+</helmet>
+<div style="display:flex;flex-wrap:wrap;min-height:100vh">
+  <aside style="flex:0 0 240px;background:#fff;border-right:1px solid #e3e6ef;padding:20px 16px;box-sizing:border-box">
+    <div style="font-weight:600;font-size:20px;color:#2f4bd6">Complynz</div>
+    <div style="font-size:12px;color:#5b6478;margin:2px 0 20px">HR · hr.complynz.com</div>
+    <nav class="nav" aria-label="HR sections">
+      <a href="Employee.dc.html">People</a>
+      <a href="Candidates.dc.html">Hiring</a>
+      <a href="Organisation.dc.html">Organisation</a>
+      <a class="on" href="Assets.dc.html" aria-current="page">Assets</a>
+      <a href="Main.dc.html">Payroll</a>
+      <a href="BankAdvice.dc.html">Bank advice</a>
+      <a href="Payslip.dc.html">Payslips</a>
+      <a href="OfferShort.dc.html">Letters</a>
+      <a href="Policies.dc.html">Policies</a>
+      <a href="Settings.dc.html">Settings</a>
+    </nav>
+  </aside>
+  <main style="flex:999 1 560px;min-width:0;padding:28px 32px;box-sizing:border-box">
+    <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div>
+        <h1 style="margin:0;font-size:26px;font-weight:600">Assets</h1>
+        <p style="margin:4px 0 0;font-size:14px;color:#5b6478">Tag company equipment and track who has it. Assigned assets appear in the offboarding checklist.</p>
+      </div>
+      <button class="btn p">Tag new asset</button>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:16px">
+      <div class="card" style="padding:16px"><div class="k">Total assets</div><div style="font-size:24px;font-weight:600;margin-top:4px">4</div></div>
+      <div class="card" style="padding:16px"><div class="k">Assigned</div><div style="font-size:24px;font-weight:600;margin-top:4px">3</div></div>
+      <div class="card" style="padding:16px"><div class="k">In stock</div><div style="font-size:24px;font-weight:600;margin-top:4px">1</div></div>
+      <div class="card" style="padding:16px"><div class="k">Return pending</div><div style="font-size:24px;font-weight:600;margin-top:4px">0</div></div>
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start">
+      <div class="card" style="flex:999 1 560px;min-width:0;padding:0;overflow-x:auto">
+        <table class="t" style="min-width:860px">
+          <thead><tr><th>Asset tag</th><th>Type and model</th><th>Serial</th><th style="text-align:right">Cost (₹)</th><th>Assigned to</th><th>Status</th><th>Contract</th><th></th></tr></thead>
+          <tbody>
+            <tr><td><span class="tag">CMPZ-AST-0001</span></td><td>Laptop<div class="k">[Model]</div></td><td>XXXX-4821</td><td style="text-align:right">72,000</td><td>A*** K****</td><td><span class="chip ok">Assigned</span></td><td><span class="chip ok">Signed</span> <a href="AssetContract.dc.html">View</a></td><td><a href="Assets.dc.html">Return</a></td></tr>
+            <tr><td><span class="tag">CMPZ-AST-0002</span></td><td>Laptop<div class="k">[Model]</div></td><td>XXXX-7730</td><td style="text-align:right">68,000</td><td>R*** S****</td><td><span class="chip ok">Assigned</span></td><td><span class="chip warn">Awaiting</span> <a href="AssetContract.dc.html">View</a></td><td><a href="Assets.dc.html">Return</a></td></tr>
+            <tr><td><span class="tag">CMPZ-AST-0003</span></td><td>Mobile phone<div class="k">[Model]</div></td><td>XXXX-1956</td><td style="text-align:right">24,000</td><td>M*** T****</td><td><span class="chip ok">Assigned</span></td><td><a href="AssetContract.dc.html">Generate contract</a></td><td><a href="Assets.dc.html">Return</a></td></tr>
+            <tr><td><span class="tag">CMPZ-AST-0004</span></td><td>Access card<div class="k">Office</div></td><td>—</td><td style="text-align:right">500</td><td>Not assigned</td><td><span class="chip mute">In stock</span></td><td>—</td><td><a href="Assets.dc.html">Assign</a></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <form class="card f" style="flex:1 1 320px;max-width:400px;padding:20px" aria-label="Tag new asset">
+        <div style="font-weight:600;font-size:17px">Tag new asset</div>
+        <label for="at">Asset type</label>
+        <select id="at"><option>Laptop</option><option>Mobile phone</option><option>Access card</option><option>Monitor</option><option>Other</option></select>
+        <label for="am">Make and model</label><input id="am" placeholder="Model name">
+        <label for="as">Serial number</label><input id="as" placeholder="Serial or IMEI">
+        <label for="ag">Asset tag</label>
+        <div style="display:flex;gap:8px;align-items:center"><input id="ag" value="CMPZ-AST-0005" style="flex:1"><span class="k">Auto</span></div>
+        <label for="aa">Assign to (optional)</label>
+        <select id="aa"><option>Keep in stock</option><option>A*** K****</option><option>R*** S****</option><option>M*** T****</option></select>
+        <label for="ac">Asset cost (₹)</label><input id="ac" placeholder="For example 72,000">
+        <div class="k" style="margin-top:4px">Printed in the asset contract as the most the employee can be asked to bear.</div>
+        <label for="ax">Accessories included</label><input id="ax" placeholder="Charger, case, and so on">
+        <label for="acn">Condition at handover</label>
+        <select id="acn"><option>Intact and in working condition</option><option>Minor marks, working condition</option></select>
+        <label for="ap">Purchase date</label><input id="ap" type="date">
+        <label style="display:flex;gap:10px;align-items:center;font-size:14px;margin-top:14px"><input type="checkbox" checked style="width:20px;height:20px;flex:0 0 20px;min-height:0">Generate asset contract for the employee to accept</label>
+        <div style="margin-top:12px;padding:12px;border:1px dashed #9aa3bd;border-radius:10px;font-size:13px;color:#5b6478;text-align:center">QR label and the asset contract are generated after saving. The employee accepts through their email link.</div>
+        <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap"><button type="button" class="btn">Cancel</button><button type="button" class="btn">Save and print label</button><button type="button" class="btn p">Save and generate contract</button></div>
+      </form>
+    </div>
+    <p style="font-size:12px;color:#5b6478;margin:16px 0 0">Sample data. Names and serial numbers are masked placeholders.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1360,"height":920}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

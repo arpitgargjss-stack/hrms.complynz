@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Punch in and out</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Inter',system-ui,sans-serif;color:#1a2036;background:#f5f6fa}
+a{color:#2f4bd6}a:hover{color:#1f3399}
+.nav a{display:block;padding:12px;border-radius:8px;color:#3a4260;text-decoration:none;font-size:14px}
+.nav a:hover{background:#eef1fb}
+.nav a.on{background:#e4e9fb;color:#2438a8;font-weight:500}
+.card{background:#fff;border:1px solid #e3e6ef;border-radius:12px;padding:20px}
+.chip{display:inline-block;font-size:12px;font-weight:500;padding:3px 10px;border-radius:999px}
+.ok{background:#e3f5ea;color:#11663a}.warn{background:#fff1cc;color:#6e4a00}.info{background:#e4e9fb;color:#2438a8}.mute{background:#eceef4;color:#444c63}
+.t{width:100%;border-collapse:collapse;font-size:14px}
+.t th{text-align:left;font-weight:500;color:#5b6478;font-size:12px;padding:10px 12px;border-bottom:1px solid #d9dde8;background:#fafbfd}
+.t td{padding:12px;border-bottom:1px solid #eceef4}
+.k{font-size:12px;color:#5b6478}
+.btn{font:inherit;font-size:15px;font-weight:500;padding:10px 18px;border-radius:8px;border:1px solid #c9cfe0;background:#fff;color:#1a2036;cursor:pointer;min-height:44px}
+.btn.p{background:#2f4bd6;border-color:#2f4bd6;color:#fff}
+.f label{display:block;font-size:13px;color:#3a4260;margin:12px 0 4px}
+.f select{font:inherit;font-size:14px;width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #c9cfe0;border-radius:8px;min-height:44px;background:#fff;color:#1a2036}
+</style>
+</helmet>
+<div style="display:flex;flex-wrap:wrap;min-height:100vh">
+  <aside style="flex:0 0 240px;background:#fff;border-right:1px solid #e3e6ef;padding:20px 16px;box-sizing:border-box">
+    <div style="font-weight:600;font-size:20px;color:#2f4bd6">Complynz</div>
+    <div style="font-size:12px;color:#5b6478;margin:2px 0 20px">HR · hr.complynz.com</div>
+    <nav class="nav" aria-label="Sections">
+      <a href="RoleViews.dc.html">Home</a>
+      <a class="on" href="MyAttendance.dc.html" aria-current="page">Punch in and out</a>
+      <a href="MyLeave.dc.html">My leave</a>
+      <a href="Employee.dc.html">My profile</a>
+      <a href="Payslip.dc.html">My payslips</a>
+      <a href="Policies.dc.html">Policies</a>
+      <a href="MyFeedback.dc.html">Share feedback</a>
+    </nav>
+  </aside>
+  <main style="flex:999 1 560px;min-width:0;padding:28px 32px;box-sizing:border-box">
+    <h1 style="margin:0 0 4px;font-size:26px;font-weight:600">Punch in and out</h1>
+    <p style="margin:0 0 16px;font-size:14px;color:#5b6478">Friday, [Date]</p>
+
+    <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;margin-bottom:16px">
+      <div class="card f" style="flex:1 1 360px;max-width:520px">
+        <div class="k">Current time</div>
+        <div style="font-size:44px;font-weight:600;letter-spacing:-1px;margin:2px 0 10px">09:42</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:6px"><span class="chip ok">Punched in at 09:12</span><span class="chip info">Office</span></div>
+
+        <label for="md">Where are you working today?</label>
+        <select id="md"><option>Office (Noida)</option><option>Work from home</option><option>On site (client)</option></select>
+
+        <div style="margin-top:14px;border:1px solid #d5dcf5;background:#f1f4fd;border-radius:10px;padding:12px 14px;font-size:14px;line-height:1.5">
+          <strong>Location check</strong><br>You are inside the Noida office area (about 40 m from the office point).
+        </div>
+
+        <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap">
+          <button class="btn" style="flex:1 1 140px;opacity:.55" aria-disabled="true">Punch in</button>
+          <button class="btn p" style="flex:1 1 140px">Punch out</button>
+        </div>
+        <div class="k" style="margin-top:12px;line-height:1.6">Your location is checked once, at the moment you punch. It is not tracked in the background. We keep only whether you were inside the office area, not your exact position. Your browser asks for permission each time or once, as you choose.</div>
+      </div>
+
+      <div style="flex:999 1 420px;min-width:0;display:flex;flex-direction:column;gap:16px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px">
+          <div class="card" style="padding:14px"><div class="k">Present</div><div style="font-size:24px;font-weight:600;margin-top:4px">14</div></div>
+          <div class="card" style="padding:14px"><div class="k">Work from home</div><div style="font-size:24px;font-weight:600;margin-top:4px">3</div></div>
+          <div class="card" style="padding:14px"><div class="k">On leave</div><div style="font-size:24px;font-weight:600;margin-top:4px">1</div></div>
+          <div class="card" style="padding:14px"><div class="k">Late marks</div><div style="font-size:24px;font-weight:600;margin-top:4px">2</div></div>
+          <div class="card" style="padding:14px"><div class="k">Average hours</div><div style="font-size:24px;font-weight:600;margin-top:4px">8h 40m</div></div>
+        </div>
+        <div class="card" style="padding:0;overflow-x:auto">
+          <div style="padding:16px 20px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center"><div style="font-weight:600">This month</div><a href="MyAttendance.dc.html" style="font-size:14px">Request a correction</a></div>
+          <table class="t" style="min-width:520px">
+            <thead><tr><th>Date</th><th>In</th><th>Out</th><th>Hours</th><th>Mode</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td>[Date]</td><td>09:12</td><td>—</td><td>—</td><td>Office</td><td><span class="chip info">In progress</span></td></tr>
+              <tr><td>[Date]</td><td>09:08</td><td>18:21</td><td>9h 13m</td><td>Office</td><td><span class="chip ok">Present</span></td></tr>
+              <tr><td>[Date]</td><td>09:51</td><td>18:30</td><td>8h 39m</td><td>Work from home</td><td><span class="chip warn">Late</span></td></tr>
+              <tr><td>[Date]</td><td>—</td><td>—</td><td>—</td><td>—</td><td><span class="chip mute">Casual leave</span></td></tr>
+              <tr><td>[Date]</td><td>09:15</td><td>—</td><td>—</td><td>Office</td><td><span class="chip warn">Missed punch out</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <p style="font-size:12px;color:#5b6478;margin:0">Sample screen with placeholder dates. Hours and counts are illustrative.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1360,"height":1060}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

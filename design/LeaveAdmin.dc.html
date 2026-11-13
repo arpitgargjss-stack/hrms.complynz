@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Leave and calendar</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Inter',system-ui,sans-serif;color:#1a2036;background:#f5f6fa}
+a{color:#2f4bd6}a:hover{color:#1f3399}
+.nav a{display:block;padding:12px;border-radius:8px;color:#3a4260;text-decoration:none;font-size:14px}
+.nav a:hover{background:#eef1fb}
+.nav a.on{background:#e4e9fb;color:#2438a8;font-weight:500}
+.card{background:#fff;border:1px solid #e3e6ef;border-radius:12px;padding:20px}
+.chip{display:inline-block;font-size:12px;font-weight:500;padding:3px 10px;border-radius:999px}
+.ok{background:#e3f5ea;color:#11663a}.warn{background:#fff1cc;color:#6e4a00}.info{background:#e4e9fb;color:#2438a8}.mute{background:#eceef4;color:#444c63}
+.t{width:100%;border-collapse:collapse;font-size:14px}
+.t th{text-align:left;font-weight:500;color:#5b6478;font-size:12px;padding:10px 14px;border-bottom:1px solid #d9dde8;background:#fafbfd}
+.t td{padding:13px 14px;border-bottom:1px solid #eceef4}
+.k{font-size:12px;color:#5b6478}
+.btn{font:inherit;font-size:14px;font-weight:500;padding:10px 16px;border-radius:8px;border:1px solid #c9cfe0;background:#fff;color:#1a2036;cursor:pointer;min-height:44px}
+.btn.p{background:#2f4bd6;border-color:#2f4bd6;color:#fff}
+.fld{display:block;font-size:13px;color:#3a4260;margin:0 0 4px}
+.in{font:inherit;font-size:14px;width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid #c9cfe0;border-radius:8px;min-height:44px;background:#fff;color:#1a2036}
+.tab{font:inherit;font-size:14px;background:none;border:none;padding:12px 16px;cursor:pointer;min-height:44px}
+.lt{background:#fff;border:1px solid #e3e6ef;border-radius:12px;padding:18px}
+.ckr{display:flex;gap:10px;align-items:center;font-size:14px;min-height:32px}
+.ckr input{width:20px;height:20px;margin:0;flex:0 0 20px}
+</style>
+</helmet>
+<div style="display:flex;flex-wrap:wrap;min-height:100vh">
+  <aside style="flex:0 0 240px;background:#fff;border-right:1px solid #e3e6ef;padding:20px 16px;box-sizing:border-box">
+    <div style="font-weight:600;font-size:20px;color:#2f4bd6">Complynz</div>
+    <div style="font-size:12px;color:#5b6478;margin:2px 0 20px">HR · hr.complynz.com</div>
+    <nav class="nav" aria-label="HR sections">
+      <a href="RoleViews.dc.html">Dashboard</a>
+      <a href="Employee.dc.html">People</a>
+      <a href="Candidates.dc.html">Hiring</a>
+      <a href="Organisation.dc.html">Organisation</a>
+      <a href="Assets.dc.html">Assets</a>
+      <a href="AttendanceAdmin.dc.html">Attendance</a>
+      <a class="on" href="LeaveAdmin.dc.html" aria-current="page">Leave and calendar</a>
+      <a href="Main.dc.html">Payroll</a>
+      <a href="Policies.dc.html">Policies</a>
+      <a href="Feedback.dc.html">Feedback</a>
+      <a href="Settings.dc.html">Settings</a>
+    </nav>
+  </aside>
+
+  <main style="flex:999 1 560px;min-width:0;padding:28px 32px;box-sizing:border-box">
+    <h1 style="margin:0 0 4px;font-size:26px;font-weight:600">Leave and calendar</h1>
+    <p style="margin:0 0 12px;font-size:14px;color:#5b6478">The calendar feeds leave day counts, attendance late marks and payroll days.</p>
+
+    <div role="tablist" aria-label="Leave and calendar sections" style="display:flex;gap:4px;border-bottom:1px solid #e3e6ef;margin-bottom:20px;overflow-x:auto">
+      <sc-for list="{{tabs}}" as="t" hint-placeholder-count="4">
+        <button class="tab" role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="border-bottom:2px solid {{t.line}};color:{{t.fg}};font-weight:{{t.weight}};margin-bottom:-1px">{{t.label}}</button>
+      </sc-for>
+    </div>
+
+    <sc-if value="{{showRequests}}" hint-placeholder-val="{{ true }}">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:16px">
+        <div class="card" style="padding:16px"><div class="k">Waiting for approval</div><div style="font-size:26px;font-weight:600;margin-top:4px">1</div></div>
+        <div class="card" style="padding:16px"><div class="k">Off today</div><div style="font-size:26px;font-weight:600;margin-top:4px">1</div></div>
+        <div class="card" style="padding:16px"><div class="k">Off this week</div><div style="font-size:26px;font-weight:600;margin-top:4px">2</div></div>
+      </div>
+      <div class="card" style="padding:0;overflow-x:auto">
+        <table class="t" style="min-width:680px">
+          <thead><tr><th>Employee</th><th>Type</th><th>Dates</th><th>Days</th><th>Balance after</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            <tr><td>A*** K****</td><td>Earned leave</td><td>[Dates]</td><td>3</td><td>6</td><td><span class="chip warn">Waiting</span></td><td style="white-space:nowrap;text-align:right"><button class="btn" style="min-height:36px;padding:6px 12px">Reject</button> <button class="btn p" style="min-height:36px;padding:6px 12px">Approve</button></td></tr>
+            <tr><td>M*** T****</td><td>Sick leave</td><td>[Dates]</td><td>1</td><td>4</td><td><span class="chip ok">Approved</span></td><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{showTypes}}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div class="k" style="font-size:13px">Admin-configurable. These numbers are examples. Set them to your own leave policy.</div>
+        <button class="btn p" onClick="{{toggleDrawer}}">{{drawerLabel}}</button>
+      </div>
+
+      <sc-if value="{{drawer}}" hint-placeholder-val="{{ false }}">
+        <div class="card" style="margin-bottom:16px;border-color:#c9d3f7">
+          <div style="font-weight:600;font-size:16px;margin-bottom:12px">New leave type</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px">
+            <div><label class="fld" for="ln">Name</label><input class="in" id="ln" placeholder="Bereavement leave"></div>
+            <div><label class="fld" for="lq">Days per year</label><input class="in" id="lq" placeholder="12"></div>
+            <div><label class="fld" for="la">Accrual</label><select class="in" id="la"><option>Monthly</option><option>Upfront</option><option>On approval</option></select></div>
+            <div><label class="fld" for="lc">Carry forward (days)</label><input class="in" id="lc" placeholder="0"></div>
+            <div><label class="fld" for="lp">Applies to</label><select class="in" id="lp"><option>All employees</option><option>After probation</option><option>Full-time only</option></select></div>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px 24px;margin-top:12px">
+            <label class="ckr"><input type="checkbox" checked>Paid leave</label>
+            <label class="ckr"><input type="checkbox" checked>Half days allowed</label>
+            <label class="ckr"><input type="checkbox">Document needed after [N] days</label>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end"><button class="btn" onClick="{{toggleDrawer}}">Cancel</button><button class="btn p" onClick="{{toggleDrawer}}">Create leave type</button></div>
+        </div>
+      </sc-if>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">
+        <div class="lt"><div style="display:flex;justify-content:space-between;align-items:baseline"><strong style="font-size:15px">Casual leave</strong><a href="LeaveAdmin.dc.html" style="font-size:13px">Edit</a></div><div style="font-size:28px;font-weight:600;margin:6px 0 2px">12 <span style="font-size:13px;font-weight:400;color:#5b6478">days a year</span></div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><span class="chip ok">Paid</span><span class="chip mute">Monthly accrual</span><span class="chip mute">No carry forward</span></div><div class="k" style="margin-top:10px">Applies to everyone</div></div>
+        <div class="lt"><div style="display:flex;justify-content:space-between;align-items:baseline"><strong style="font-size:15px">Sick leave</strong><a href="LeaveAdmin.dc.html" style="font-size:13px">Edit</a></div><div style="font-size:28px;font-weight:600;margin:6px 0 2px">6 <span style="font-size:13px;font-weight:400;color:#5b6478">days a year</span></div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><span class="chip ok">Paid</span><span class="chip mute">Upfront</span><span class="chip mute">No carry forward</span></div><div class="k" style="margin-top:10px">Applies to everyone</div></div>
+        <div class="lt"><div style="display:flex;justify-content:space-between;align-items:baseline"><strong style="font-size:15px">Earned leave</strong><a href="LeaveAdmin.dc.html" style="font-size:13px">Edit</a></div><div style="font-size:28px;font-weight:600;margin:6px 0 2px">15 <span style="font-size:13px;font-weight:400;color:#5b6478">days a year</span></div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><span class="chip ok">Paid</span><span class="chip mute">Monthly accrual</span><span class="chip mute">Carry forward up to 10</span></div><div class="k" style="margin-top:10px">After probation</div></div>
+        <div class="lt"><div style="display:flex;justify-content:space-between;align-items:baseline"><strong style="font-size:15px">Comp-off</strong><a href="LeaveAdmin.dc.html" style="font-size:13px">Edit</a></div><div style="font-size:28px;font-weight:600;margin:6px 0 2px">As earned</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><span class="chip ok">Paid</span><span class="chip mute">On approval</span><span class="chip mute">Expires in 30 days</span></div><div class="k" style="margin-top:10px">Applies to everyone</div></div>
+        <div class="lt"><div style="display:flex;justify-content:space-between;align-items:baseline"><strong style="font-size:15px">Unpaid leave</strong><a href="LeaveAdmin.dc.html" style="font-size:13px">Edit</a></div><div style="font-size:28px;font-weight:600;margin:6px 0 2px">No limit</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><span class="chip mute">Unpaid</span></div><div class="k" style="margin-top:10px">Applies to everyone</div></div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{showCalendar}}" hint-placeholder-val="{{ false }}">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;align-items:start">
+        <div class="card">
+          <div style="font-weight:600;font-size:16px;margin-bottom:12px">Working week</div>
+          <div class="fld">Working days</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">
+            <sc-for list="{{days}}" as="d" hint-placeholder-count="7">
+              <button class="btn" aria-pressed="{{d.on}}" onClick="{{d.pick}}" style="min-height:44px;min-width:56px;padding:6px 12px;background:{{d.bg}};color:{{d.fg}};border-color:{{d.bd}}">{{d.label}}</button>
+            </sc-for>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px">
+            <div><label class="fld" for="hs">Start time</label><input class="in" id="hs" type="time" value="09:30"></div>
+            <div><label class="fld" for="he">End time</label><input class="in" id="he" type="time" value="18:30"></div>
+            <div><label class="fld" for="lm">Late mark after (minutes)</label><input class="in" id="lm" value="15"></div>
+            <div><label class="fld" for="ef">Effective from</label><input class="in" id="ef" type="date"></div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end"><button class="btn">Cancel</button><button class="btn p">Save calendar</button></div>
+        </div>
+
+        <div class="card">
+          <div style="font-weight:600;font-size:16px;margin-bottom:12px">Saturdays</div>
+          <label class="fld" for="sat">Saturday rule</label>
+          <select class="in" id="sat" value="{{sat}}" onChange="{{onSat}}">
+            <option value="work">All Saturdays working</option>
+            <option value="off">All Saturdays off</option>
+            <option value="alt13">Alternate: 1st and 3rd off</option>
+            <option value="alt24">Alternate: 2nd and 4th off</option>
+            <option value="half">Half day on Saturdays</option>
+            <option value="custom">Custom: pick the Saturdays that are off</option>
+          </select>
+          <sc-if value="{{showCustom}}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-wrap:wrap;gap:4px 18px;margin-top:12px">
+              <sc-for list="{{customSats}}" as="c" hint-placeholder-count="5">
+                <label class="ckr"><input type="checkbox" checked="{{c.on}}" onChange="{{c.toggle}}">{{c.label}}</label>
+              </sc-for>
+            </div>
+          </sc-if>
+          <div style="margin-top:16px;border:1px solid #d5dcf5;background:#f1f4fd;border-radius:10px;padding:12px 14px;font-size:14px;line-height:1.6">
+            <strong>This month</strong><br>{{satSummary}}
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{showHolidays}}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start">
+        <div class="card" style="flex:999 1 460px;min-width:0">
+          <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px">
+            <div style="font-weight:600;font-size:16px">November 2026</div>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:#5b6478"><span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#f1f2f6;border:1px solid #d9dde8;margin-right:4px"></span>Weekly off</span><span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#fff1cc;border:1px solid #f0d58a;margin-right:4px"></span>Holiday</span><span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;border:2px solid #2f4bd6;margin-right:4px"></span>Today</span></div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;margin-bottom:6px;font-size:12px;color:#5b6478;text-align:center"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
+          <div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px">
+            <sc-for list="{{cells}}" as="c" hint-placeholder-count="36">
+              <div style="min-height:62px;padding:7px 8px;box-sizing:border-box;border:{{c.bd}};border-radius:8px;background:{{c.bg}}"><div style="font-size:13px;font-weight:500">{{c.label}}</div><div style="font-size:11px;color:{{c.fg}};margin-top:2px">{{c.mark}}</div></div>
+            </sc-for>
+          </div>
+          <div class="k" style="margin-top:12px">Weekly offs follow your work calendar. The holiday shown is a placeholder.</div>
+        </div>
+
+        <div style="flex:1 1 300px;max-width:400px;display:flex;flex-direction:column;gap:12px">
+          <div class="card" style="padding:0">
+            <div style="padding:16px 20px;display:flex;justify-content:space-between;align-items:center;gap:8px"><div style="font-weight:600">Holidays for 2026</div><button class="btn" onClick="{{toggleHoliday}}">{{holidayLabel}}</button></div>
+            <div style="padding:12px 20px;border-top:1px solid #eceef4;display:flex;justify-content:space-between;font-size:14px"><span>[Holiday name]</span><span><span class="chip ok">Public</span> <span class="k">[Date]</span></span></div>
+            <div style="padding:12px 20px;border-top:1px solid #eceef4;display:flex;justify-content:space-between;font-size:14px"><span>[Holiday name]</span><span><span class="chip ok">Public</span> <span class="k">[Date]</span></span></div>
+            <div style="padding:12px 20px;border-top:1px solid #eceef4;display:flex;justify-content:space-between;font-size:14px"><span>[Holiday name]</span><span><span class="chip info">Optional</span> <span class="k">[Date]</span></span></div>
+            <div style="padding:12px 20px;border-top:1px solid #eceef4;display:flex;gap:8px;flex-wrap:wrap"><button class="btn" style="min-height:40px">Import CSV</button><button class="btn" style="min-height:40px">Copy from last year</button></div>
+          </div>
+          <sc-if value="{{addHoliday}}" hint-placeholder-val="{{ false }}">
+            <div class="card" style="border-color:#c9d3f7">
+              <div style="font-weight:600;font-size:16px;margin-bottom:12px">Add holiday</div>
+              <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px">
+                <div style="grid-column:1 / -1"><label class="fld" for="hn">Holiday name</label><input class="in" id="hn" placeholder="Holiday name"></div>
+                <div><label class="fld" for="hd">Date</label><input class="in" id="hd" type="date"></div>
+                <div><label class="fld" for="ht">Type</label><select class="in" id="ht"><option>Public</option><option>Optional</option></select></div>
+                <div style="grid-column:1 / -1"><label class="fld" for="hl">Applies to</label><select class="in" id="hl"><option>All locations</option><option>Noida, Uttar Pradesh</option><option>Remote</option></select></div>
+              </div>
+              <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end"><button class="btn" onClick="{{toggleHoliday}}">Cancel</button><button class="btn p" onClick="{{toggleHoliday}}">Add holiday</button></div>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </sc-if>
+
+    <p style="font-size:12px;color:#5b6478;margin:20px 0 0">Sample screen. Names, numbers and holidays are placeholders.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1360,"height":1000}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { tab: 'requests', drawer: false, addHoliday: false, sat: 'off', days: [true, true, true, true, true, false, false], customSats: [false, false, false, false, false] };
+  }
+  satOff(d) {
+    const s = this.state;
+    const n = Math.ceil(d / 7);
+    if (s.sat === 'off') return true;
+    if (s.sat === 'alt13') return n === 1 || n === 3;
+    if (s.sat === 'alt24') return n === 2 || n === 4;
+    if (s.sat === 'custom') return !!s.customSats[n - 1];
+    return false;
+  }
+  renderVals() {
+    const s = this.state;
+    const tabs = [['requests', 'Requests'], ['types', 'Leave types'], ['calendar', 'Work calendar'], ['holidays', 'Holidays']].map((t) => {
+      const on = s.tab === t[0];
+      return { label: t[1], on: on, line: on ? '#2f4bd6' : 'transparent', fg: on ? '#2438a8' : '#3a4260', weight: on ? '600' : '400', pick: () => this.setState({ tab: t[0] }) };
+    });
+    const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const days = names.map((n, i) => {
+      if (i === 5) {
+        return { label: 'Sat', on: s.sat !== 'off', bg: '#eef1fb', fg: '#2438a8', bd: '#c9d3f7', pick: () => this.setState({ tab: 'calendar' }) };
+      }
+      const on = s.days[i];
+      return {
+        label: n, on: on,
+        bg: on ? '#2f4bd6' : '#fff', fg: on ? '#fff' : '#1a2036', bd: on ? '#2f4bd6' : '#c9cfe0',
+        pick: () => { const next = s.days.slice(); next[i] = !next[i]; this.setState({ days: next }); }
+      };
+    });
+    const sats = [];
+    const cells = [];
+    for (let i = 0; i < 6; i++) cells.push({ label: '', mark: '', bg: 'transparent', fg: '#5b6478', bd: '1px solid transparent' });
+    for (let d = 1; d <= 30; d++) {
+      const dow = (d + 5) % 7;
+      const off = dow === 6 || (dow === 5 && this.satOff(d));
+      if (dow === 5 && this.satOff(d)) sats.push(d);
+      const hol = d === 19;
+      cells.push({
+        label: String(d),
+        mark: hol ? 'Holiday' : off ? 'Off' : '',
+        bg: hol ? '#fff1cc' : off ? '#f1f2f6' : '#fff',
+        fg: hol ? '#6e4a00' : '#5b6478',
+        bd: d === 13 ? '2px solid #2f4bd6' : '1px solid #e3e6ef'
+      });
+    }
+    const satSummary = s.sat === 'half' ? 'Every Saturday is a half day.' : s.sat === 'work' ? 'All Saturdays are working days.' : (sats.length ? 'Saturdays off: ' + sats.join(', ') + ' Nov.' : 'No Saturdays off.');
+    const customSats = ['1st', '2nd', '3rd', '4th', '5th'].map((label, i) => ({
+      label: label, on: s.customSats[i],
+      toggle: () => { const next = s.customSats.slice(); next[i] = !next[i]; this.setState({ customSats: next }); }
+    }));
+    return {
+      tabs: tabs, days: days, cells: cells, customSats: customSats, satSummary: satSummary,
+      showRequests: s.tab === 'requests', showTypes: s.tab === 'types', showCalendar: s.tab === 'calendar', showHolidays: s.tab === 'holidays',
+      drawer: s.drawer, drawerLabel: s.drawer ? 'Close' : 'New leave type',
+      toggleDrawer: () => this.setState({ drawer: !s.drawer }),
+      addHoliday: s.addHoliday, holidayLabel: s.addHoliday ? 'Close' : 'Add holiday',
+      toggleHoliday: () => this.setState({ addHoliday: !s.addHoliday }),
+      sat: s.sat, showCustom: s.sat === 'custom',
+      onSat: (e) => this.setState({ sat: e.target.value })
+    };
+  }
+}
+</script>
+</body>
+</html>

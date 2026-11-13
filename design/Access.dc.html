@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Roles and access</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Inter',system-ui,sans-serif;color:#1a2036;background:#f5f6fa}
+a{color:#2f4bd6}a:hover{color:#1f3399}
+.nav a{display:block;padding:12px;border-radius:8px;color:#3a4260;text-decoration:none;font-size:14px}
+.nav a:hover{background:#eef1fb}
+.nav a.on{background:#e4e9fb;color:#2438a8;font-weight:500}
+.card{background:#fff;border:1px solid #e3e6ef;border-radius:12px}
+.chip{display:inline-block;font-size:12px;font-weight:500;padding:3px 10px;border-radius:999px}
+.y{background:#e3f5ea;color:#11663a}.n{background:#eceef4;color:#444c63}.o{background:#e4e9fb;color:#2438a8}
+.t{width:100%;border-collapse:collapse;font-size:14px}
+.t th{text-align:left;font-weight:500;color:#5b6478;font-size:12px;padding:10px 12px;border-bottom:1px solid #d9dde8;background:#fafbfd}
+.t td{padding:11px 12px;border-bottom:1px solid #eceef4}
+.t td.g{font-weight:600;background:#fafbfd;color:#5b6478;font-size:12px}
+.k{font-size:12px;color:#5b6478}
+.btn{font:inherit;font-size:14px;font-weight:500;padding:10px 16px;border-radius:8px;border:1px solid #c9cfe0;background:#fff;color:#1a2036;cursor:pointer;min-height:44px}
+</style>
+</helmet>
+<div style="display:flex;flex-wrap:wrap;min-height:100vh">
+  <aside style="flex:0 0 240px;background:#fff;border-right:1px solid #e3e6ef;padding:20px 16px;box-sizing:border-box">
+    <div style="font-weight:600;font-size:20px;color:#2f4bd6">Complynz</div>
+    <div style="font-size:12px;color:#5b6478;margin:2px 0 20px">HR · hr.complynz.com</div>
+    <nav class="nav" aria-label="HR sections">
+      <a href="Employee.dc.html">People</a>
+      <a href="Candidates.dc.html">Hiring</a>
+      <a href="Organisation.dc.html">Organisation</a>
+      <a href="Assets.dc.html">Assets</a>
+      <a href="Main.dc.html">Payroll</a>
+      <a href="Policies.dc.html">Policies</a>
+      <a class="on" href="Access.dc.html" aria-current="page">Roles and access</a>
+      <a href="Settings.dc.html">Settings</a>
+    </nav>
+  </aside>
+  <main style="flex:999 1 560px;min-width:0;padding:28px 32px;box-sizing:border-box">
+    <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <h1 style="margin:0;font-size:26px;font-weight:600">Roles and access</h1>
+      <button class="btn">Assign roles</button>
+    </div>
+    <p style="margin:0 0 18px;font-size:14px;color:#5b6478">One site, four roles. Each screen and each field shows only what the role needs. Access is enforced by the server, not just hidden in the menu.</p>
+
+    <div class="card" style="padding:0;overflow-x:auto;margin-bottom:16px">
+      <table class="t" style="min-width:760px">
+        <thead><tr><th>What</th><th>HR admin</th><th>Finance signatory</th><th>Manager</th><th>Team member</th></tr></thead>
+        <tbody>
+          <tr><td class="g" colspan="5">People</td></tr>
+          <tr><td>Own profile and documents</td><td><span class="chip y">Yes</span></td><td><span class="chip y">Yes</span></td><td><span class="chip y">Yes</span></td><td><span class="chip y">Yes</span></td></tr>
+          <tr><td>Work details of others</td><td><span class="chip y">All</span></td><td><span class="chip n">No</span></td><td><span class="chip o">Direct reports</span></td><td><span class="chip o">Directory card only</span></td></tr>
+          <tr><td>Org chart</td><td><span class="chip y">Yes</span></td><td><span class="chip y">Yes</span></td><td><span class="chip y">Yes</span></td><td><span class="chip y">Yes</span></td></tr>
+          <tr><td>ID documents (PAN, Aadhaar)</td><td><span class="chip y">All, logged</span></td><td><span class="chip n">No</span></td><td><span class="chip n">No</span></td><td><span class="chip o">Own</span></td></tr>
+          <tr><td class="g" colspan="5">Pay</td></tr>
+          <tr><td>Compensation and salary history</td><td><span class="chip y">All, logged</span></td><td><span class="chip y">All, logged</span></td><td><span class="chip n">No</span></td><td><span class="chip o">Own</span></td></tr>
+          <tr><td>Payslips</td><td><span class="chip y">All, logged</span></td><td><span class="chip y">All, logged</span></td><td><span class="chip n">No</span></td><td><span class="chip o">Own</span></td></tr>
+          <tr><td>Bank details (full account number)</td><td><span class="chip y">All, logged</span></td><td><span class="chip y">All, logged</span></td><td><span class="chip n">No</span></td><td><span class="chip o">Own</span></td></tr>
+          <tr><td>Run payroll and lock</td><td><span class="chip y">Yes</span></td><td><span class="chip n">No</span></td><td><span class="chip n">No</span></td><td><span class="chip n">No</span></td></tr>
+          <tr><td>Generate bank advice</td><td><span class="chip y">Yes</span></td><td><span class="chip y">Yes</span></td><td><span class="chip n">No</span></td><td><span class="chip n">No</span></td></tr>
+          <tr><td>Sign documents with stamp and signature</td><td><span class="chip n">No</span></td><td><span class="chip y">Own signature only</span></td><td><span class="chip n">No</span></td><td><span class="chip n">No</span></td></tr>
+          <tr><td class="g" colspan="5">Time and leave</td></tr>
+          <tr><td>Punch in and out, apply for leave</td><td><span class="chip y">Yes</span></td><td><span class="chip y">Yes</span></td><td><span class="chip y">Yes</span></td><td><span class="chip y">Yes</span></td></tr>
+          <tr><td>See others’ attendance and leave</td><td><span class="chip y">All</span></td><td><span class="chip n">No</span></td><td><span class="chip o">Direct reports</span></td><td><span class="chip n">No</span></td></tr>
+          <tr><td>Approve leave and corrections</td><td><span class="chip y">All</span></td><td><span class="chip n">No</span></td><td><span class="chip o">Direct reports</span></td><td><span class="chip n">No</span></td></tr>
+          <tr><td>Configure leave types, holidays, office location</td><td><span class="chip y">Yes</span></td><td><span class="chip n">No</span></td><td><span class="chip n">No</span></td><td><span class="chip n">No</span></td></tr>
+          <tr><td>Submit reimbursement claims, upload bills</td><td><span class="chip y">Yes</span></td><td><span class="chip y">Yes</span></td><td><span class="chip y">Yes</span></td><td><span class="chip y">Yes</span></td></tr>
+          <tr><td>See claims and monthly amounts</td><td><span class="chip y">All</span></td><td><span class="chip y">All</span></td><td><span class="chip o">Direct reports</span></td><td><span class="chip o">Own</span></td></tr>
+          <tr><td>Verify claims against policy</td><td><span class="chip n">No</span></td><td><span class="chip y">Yes</span></td><td><span class="chip n">No</span></td><td><span class="chip n">No</span></td></tr>
+          <tr><td>Approve claims (manager above ₹5,000, CEO above ₹10,000)</td><td><span class="chip n">No</span></td><td><span class="chip n">No</span></td><td><span class="chip o">Direct reports</span></td><td><span class="chip n">No</span></td></tr>
+          <tr><td>Edit reimbursement policy (rates and limits)</td><td><span class="chip y">Yes</span></td><td><span class="chip y">Yes</span></td><td><span class="chip n">No</span></td><td><span class="chip n">No</span></td></tr>
+          <tr><td class="g" colspan="5">Exits and performance</td></tr>
+          <tr><td>Submit own resignation</td><td><span class="chip y">Yes</span></td><td><span class="chip y">Yes</span></td><td><span class="chip y">Yes</span></td><td><span class="chip y">Yes</span></td></tr>
+          <tr><td>See resignations and exit progress</td><td><span class="chip y">All</span></td><td><span class="chip n">No</span></td><td><span class="chip o">Direct reports</span></td><td><span class="chip o">Own</span></td></tr>
+          <tr><td>Accept resignations, set last working day</td><td><span class="chip y">Yes</span></td><td><span class="chip n">No</span></td><td><span class="chip n">No</span></td><td><span class="chip n">No</span></td></tr>
+          <tr><td>Issue and manage performance improvement plans</td><td><span class="chip y">Yes</span></td><td><span class="chip n">No</span></td><td><span class="chip o">Input on direct reports</span></td><td><span class="chip n">No</span></td></tr>
+          <tr><td>See own plan and respond to it</td><td><span class="chip o">Own</span></td><td><span class="chip o">Own</span></td><td><span class="chip o">Own</span></td><td><span class="chip o">Own</span></td></tr>
+          <tr><td class="g" colspan="5">Hiring, policies and setup</td></tr>
+          <tr><td>Add candidates and create onboarding links</td><td><span class="chip y">Yes</span></td><td><span class="chip n">No</span></td><td><span class="chip n">No</span></td><td><span class="chip n">No</span></td></tr>
+          <tr><td>Generate offer and other letters</td><td><span class="chip y">Yes</span></td><td><span class="chip n">No</span></td><td><span class="chip n">No</span></td><td><span class="chip n">No</span></td></tr>
+          <tr><td>Upload and publish policies</td><td><span class="chip y">Yes</span></td><td><span class="chip n">No</span></td><td><span class="chip n">No</span></td><td><span class="chip n">No</span></td></tr>
+          <tr><td>Read and acknowledge policies</td><td><span class="chip y">Yes</span></td><td><span class="chip y">Yes</span></td><td><span class="chip y">Yes</span></td><td><span class="chip y">Yes</span></td></tr>
+          <tr><td>Own privacy choices (consents)</td><td><span class="chip y">Yes</span></td><td><span class="chip y">Yes</span></td><td><span class="chip y">Yes</span></td><td><span class="chip y">Yes</span></td></tr>
+          <tr><td>Departments, locations, assets, salary rules</td><td><span class="chip y">Yes</span></td><td><span class="chip n">No</span></td><td><span class="chip n">No</span></td><td><span class="chip n">No</span></td></tr>
+          <tr><td>Audit log</td><td><span class="chip y">Yes</span></td><td><span class="chip n">No</span></td><td><span class="chip n">No</span></td><td><span class="chip n">No</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px">
+      <div class="card" style="padding:20px"><div style="font-weight:600;margin-bottom:6px">How roles are set</div>
+        <div style="font-size:14px;line-height:1.7;color:#3a4260">Everyone with a @complynz.com login lands as a team member. A manager role follows the reporting line automatically. HR admin and finance signatory are assigned by hand, to as few people as possible.</div></div>
+      <div class="card" style="padding:20px"><div style="font-weight:600;margin-bottom:6px">Logged access</div>
+        <div style="font-size:14px;line-height:1.7;color:#3a4260">Anything marked logged records who looked, what they looked at, and when. The audit log shows it to HR admins.</div></div>
+    </div>
+    <p style="font-size:12px;color:#5b6478;margin:16px 0 0">Proposed access model for review. Nothing here is built yet.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1360,"height":940}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
