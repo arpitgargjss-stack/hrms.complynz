@@ -1,0 +1,42 @@
+{
+  "name": "complynz-hrms",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch server/index.ts",
+    "dev:client": "vite --config vite.config.ts",
+    "build": "vite build --config vite.config.ts",
+    "start": "tsx server/index.ts",
+    "check": "tsc --noEmit",
+    "test": "tsx --test \"shared/**/*.test.ts\" \"server/**/*.test.ts\"",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx server/db/migrate.ts",
+    "db:seed": "tsx server/seeds/run.ts"
+  },
+  "dependencies": {
+    "@clerk/clerk-react": "^5.61.3",
+    "@clerk/express": "^2.0.0",
+    "@tanstack/react-query": "^5.60.5",
+    "dotenv": "^8.2.0",
+    "drizzle-orm": "^0.39.3",
+    "express": "^5.0.1",
+    "pg": "^8.16.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "wouter": "^3.3.5",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "20.19.27",
+    "@types/pg": "^8.15.5",
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.7.0",
+    "drizzle-kit": "^0.31.8",
+    "tsx": "^4.20.5",
+    "typescript": "5.6.3",
+    "vite": "^7.3.0"
+  }
+}

@@ -1,6 +1,6 @@
 # Complynz HRMS
 
-Internal HRMS for Complynz staff, planned for `hr.complynz.com` (production only). Status: **design only, nothing built, P1 not approved.**
+Internal HRMS for Complynz staff, planned for `hr.complynz.com` (production only). Status: **first full build.** Backend, client and demo seeder exist and are type-checked and unit-tested. Not deployed; statutory rules are intentionally unconfigured.
 
 ## Contents
 
@@ -28,3 +28,32 @@ Internal HRMS for Complynz staff, planned for `hr.complynz.com` (production only
 - Artwork files for the short offer letter.
 - Legal review: OTP acceptance of NDA/IP, asset contract, PIP and resignation templates.
 - Menus on the older admin boards (Main, BankAdvice, Employee, Policies, Settings) lack the later items.
+
+## Running locally
+
+```bash
+cp .env.example .env        # fill in values; never commit .env
+pnpm install
+pnpm db:migrate
+pnpm db:seed                # no-PII demo data; refuses to run on the production host
+AUTH_MODE=dev DEV_AUTH_EMAIL=you@complynz.com pnpm dev      # API on :5100 (dev auth only off the prod host)
+pnpm dev:client             # Vite on :5101
+pnpm check && pnpm test
+```
+
+Assign the first admin with SQL: `insert into hr_user_roles(email, role) values ('you@complynz.com', 'hr_admin');`
+
+## Layout
+
+- `shared/hr/` pure logic with tests: payroll engine, leave and calendar, reimbursement policy, bank advice, access model.
+- `server/` Express API (`routes/`), drizzle schema (`db/schema.ts`), staff gate, encryption, audit. Public candidate routes are under `/api/public`.
+- `client/` React app, one page per area.
+- `migrations/` SQL.
+
+## Before production
+
+- Enter PF, TDS and Professional Tax rules with their source; none are seeded.
+- Set the Clerk keys and keep `AUTH_MODE=clerk`. Set `FIELD_ENCRYPTION_KEY` and `HMAC_PEPPER` once and never rotate without a migration plan.
+- Point `CMP_BASE_URL` at the real CMP API (the path in `server/lib/consentClient.ts` is a guess).
+- Onboarding OTPs are in memory; persist them before running more than one instance.
+- Legal review of templates (see Open items).
