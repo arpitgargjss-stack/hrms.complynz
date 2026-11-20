@@ -7,7 +7,7 @@ import { db, pool, schema as s } from "../db";
 import { env } from "../env";
 import { encryptField } from "../lib/crypto";
 
-if (env.HR_APP_URL.startsWith("https://hr.complynz.com")) throw new Error("Refusing to seed demo data on the production host");
+if (env.HR_APP_URL.startsWith("https://hrms.complynz.com")) throw new Error("Refusing to seed demo data on the production host");
 const DEMO = "@demo.invalid";
 
 const existing = await db.select({ id: s.employees.id }).from(s.employees).where(like(s.employees.workEmail, `%${DEMO}`)).limit(1);

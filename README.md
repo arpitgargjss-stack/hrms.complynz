@@ -1,6 +1,6 @@
 # Complynz HRMS
 
-Internal HRMS for Complynz staff, planned for `hr.complynz.com` (production only). Status: **first full build.** Backend, client and demo seeder exist and are type-checked and unit-tested. Not deployed; statutory rules are intentionally unconfigured.
+Internal HRMS for Complynz staff, planned for `hrms.complynz.com` (production only). Status: **first full build.** Backend, client and demo seeder exist and are type-checked and unit-tested. Not deployed; statutory rules are intentionally unconfigured.
 
 ## Contents
 
@@ -43,7 +43,11 @@ pnpm dev:client
 pnpm check && pnpm test
 ```
 
-Fill in `DATABASE_URL`, `FIELD_ENCRYPTION_KEY`, and `HMAC_PEPPER`. Never commit `.env`. `pnpm db:seed` loads no-PII demo data and refuses to run when `HR_APP_URL` is the production host. The API listens on port 5100; Vite is on port 5101 and proxies `/api` there. `AUTH_MODE=dev` is rejected when `HR_APP_URL` is `https://hr.complynz.com`, so local dev must point that variable at `http://localhost:5101` (in `.env` or on the command).
+Fill in `DATABASE_URL`, `FIELD_ENCRYPTION_KEY`, and `HMAC_PEPPER`. Never commit `.env`. `pnpm db:seed` loads no-PII demo data and refuses to run when `HR_APP_URL` is the production host. Locally, the API listens on port 5100; Vite is on port 5101 and proxies `/api` there. `AUTH_MODE=dev` is rejected when `HR_APP_URL` is `https://hrms.complynz.com`, so local dev must point that variable at `http://localhost:5101` (in `.env` or on the command).
+
+## Production
+
+One process. `pnpm build` writes the client to `dist/client`; `pnpm start` serves that build and the API together on port 5101. Set `HR_APP_URL=https://hrms.complynz.com` and `AUTH_MODE=clerk`, with `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, and `VITE_CLERK_PUBLISHABLE_KEY` (the last one is read at build time). Point the `hrms.complynz.com` proxy at port 5101. Do not run `pnpm dev` or `pnpm dev:client` on the server.
 
 Assign the first admin with SQL: `insert into hr_user_roles(email, role) values ('you@complynz.com', 'hr_admin');`
 
