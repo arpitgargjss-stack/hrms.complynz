@@ -17,6 +17,9 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.60.5
         version: 5.107.1(@types/react@18.3.31)(react@18.3.1)
+      dotenv:
+        specifier: ^8.2.0
+        version: 8.6.0
       drizzle-orm:
         specifier: ^0.39.3
         version: 0.39.3(@types/pg@8.23.1)(pg@8.23.1)
@@ -971,6 +974,10 @@ packages:
   dequal@2.0.3:
     resolution: {integrity: sha512-0je+qPKHEMohvfRTCEo3CrPG6cAzAYgmzKyxRiYSSDkS6eGJdyVJm7WaYA5ECaAD9wLB2T4EEeymA5aFVcYXCA==}
     engines: {node: '>=6'}
+
+  dotenv@8.6.0:
+    resolution: {integrity: sha512-IrPdXQsk2BbzvCBGBOTmmSH5SodmqZNt4ERAZDmW4CT+tL8VtvinqywuANaFu4bOMWki16nqf0e4oC0QIaDr/g==}
+    engines: {node: '>=10'}
 
   drizzle-kit@0.31.11:
     resolution: {integrity: sha512-YCYqxTLIB2OCqf6w9/Vef13baBVbwQIPcbT4Y56AfO6B9ajZhDhD8Jkveg/hJvT/iuMloKD/IYYkyMMNhr7Kqg==}
@@ -2220,6 +2227,8 @@ snapshots:
   depd@2.0.0: {}
 
   dequal@2.0.3: {}
+
+  dotenv@8.6.0: {}
 
   drizzle-kit@0.31.11:
     dependencies:

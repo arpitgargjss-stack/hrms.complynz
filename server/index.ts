@@ -50,4 +50,3 @@ app.use((err: Error & { status?: number }, _req: Request, res: Response, _next: 
 });
 
 app.listen(env.PORT, () => console.log(`HRMS listening on ${env.PORT}`));
-

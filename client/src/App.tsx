@@ -44,7 +44,7 @@ function Shell() {
   const roles = new Set(me.data!.roles);
   return (
     <div className="shell">
-      <aside className="side"><div className="brand">Complynz</div><div className="sub">HR · hr.complynz.com</div>
+      <aside className="side"><div className="brand">Complynz</div><div className="sub">HR · hrms.complynz.com</div>
         <nav aria-label="Sections">{NAV.filter((n) => !n.roles || n.roles.some((r) => roles.has(r))).map((n) =>
           <Link key={n.to} href={n.to} className={(n.to === "/" ? loc === "/" : loc.startsWith(n.to)) ? "on" : ""}>{n.label}</Link>)}</nav>
       </aside>

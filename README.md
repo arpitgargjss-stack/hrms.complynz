@@ -31,15 +31,19 @@ Internal HRMS for Complynz staff, planned for `hr.complynz.com` (production only
 
 ## Running locally
 
+Run these one at a time, in two terminals for the last pair. Leave the `#` comments out: zsh does not treat `#` as a comment unless `interactivecomments` is set, and a pasted `:5100` then aborts the line (`zsh: number expected`) so the API never starts.
+
 ```bash
-cp .env.example .env        # fill in values; never commit .env
+cp .env.example .env
 pnpm install
 pnpm db:migrate
-pnpm db:seed                # no-PII demo data; refuses to run on the production host
-AUTH_MODE=dev DEV_AUTH_EMAIL=you@complynz.com pnpm dev      # API on :5100 (dev auth only off the prod host)
-pnpm dev:client             # Vite on :5101
+HR_APP_URL=http://localhost:5101 pnpm db:seed
+HR_APP_URL=http://localhost:5101 AUTH_MODE=dev DEV_AUTH_EMAIL=you@complynz.com pnpm dev
+pnpm dev:client
 pnpm check && pnpm test
 ```
+
+Fill in `DATABASE_URL`, `FIELD_ENCRYPTION_KEY`, and `HMAC_PEPPER`. Never commit `.env`. `pnpm db:seed` loads no-PII demo data and refuses to run when `HR_APP_URL` is the production host. The API listens on port 5100; Vite is on port 5101 and proxies `/api` there. `AUTH_MODE=dev` is rejected when `HR_APP_URL` is `https://hr.complynz.com`, so local dev must point that variable at `http://localhost:5101` (in `.env` or on the command).
 
 Assign the first admin with SQL: `insert into hr_user_roles(email, role) values ('you@complynz.com', 'hr_admin');`
 
