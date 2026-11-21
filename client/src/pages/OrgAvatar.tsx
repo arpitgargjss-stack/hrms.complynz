@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { getAuthToken } from "./api";
+// Org-chart-local avatar. PR #4 adds a shared client/src/lib/Avatar.tsx; switch to it once that lands.
+import { getAuthToken } from "../lib/api";
 
 // Photos are served from the authenticated /api/files/:id endpoint, so <img src> can't load them
 // directly. Fetch each one once with the bearer token and keep a blob URL for the session.

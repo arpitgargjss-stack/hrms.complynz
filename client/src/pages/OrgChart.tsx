@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
-import { Avatar, hashColor } from "../lib/Avatar";
+import { Avatar, hashColor } from "./OrgAvatar";
 import { ErrorNote, Page } from "../lib/ui";
 import "./orgchart.css";
 
