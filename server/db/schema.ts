@@ -6,7 +6,7 @@ const created = () => timestamp("created_at", { withTimezone: true }).notNull().
 // ---------- access ----------
 /** Elevated roles only. Everyone with a staff login is a team member; managers derive from reporting lines. */
 export const userRoles = pgTable("hr_user_roles", {
-  id: id(), email: text("email").notNull(), role: text("role").notNull(), // hr_admin | finance_signatory
+  id: id(), email: text("email").notNull(), role: text("role").notNull(), // super_admin | hr_admin | finance_signatory
   createdAt: created(),
 }, (t) => [uniqueIndex("hr_user_roles_uq").on(t.email, t.role)]);
 

@@ -4,7 +4,7 @@ import { api } from "../lib/api";
 import { Card, Chip, ErrorNote, Field, Page } from "../lib/ui";
 
 type UR = { id: string; email: string; role: string; createdAt: string };
-const ROLE_LABEL: Record<string, string> = { hr_admin: "HR admin", finance_signatory: "Finance signatory" };
+const ROLE_LABEL: Record<string, string> = { super_admin: "Super admin", hr_admin: "HR admin", finance_signatory: "Finance signatory" };
 
 // Display matrix: HR admin | Finance signatory | Manager | Team member
 const MATRIX: [string, [string, string, string, string, string][]][] = [
@@ -31,11 +31,13 @@ export default function Access() {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("hr_admin");
   const roles = useQuery({ queryKey: ["user-roles"], queryFn: () => api<UR[]>("/user-roles") });
+  const me = useQuery({ queryKey: ["me"], queryFn: () => api<{ roles: string[] }>("/me") });
+  const iAmSuper = !!me.data?.roles.includes("super_admin");
   const add = useMutation({ mutationFn: () => api("/user-roles", { method: "POST", body: { email, role } }), onSuccess: () => { setEmail(""); qc.invalidateQueries({ queryKey: ["user-roles"] }); } });
   const del = useMutation({ mutationFn: (id: string) => api(`/user-roles/${id}`, { method: "DELETE" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["user-roles"] }) });
   return (
     <Page title="Roles and access">
-      <p className="k">Everyone with a company login is a team member. A manager role follows the reporting line automatically. HR admin and finance signatory are assigned by hand, to as few people as possible.</p>
+      <p className="k">Everyone with a company login is a team member. A manager role follows the reporting line automatically. HR admin and finance signatory are assigned by hand, to as few people as possible. A super admin holds both, and only a super admin can grant or remove super admin.</p>
       <Card>
         <h2>Assigned roles</h2>
         <ErrorNote error={roles.error} /><ErrorNote error={del.error} />
@@ -50,7 +52,7 @@ export default function Access() {
           <h2>Assign a role</h2>
           <div className="grid">
             <Field label="Work email"><input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="off" /></Field>
-            <Field label="Role"><select value={role} onChange={(e) => setRole(e.target.value)}><option value="hr_admin">HR admin</option><option value="finance_signatory">Finance signatory</option></select></Field>
+            <Field label="Role"><select value={role} onChange={(e) => setRole(e.target.value)}>{iAmSuper && <option value="super_admin">Super admin (every control)</option>}<option value="hr_admin">HR admin</option><option value="finance_signatory">Finance signatory</option></select></Field>
           </div>
           <ErrorNote error={add.error} />
           <p><button className="btn p" disabled={add.isPending}>Assign role</button></p>

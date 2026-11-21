@@ -649,7 +649,8 @@ r.get("/audit", wrap(async (req, res) => {
 // =====================================================================
 // Elevated role assignment
 // =====================================================================
-const ASSIGNABLE = ["hr_admin", "finance_signatory"] as const satisfies readonly Role[];
+const ASSIGNABLE = ["super_admin", "hr_admin", "finance_signatory"] as const satisfies readonly Role[];
+const isSuperAdmin = (req: Request) => actorOf(req).roles.has("super_admin");
 r.get("/user-roles", wrap(async (req, res) => {
   need(req, "people.write");
   res.json(await db.select().from(S.userRoles).orderBy(asc(S.userRoles.email), asc(S.userRoles.role)));
@@ -657,6 +658,7 @@ r.get("/user-roles", wrap(async (req, res) => {
 r.post("/user-roles", wrap(async (req, res) => {
   need(req, "people.write");
   const b = parse(z.object({ email: domainEmail, role: z.enum(ASSIGNABLE) }).strict(), req.body);
+  if (b.role === "super_admin" && !isSuperAdmin(req)) throw new HttpError(403, "Only a super admin can grant super admin");
   const [row] = await db.insert(S.userRoles).values(b).onConflictDoNothing().returning();
   if (!row) return res.status(200).json({ ok: true, existing: true });
   await logAudit(actorOf(req).email, "user_role.grant", "user_role", row.id, { email: b.email, role: b.role });
@@ -665,18 +667,22 @@ r.post("/user-roles", wrap(async (req, res) => {
 r.delete("/user-roles/:id", wrap(async (req, res) => {
   need(req, "people.write");
   const id = idParam(req);
+  const superAdmin = isSuperAdmin(req);
   const out = await db.transaction(async (tx) => {
     const [row] = await tx.select().from(S.userRoles).where(eq(S.userRoles.id, id)).limit(1).for("update");
     if (!row) return "missing" as const;
-    if (row.role === "hr_admin") {
-      const [{ n }] = await tx.select({ n: sql<number>`count(*)::int` }).from(S.userRoles).where(eq(S.userRoles.role, "hr_admin"));
+    if (row.role === "super_admin" && !superAdmin) return "forbidden" as const;
+    if (row.role === "hr_admin" || row.role === "super_admin") {
+      // Keep at least one person who can manage people: a super admin or an hr_admin.
+      const [{ n }] = await tx.select({ n: sql<number>`count(*)::int` }).from(S.userRoles).where(inArray(S.userRoles.role, ["hr_admin", "super_admin"]));
       if (n <= 1) return "last" as const;
     }
     await tx.delete(S.userRoles).where(eq(S.userRoles.id, id));
     return row;
   });
   if (out === "missing") throw new HttpError(404, "Not found");
-  if (out === "last") throw new HttpError(409, "Cannot remove the last hr_admin");
+  if (out === "forbidden") throw new HttpError(403, "Only a super admin can remove super admin");
+  if (out === "last") throw new HttpError(409, "Cannot remove the last hr_admin or super_admin");
   await logAudit(actorOf(req).email, "user_role.revoke", "user_role", id, { email: out.email, role: out.role });
   res.json({ ok: true });
 }));
