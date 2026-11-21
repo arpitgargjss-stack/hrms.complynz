@@ -27,3 +27,10 @@ export async function fileToBase64(f: Blob): Promise<string> {
   const buf = new Uint8Array(await f.arrayBuffer()); let s = ""; buf.forEach((b) => (s += String.fromCharCode(b))); return btoa(s);
 }
 export async function getAuthToken(): Promise<string | null> { return getToken ? await getToken() : null; }
+/** POST JSON and get text back (used for letter previews). */
+export async function apiText(path: string, body: unknown): Promise<string> {
+  const token = getToken ? await getToken() : null;
+  const res = await fetch("/api" + path, { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) });
+  if (!res.ok) { const j = await res.json().catch(() => ({})); throw new ApiError(res.status, (j as { error?: string }).error ?? res.statusText); }
+  return res.text();
+}

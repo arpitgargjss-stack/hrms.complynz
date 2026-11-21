@@ -38,6 +38,12 @@
 .oc-card a.nm{display:block;font-weight:600;font-size:14px;color:var(--ink);text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .oc-card a.nm:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:4px}
 .oc-card a.nm:hover{color:var(--brand);text-decoration:underline}
+.oc-card a.nm::after{content:"";position:absolute;inset:0;border-radius:12px;cursor:pointer}
+.oc-card:hover{border-color:var(--brand)}
+.oc-view.drag .oc-card a.nm::after{cursor:grabbing}
+.oc-card a.oc-hr{position:relative;z-index:1;display:inline-block;margin-top:6px;font-size:11px;font-weight:600;color:var(--brand);text-decoration:none}
+.oc-card a.oc-hr:hover{text-decoration:underline}
+.oc-card a.oc-hr{display:table;margin:6px auto 0}.oc-card.mini a.oc-hr{margin:2px 0 0}
 .oc-card .ds{font-size:12px;color:#3a4260;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .oc-card .dp{display:inline-block;margin-top:6px;font-size:11px;font-weight:500;padding:2px 8px;border-radius:999px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .oc-card.mini{width:200px;display:flex;align-items:center;gap:10px;text-align:left;padding:10px;border-top-width:1px;border-left:4px solid var(--dc,#c9cfe0)}

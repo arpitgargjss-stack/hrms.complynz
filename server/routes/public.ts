@@ -8,6 +8,7 @@ import { encryptField, hmac, newOtp, safeEqualHex, sha256 } from "../lib/crypto"
 import { saveFile } from "../lib/files";
 import { sendEmail } from "../lib/email";
 import { renderLetter } from "../lib/letterHtml";
+import { letterContext } from "../lib/letterContext";
 import { param, dateStr, parseOut } from "../lib/routeHelpers";
 import {
   RateLimiter, canSendOtp, checkSession, evaluateOtp, makeSession, maskEmail, OTP_TTL_MS, type OtpState,
@@ -99,7 +100,7 @@ async function renderSet(letterId: string) {
   let name = "";
   if (first.candidateId) { const [c] = await db.select({ n: A.candidates.fullName }).from(A.candidates).where(eq(A.candidates.id, first.candidateId)).limit(1); name = c?.n ?? ""; }
   else if (first.employeeId) { const [e] = await db.select({ n: A.employees.fullName }).from(A.employees).where(eq(A.employees.id, first.employeeId)).limit(1); name = e?.n ?? ""; }
-  const letters = set.map((l) => ({ id: l.id, type: l.type, refNo: l.refNo, html: renderLetter({ type: l.type, refNo: l.refNo, name, issuedAt: l.issuedAt, status: "issued", payload: (l.payload ?? {}) as Record<string, unknown> }) }));
+  const letters = await Promise.all(set.map(async (l) => { const payload = (l.payload ?? {}) as Record<string, unknown>; return { id: l.id, type: l.type, refNo: l.refNo, html: renderLetter({ type: l.type, refNo: l.refNo, name, issuedAt: l.issuedAt, status: "issued", payload, approvedAt: l.approvedAt, ...(await letterContext({ type: l.type, payload })) }) }; }));
   const html = letters.map((l) => l.html).join("\n");
   return { letters, html, contentHash: sha256(html), nameNormalised: name.trim().toLowerCase().replace(/\s+/g, " ") };
 }
@@ -115,7 +116,8 @@ r.get("/accept/:token/letter", wrap(async (req, res) => {
 const consentKeys = CONSENT_PURPOSES.map((c) => c.key) as [string, ...string[]];
 const verifyBody = z.object({
   otp: z.string().regex(/^\d{6}$/).optional(),
-  consents: z.record(z.enum(consentKeys), z.boolean()).default({}),
+  // Every purpose needs an explicit yes or no; nothing is assumed.
+  consents: z.record(z.enum(consentKeys), z.boolean()).refine((c) => consentKeys.every((k) => typeof c[k] === "boolean"), "Choose yes or no for each data purpose"),
   agree: z.literal(true), typedName: z.string().trim().min(2).max(120),
 });
 

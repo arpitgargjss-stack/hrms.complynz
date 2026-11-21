@@ -206,7 +206,7 @@ r.delete("/leave/types/:id", wrap(async (req, res) => {
 }));
 
 // ---------- leave ----------
-async function usage(empId: string, year: number, typeId?: string) {
+export async function usage(empId: string, year: number, typeId?: string) {
   const rows = await db.select().from(A.leaveRequests).where(and(eq(A.leaveRequests.employeeId, empId), gte(A.leaveRequests.fromDate, `${year}-01-01`), lte(A.leaveRequests.fromDate, `${year}-12-31`), inArray(A.leaveRequests.status, ["approved", "pending"])));
   const f = typeId ? rows.filter((x) => x.leaveTypeId === typeId) : rows;
   return {

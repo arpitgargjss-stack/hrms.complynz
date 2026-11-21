@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { Card, Chip, ErrorNote, Field, Page } from "../lib/ui";
+import { RESIGNATION_REASONS } from "../../../shared/hr/misc";
 
 type Me = { email: string; employeeId: string | null; roles: string[] };
 type Item = { key: string; label: string; done: boolean; note?: string | null; doneBy?: string | null };
@@ -35,8 +36,8 @@ function MyResignation({ me }: { me: Me }) {
   const q = useQuery({ queryKey: ["resignations"], queryFn: () => api<Resign[]>("/resignations") });
   const mine = (q.data ?? []).filter((r) => r.employeeId === me.employeeId);
   const active = mine.find((r) => ["submitted", "manager_reviewed", "accepted"].includes(r.status));
-  const [f, setF] = useState({ proposedLastDay: "", reason: "", comments: "" });
-  const submit = useMutation({ mutationFn: () => api("/resignations", { body: { proposedLastDay: f.proposedLastDay, reason: f.reason, comments: f.comments || undefined } }), onSuccess: () => qc.invalidateQueries({ queryKey: ["resignations"] }) });
+  const [f, setF] = useState({ proposedLastDay: "", reasonCategory: "", reason: "", comments: "" });
+  const submit = useMutation({ mutationFn: () => api("/resignations", { body: { proposedLastDay: f.proposedLastDay, reasonCategory: f.reasonCategory || undefined, reason: f.reason, comments: f.comments || undefined } }), onSuccess: () => qc.invalidateQueries({ queryKey: ["resignations"] }) });
   const withdraw = useMutation({ mutationFn: (id: string) => api(`/resignations/${id}/withdraw`, { method: "POST", body: {} }), onSuccess: () => qc.invalidateQueries({ queryKey: ["resignations"] }) });
   return (
     <>
@@ -51,7 +52,9 @@ function MyResignation({ me }: { me: Me }) {
         <p className="k">Your manager reviews it and HR then accepts it and agrees a last working day. You can withdraw until it is accepted.</p>
         <form onSubmit={(e) => { e.preventDefault(); if (window.confirm("Submit your resignation?")) submit.mutate(); }}>
           <Field label="Proposed last working day"><input type="date" required value={f.proposedLastDay} onChange={(e) => setF({ ...f, proposedLastDay: e.target.value })} /></Field>
-          <Field label="Reason"><input required minLength={2} maxLength={100} value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} /></Field>
+          <Field label="Main reason (only counts by reason are ever reported, and only when 5 or more people share one)"><select value={f.reasonCategory} onChange={(e) => setF({ ...f, reasonCategory: e.target.value })}>
+            <option value="">Prefer not to say</option>{RESIGNATION_REASONS.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}</select></Field>
+          <Field label="Reason in your words"><input required minLength={2} maxLength={100} value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} /></Field>
           <Field label="Comments (optional)"><textarea rows={4} maxLength={2000} value={f.comments} onChange={(e) => setF({ ...f, comments: e.target.value })} /></Field>
           <ErrorNote error={submit.error} />
           <p><button className="btn p" disabled={submit.isPending}>Submit resignation</button></p>

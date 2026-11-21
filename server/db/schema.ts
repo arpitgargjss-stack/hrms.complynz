@@ -22,6 +22,7 @@ export const locations = pgTable("hr_locations", {
   id: id(), name: text("name").notNull().unique(), address: text("address"),
   lat: text("lat"), lng: text("lng"), radiusM: integer("radius_m").default(150), // office geofence, used only for the inside/outside check
   isRemote: boolean("is_remote").notNull().default(false), // remote: punches are recorded but no geofence check and no location prompt
+  state: text("state"), // Indian state or union territory; drives professional tax and state compliance
   createdAt: created(),
 });
 
@@ -108,6 +109,13 @@ export const letters = pgTable("hr_letters", {
   refNo: text("ref_no").notNull().unique(), employeeId: uuid("employee_id"), candidateId: uuid("candidate_id"),
   payload: jsonb("payload").notNull(), status: text("status").notNull().default("draft"), // draft|issued|accepted|void
   pdfFileId: uuid("pdf_file_id"), issuedBy: text("issued_by"), issuedAt: timestamp("issued_at", { withTimezone: true }), createdAt: created(),
+  // CEO approval: draft -> pending_approval -> approved -> issued. A rejection returns it to draft with a note.
+  createdBy: text("created_by"), submittedBy: text("submitted_by"), submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  approvedBy: text("approved_by"), approvedAt: timestamp("approved_at", { withTimezone: true }), reviewNote: text("review_note"),
+});
+/** Company details printed on letters (one row). */
+export const companyProfile = pgTable("hr_company_profile", {
+  id: serial("id").primaryKey(), settings: jsonb("settings").notNull(), updatedBy: text("updated_by").notNull(), updatedAt: created(),
 });
 /** Public acceptance link. Only the token hash is stored; OTP codes are hashed and expire. */
 export const acceptanceLinks = pgTable("hr_acceptance_links", {
@@ -226,6 +234,7 @@ export const reimbClaims = pgTable("hr_reimb_claims", {
 export const resignations = pgTable("hr_resignations", {
   id: id(), employeeId: uuid("employee_id").notNull(), noticeDays: integer("notice_days"), proposedLastDay: date("proposed_last_day").notNull(),
   agreedLastDay: date("agreed_last_day"), reason: text("reason").notNull(), comments: text("comments"),
+  reasonCategory: text("reason_category"), // see RESIGNATION_REASONS; used only for aggregate trends
   status: text("status").notNull().default("submitted"), // submitted|manager_reviewed|accepted|withdrawn|completed
   managerNote: text("manager_note"), acceptedBy: text("accepted_by"), checklist: jsonb("checklist"), createdAt: created(),
 });
@@ -268,7 +277,29 @@ export const kudosReactions = pgTable("hr_kudos_reactions", {
 /** Weekly 1-tap mood. Anonymous like the satisfaction survey: no identity columns, day-bucketed, results only at 5+ answers. */
 export const pulseResponses = pgTable("hr_pulse_responses", {
   id: id(), week: text("week").notNull(), departmentId: uuid("department_id"), mood: integer("mood").notNull(), submittedDay: date("submitted_day").notNull(),
+  enjoy: integer("enjoy"), belief: integer("belief"), // "Are you enjoying your work?" and "Do you believe in where we're going?", 1 to 5, optional
 }, (t) => [index("hr_pulse_week").on(t.week, t.departmentId)]);
 export const pulseParticipation = pgTable("hr_pulse_participation", {
   id: id(), week: text("week").notNull(), markerHash: text("marker_hash").notNull(),
 }, (t) => [uniqueIndex("hr_pulse_part_uq").on(t.week, t.markerHash)]);
+
+// ---------- login activity (only for people who opted in to login_activity) ----------
+/** One row per person per day they used the app. Kept only while consent stands; deleted on withdrawal. No times, IPs or devices. */
+export const loginDays = pgTable("hr_login_days", {
+  id: id(), employeeId: uuid("employee_id").notNull(), day: date("day").notNull(),
+}, (t) => [uniqueIndex("hr_login_day_uq").on(t.employeeId, t.day), index("hr_login_day").on(t.day)]);
+
+// ---------- full and final settlement ----------
+export const fnfRules = pgTable("hr_fnf_rules", { id: serial("id").primaryKey(), settings: jsonb("settings").notNull(), updatedBy: text("updated_by").notNull(), updatedAt: created() });
+export const fnfSettlements = pgTable("hr_fnf_settlements", {
+  id: id(), employeeId: uuid("employee_id").notNull(), inputs: jsonb("inputs").notNull(), result: jsonb("result").notNull(), rules: jsonb("rules").notNull(),
+  status: text("status").notNull().default("draft"), // draft | paid
+  letterId: uuid("letter_id"), paidOn: date("paid_on"), createdBy: text("created_by").notNull(), createdAt: created(),
+}, (t) => [index("hr_fnf_emp").on(t.employeeId)]);
+
+/** Compliance centre: the company facts HR sets (industry, DPIIT, FDI and so on) and what has been done for each due period. */
+export const complianceProfile = pgTable("hr_compliance_profile", { id: serial("id").primaryKey(), settings: jsonb("settings").notNull(), updatedBy: text("updated_by").notNull(), updatedAt: created() });
+export const complianceTasks = pgTable("hr_compliance_tasks", {
+  id: id(), itemKey: text("item_key").notNull(), period: text("period").notNull(), status: text("status").notNull(), // done | na
+  doneOn: date("done_on"), note: text("note"), by: text("by_email").notNull(), createdAt: created(),
+}, (t) => [uniqueIndex("hr_compliance_task_uq").on(t.itemKey, t.period)]);

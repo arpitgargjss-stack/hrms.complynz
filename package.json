@@ -12,7 +12,8 @@
     "test": "tsx --test \"shared/**/*.test.ts\" \"server/**/*.test.ts\"",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx server/db/migrate.ts",
-    "db:seed": "tsx server/seeds/run.ts"
+    "db:seed": "tsx server/seeds/run.ts",
+    "db:seed:dashboards": "tsx server/seeds/dashboardDemo.ts"
   },
   "dependencies": {
     "@clerk/clerk-react": "^5.61.3",

@@ -4,6 +4,7 @@ import { db, schema } from "../db";
 import { env } from "../env";
 import { clerkMiddleware, getAuth, clerkClient } from "@clerk/express";
 import { SUPER_ADMIN_IMPLIES, type Role } from "../../shared/hr/access";
+import { noteLogin } from "../lib/loginDays";
 
 export interface Actor {
   email: string; employeeId: string | null; roles: Set<Role>; directReportIds: string[];
@@ -39,6 +40,7 @@ export async function requireStaff(req: Request, res: Response, next: NextFuncti
       if (directReportIds.length) roles.add("manager");
     }
     req.actor = { email, employeeId: emp?.id ?? null, roles, directReportIds };
+    if (emp) void noteLogin(emp.id);
     next();
   } catch (e) { next(e); }
 }

@@ -3,7 +3,7 @@ import { useRoute } from "wouter";
 import { publicApi } from "../lib/api";
 
 type Info = { valid: boolean; maskedEmail?: string; accepted?: boolean };
-type LetterSet = { letters: { id: string; type: string; refNo: string; html: string }[]; html: string; consentPurposes: { key: string; label: string; required: boolean }[]; accepted: boolean };
+type LetterSet = { letters: { id: string; type: string; refNo: string; html: string }[]; html: string; consentPurposes: { key: string; label: string; required: boolean; title: string; detail: string; retention: string }[]; accepted: boolean };
 const typeLabel = (t: string) => (t === "offer_short" ? "Offer summary" : t === "offer_full" ? "Full offer letter" : "Letter");
 const wrapStyle = { maxWidth: 680, margin: "0 auto", padding: "16px 16px 48px" } as const;
 
@@ -23,7 +23,7 @@ export default function Accept() {
   const [session, setSession] = useState("");
   const [set, setSet] = useState<LetterSet | null>(null);
   const [which, setWhich] = useState(0);
-  const [consents, setConsents] = useState<Record<string, boolean>>({});
+  const [consents, setConsents] = useState<Record<string, boolean | undefined>>({});
   const [name, setName] = useState("");
   const [agree, setAgree] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -42,7 +42,7 @@ export default function Accept() {
     const r = await publicApi<{ session: string }>(`/accept/${t}/verify-otp`, { body: { otp } });
     const s = await publicApi<LetterSet>(`/accept/${t}/letter`, { headers: { "X-Accept-Session": r.session } });
     setSession(r.session); setSet(s); setOtp("");
-    setConsents(Object.fromEntries(s.consentPurposes.map((c) => [c.key, false]))); // all optional, default off
+    setConsents({}); // nothing pre-selected: each purpose needs an explicit yes or no
   });
   const submit = () => run(async () => {
     await publicApi(`/accept/${t}/verify`, { body: { consents, agree: true, typedName: name }, headers: { "X-Accept-Session": session } });
@@ -71,6 +71,7 @@ export default function Accept() {
   );
 
   const cur = set.letters[which] ?? set.letters[0];
+  const answered = set.consentPurposes.filter((c) => typeof consents[c.key] === "boolean").length;
   return (
     <Shell>
       <div className="card"><h1>Review your offer</h1>
@@ -79,16 +80,25 @@ export default function Accept() {
         {cur && <iframe title={`${typeLabel(cur.type)} ${cur.refNo}`} sandbox="" srcDoc={cur.html} style={{ width: "100%", height: "70vh", minHeight: 360, border: "1px solid var(--line)", borderRadius: 8, background: "#fff" }} />}
       </div>
       <form className="card" onSubmit={(e) => { e.preventDefault(); submit(); }}>
-        <h2>Your data choices (all optional)</h2>
-        <p className="k">These are separate from your offer. Saying no does not affect your offer or employment. You can change them later.</p>
+        <h2>Your data choices</h2>
+        <p className="k">Choose yes or no for each purpose. Nothing is pre-selected. Saying no does not affect your offer or your employment. Each choice is recorded with the date and time, moves to your consent log when you join, and you can change it any time from My privacy.</p>
         {set.consentPurposes.map((c) => (
-          <label key={c.key} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "12px 0", borderTop: "1px solid var(--line)", fontSize: 14, lineHeight: 1.5, minHeight: 44 }}>
-            <input type="checkbox" checked={!!consents[c.key]} onChange={(e) => setConsents({ ...consents, [c.key]: e.target.checked })} style={{ flex: "0 0 20px", marginTop: 2 }} /><span>{c.label}</span></label>))}
+          <fieldset key={c.key} style={{ border: 0, borderTop: "1px solid var(--line)", margin: 0, padding: "14px 0" }}>
+            <legend style={{ fontWeight: 600, fontSize: 14, padding: 0, float: "left", width: "100%" }}>{c.title}</legend>
+            <p style={{ clear: "both", fontSize: 13.5, lineHeight: 1.5, margin: "4px 0" }}>{c.detail}</p>
+            <p className="k" style={{ margin: "0 0 8px" }}>Kept for: {c.retention}</p>
+            <div style={{ display: "flex", gap: 8 }}>
+              {([[true, "Yes, I agree"], [false, "No"]] as const).map(([v, l]) => (
+                <label key={l} style={{ display: "flex", gap: 8, alignItems: "center", minHeight: 44, padding: "0 14px", border: `1px solid ${consents[c.key] === v ? "var(--brand)" : "var(--line)"}`, borderRadius: 10, background: consents[c.key] === v ? "rgba(0,72,228,.08)" : "transparent", cursor: "pointer", fontSize: 14 }}>
+                  <input type="radio" name={`consent-${c.key}`} checked={consents[c.key] === v} onChange={() => setConsents({ ...consents, [c.key]: v })} />{l}</label>))}
+            </div>
+          </fieldset>))}
+        <p className="k" role="status">{answered} of {set.consentPurposes.length} answered</p>
         <label className="fld"><span>Type your full name to sign</span><input required minLength={2} maxLength={120} autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} /></label>
         <label style={{ display: "flex", gap: 12, alignItems: "flex-start", margin: "16px 0", fontSize: 14, lineHeight: 1.5 }}>
           <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} style={{ flex: "0 0 20px", marginTop: 2 }} /><span>I have read the offer documents and I accept the offer.</span></label>
         {err && <div className="note bad" role="alert">{err}</div>}
-        <button className="btn p" style={{ width: "100%" }} disabled={busy || !agree || name.trim().length < 2}>{busy ? "Submitting…" : "Accept offer"}</button>
+        <button className="btn p" style={{ width: "100%" }} disabled={busy || !agree || name.trim().length < 2 || answered < set.consentPurposes.length}>{busy ? "Submitting…" : "Accept offer"}</button>
       </form>
     </Shell>
   );

@@ -7,6 +7,8 @@ import { logAudit } from "../lib/audit";
 import { need, requireHr, idParam, selfId, istDate, dateStr, parseOut } from "../lib/routeHelpers";
 import { canAccess, scopeFor } from "../../shared/hr/access";
 
+import { RESIGNATION_REASONS } from "../../shared/hr/misc";
+
 const r = Router();
 const A = schema;
 
@@ -18,6 +20,7 @@ r.post("/resignations", wrap(async (req, res) => {
   const empId = selfId(req);
   const b = parse(z.object({
     proposedLastDay: dateStr, reason: z.string().trim().min(2).max(100), comments: z.string().trim().max(2000).optional(),
+    reasonCategory: z.enum(RESIGNATION_REASONS.map((x) => x.key) as [string, ...string[]]).optional(),
     noticeDays: z.number().int().min(0).max(365).nullable().optional(),
   }), req.body);
   const [emp] = await db.select().from(A.employees).where(eq(A.employees.id, empId)).limit(1);
@@ -25,7 +28,7 @@ r.post("/resignations", wrap(async (req, res) => {
   if (b.proposedLastDay < istDate()) throw new HttpError(400, "Last day cannot be in the past");
   const [existing] = await db.select({ id: A.resignations.id }).from(A.resignations).where(and(eq(A.resignations.employeeId, empId), inArray(A.resignations.status, ACTIVE_RESIGN))).limit(1);
   if (existing) throw new HttpError(409, "You already have an active resignation");
-  const [row] = await db.insert(A.resignations).values({ employeeId: empId, noticeDays: b.noticeDays ?? null, proposedLastDay: b.proposedLastDay, reason: b.reason, comments: b.comments ?? null }).returning();
+  const [row] = await db.insert(A.resignations).values({ employeeId: empId, noticeDays: b.noticeDays ?? null, proposedLastDay: b.proposedLastDay, reason: b.reason, reasonCategory: b.reasonCategory ?? null, comments: b.comments ?? null }).returning();
   await logAudit(req.actor!.email, "resignation.submit", "resignation", row.id);
   res.status(201).json(row);
 }));

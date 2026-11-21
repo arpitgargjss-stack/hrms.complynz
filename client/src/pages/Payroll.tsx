@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, fileToBase64, getAuthToken } from "../lib/api";
 import { openHtml } from "../lib/openHtml";
 import { Card, Chip, ErrorNote, Field, Page, inr } from "../lib/ui";
+import { RULE_PRESETS, TEMPLATE_PRESETS } from "../../../shared/hr/presets";
 
 type Me = { email: string; employeeId: string | null; roles: string[] };
 type RunRow = { id: string; month: string; status: string; lockedAt: string | null; lockedBy: string | null; headcount: number; netPayPaise: number; exceptionCount: number };
@@ -22,8 +23,9 @@ type Signatory = { id: string; email: string; displayName: string; designation: 
 type RuleRow = { id: string; effectiveFrom: string; source: string; createdBy: string; rules: Rules };
 type Rules = {
   pf: { enabled: boolean; employeeBps: number; employerBps: number; wageCeilingPaise: number | null };
+  esi?: { enabled: boolean; employeeBps: number; employerBps: number; wageCeilingPaise: number };
   tds: { enabled: boolean; slabs: { upToPaise: number | null; rateBps: number }[]; standardDeductionPaise: number; cessBps: number; rebate?: { thresholdPaise: number; maxRebatePaise: number } };
-  professionalTax: { enabled: boolean; monthlyPaise: number };
+  professionalTax: { enabled: boolean; monthlyPaise: number; byState?: Record<string, unknown> };
 };
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -39,18 +41,137 @@ export default function Payroll() {
   const me = useQuery({ queryKey: ["me"], queryFn: () => api<Me>("/me") });
   const roles = new Set(me.data?.roles ?? []);
   const isHr = roles.has("hr_admin"), isFin = roles.has("finance_signatory");
-  const [tab, setTab] = useState("runs");
-  const tabs: [string, string][] = [["runs", "Runs"], ["advice", "Bank advice"], ["rules", "Statutory rules"], ...(isHr ? [["templates", "Salary templates"], ["comp", "Compensation"]] as [string, string][] : []), ["sign", "Signatories"]];
+  const canRun = isHr || isFin; // finance has the same payroll rights as HR admin
+  const [tab, setTab] = useState("overview");
+  const tabs: [string, string][] = [["overview", "Overview"], ["runs", "Runs"], ["advice", "Bank advice"], ["rules", "Statutory rules"], ...(canRun ? [["templates", "Salary templates"], ["comp", "Compensation"]] as [string, string][] : []), ["sign", "Signatories"]];
   return (
     <Page title="Payroll">
       <div className="tabs" role="tablist">{tabs.map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>{l}</button>)}</div>
-      {tab === "runs" && <Runs canRun={isHr} />}
+      {tab === "overview" && <Overview go={setTab} canRun={canRun} />}
+      {tab === "runs" && <Runs canRun={canRun} />}
       {tab === "advice" && <BankAdvice canSign={isFin} />}
       {tab === "rules" && <RulesTab />}
-      {tab === "templates" && isHr && <Templates />}
-      {tab === "comp" && isHr && <Compensation />}
+      {tab === "templates" && canRun && <Templates />}
+      {tab === "comp" && canRun && <Compensation />}
       {tab === "sign" && <Signatories isHr={isHr} isFin={isFin} />}
     </Page>
+  );
+}
+
+// ------------------------------------------------------------------ Overview
+type OverviewData = { month: string; setup: { key: string; label: string; ok: boolean; detail: string; tab: string }[]; strip: { month: string; status: string; runId: string | null; payslips: number; netPayPaise: number }[] };
+const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const STRIP: Record<string, { label: string; bg: string; fg: string; border: string }> = {
+  none: { label: "No run", bg: "transparent", fg: "var(--mute)", border: "1.5px dashed #c9d2e6" },
+  draft: { label: "Draft", bg: "#f0f5ff", fg: "#1e3a8a", border: "1.5px solid #bfdbfe" },
+  locked: { label: "Locked", bg: "#0048e4", fg: "#fff", border: "1.5px solid #0048e4" },
+  paid: { label: "Paid", bg: "#00339f", fg: "#fff", border: "1.5px solid #00339f" },
+  imported: { label: "Imported", bg: "#dbe6ff", fg: "#0039b8", border: "1.5px solid #93b4ff" },
+};
+function Overview({ go, canRun }: { go: (t: string) => void; canRun: boolean }) {
+  const q = useQuery({ queryKey: ["payroll-overview"], queryFn: () => api<OverviewData>("/payroll/overview") });
+  if (q.error) return <ErrorNote error={q.error} />;
+  if (!q.data) return <Card><p>Loading…</p></Card>;
+  const d = q.data, done = d.setup.filter((x) => x.ok).length;
+  return (
+    <>
+      <Card>
+        <div className="row-gap" style={{ justifyContent: "space-between", alignItems: "baseline" }}><h2 style={{ margin: 0 }}>Last 12 months</h2><span className="k">Click a month to open its run.</span></div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(12, minmax(0, 1fr))", gap: 8, marginTop: 14 }}>
+          {d.strip.map((m) => { const st = STRIP[m.status] ?? STRIP.none; return (
+            <button key={m.month} type="button" onClick={() => go("runs")} title={`${m.month}: ${st.label}${m.payslips ? `, ${m.payslips} payslips, ${inr(m.netPayPaise)}` : ""}`}
+              style={{ font: "inherit", textAlign: "left", cursor: "pointer", borderRadius: 12, padding: "10px 10px 8px", background: st.bg, color: st.fg, border: st.border, minHeight: 86, display: "flex", flexDirection: "column", gap: 2 }}>
+              <b style={{ fontSize: 13 }}>{MON[Number(m.month.slice(5, 7)) - 1]} {m.month.slice(2, 4)}</b>
+              <span style={{ fontSize: 11, fontWeight: 600, opacity: 0.9 }}>{st.label}</span>
+              {m.payslips > 0 && <span style={{ fontSize: 11, opacity: 0.85, marginTop: "auto" }}>{m.payslips} slips · {inr(m.netPayPaise).replace(/\.00$/, "")}</span>}
+            </button>); })}
+        </div>
+        <div className="k" style={{ display: "flex", gap: 14, marginTop: 10, flexWrap: "wrap" }}>{Object.entries(STRIP).map(([k, v]) => <span key={k} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span aria-hidden style={{ width: 12, height: 12, borderRadius: 4, background: v.bg, border: v.border }} />{v.label}</span>)}</div>
+      </Card>
+      {canRun && <ImportPast strip={d.strip} />}
+      <Card>
+        <div className="row-gap" style={{ justifyContent: "space-between", alignItems: "baseline" }}><h2 style={{ margin: 0 }}>Payroll set-up</h2><span className="k">{done} of {d.setup.length} ready</span></div>
+        <div style={{ display: "flex", flexDirection: "column", marginTop: 8 }}>
+          {d.setup.map((x) => (
+            <div key={x.key} className="row-gap" style={{ justifyContent: "space-between", padding: "12px 0", borderTop: "1px solid var(--line)" }}>
+              <span style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                <span aria-hidden style={{ width: 24, height: 24, borderRadius: 999, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, background: x.ok ? "#0048e4" : "#f0f5ff", color: x.ok ? "#fff" : "#0039b8", border: x.ok ? "none" : "1.5px solid #bfdbfe" }}>{x.ok ? "✓" : "!"}</span>
+                <span><b style={{ display: "block", fontSize: 14 }}>{x.label}</b><span className="k">{x.detail}</span></span>
+              </span>
+              <span className="row-gap" style={{ alignItems: "center" }}><Chip tone={x.ok ? "ok" : "warn"}>{x.ok ? "Done" : "Missing"}</Chip>{(canRun || x.tab === "rules" || x.tab === "sign") && <button className="btn" onClick={() => go(x.tab)}>{x.ok ? "Review" : "Set up"}</button>}</span>
+            </div>))}
+        </div>
+      </Card>
+    </>
+  );
+}
+
+// ------------------------------------------------------------------ Import months paid outside the HRMS
+type ImportPreview = { month: string; replaces: boolean; issues: { row: number; code: string; message: string }[]; rows: { code: string; name: string; paidDays: number; grossPaise: number; deductionsPaise: number; netPayPaise: number }[]; totals: { payslips: number; grossPaise: number; netPayPaise: number }; notInFile: string[] };
+function ImportPast({ strip }: { strip: OverviewData["strip"] }) {
+  const qc = useQueryClient();
+  const past = strip.slice(0, -1).filter((m) => m.status === "none" || m.status === "imported").reverse();
+  const [month, setMonth] = useState(past[0]?.month ?? "");
+  const [file, setFile] = useState<{ name: string; b64: string } | null>(null);
+  const [err, setErr] = useState<unknown>(null);
+  const [done, setDone] = useState<string | null>(null);
+  const status = strip.find((m) => m.month === month);
+  const label = (m: string) => `${MON[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}`;
+  const preview = useMutation({ mutationFn: (f: { b64: string }) => api<ImportPreview>("/payroll/import/preview", { body: { month, fileBase64: f.b64 } }) });
+  const save = useMutation({
+    mutationFn: () => api<{ payslips: number }>("/payroll/import", { body: { month, fileBase64: file!.b64 } }),
+    onSuccess: (r) => { setDone(`${label(month)} imported: ${r.payslips} payslips are now in My payslips.`); setFile(null); preview.reset(); qc.invalidateQueries({ queryKey: ["payroll-overview"] }); qc.invalidateQueries({ queryKey: ["payroll-runs"] }); },
+  });
+  const undo = useMutation({
+    mutationFn: () => api(`/payroll/import/${status!.runId}`, { method: "DELETE" }),
+    onSuccess: () => { setDone(`${label(month)} import removed.`); qc.invalidateQueries({ queryKey: ["payroll-overview"] }); qc.invalidateQueries({ queryKey: ["payroll-runs"] }); },
+  });
+  const download = async () => {
+    setErr(null);
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`/api/payroll/import/template?month=${month}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({ error: res.statusText }))).error);
+      const url = URL.createObjectURL(await res.blob()), a = document.createElement("a");
+      a.href = url; a.download = `complynz-payroll-${month}.xlsx`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+    } catch (e) { setErr(e); }
+  };
+  const pick = async (f: File | undefined) => {
+    setDone(null); preview.reset(); if (!f) { setFile(null); return; }
+    const b64 = await fileToBase64(f); setFile({ name: f.name, b64 }); preview.mutate({ b64 });
+  };
+  const p = preview.data;
+  if (!past.length) return null;
+  return (
+    <Card>
+      <div className="row-gap" style={{ justifyContent: "space-between", alignItems: "baseline" }}><h2 style={{ margin: 0 }}>Import months paid outside the system</h2><span className="k">Payslips appear for employees once imported.</span></div>
+      <ol className="k" style={{ margin: "10px 0 14px", paddingLeft: 18, lineHeight: 1.7 }}>
+        <li>Pick the month and download its template. It lists everyone employed that month.</li>
+        <li>Fill in what was actually paid, in rupees, and save it.</li>
+        <li>Upload it, check the preview, then import.</li>
+      </ol>
+      <div className="row-gap" style={{ alignItems: "flex-end", flexWrap: "wrap" }}>
+        <Field label="Month"><select value={month} onChange={(e) => { setMonth(e.target.value); setFile(null); preview.reset(); setDone(null); }}>
+          {past.map((m) => <option key={m.month} value={m.month}>{label(m.month)}{m.status === "imported" ? " (imported, re-upload replaces it)" : ""}</option>)}</select></Field>
+        <button className="btn" onClick={download} disabled={!month}>Download template</button>
+        <label className="btn" style={{ display: "inline-flex", alignItems: "center", cursor: "pointer" }}>{file ? `File: ${file.name}` : "Upload filled file"}
+          <input type="file" accept=".xlsx,.csv" style={{ display: "none" }} onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }} /></label>
+        {status?.status === "imported" && <button className="btn" disabled={undo.isPending} onClick={() => { if (window.confirm(`Remove the imported payslips for ${label(month)}?`)) undo.mutate(); }}>Remove this import</button>}
+      </div>
+      <ErrorNote error={err ?? preview.error ?? save.error ?? undo.error} />
+      {done && <div className="note ok" role="status" style={{ marginTop: 12 }}>{done}</div>}
+      {preview.isPending && <p className="k">Checking the file…</p>}
+      {p && <div style={{ marginTop: 14 }}>
+        {p.issues.length > 0 && <div className="note bad" role="alert"><b>{p.issues.length} problem{p.issues.length > 1 ? "s" : ""} to fix before importing</b>
+          <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>{p.issues.slice(0, 12).map((x, i) => <li key={i}>Row {x.row}{x.code ? ` (${x.code})` : ""}: {x.message}</li>)}</ul></div>}
+        {p.notInFile.length > 0 && <div className="note warn" role="status" style={{ marginTop: 8 }}>Not in the file, so they get no payslip for {label(p.month)}: {p.notInFile.join(", ")}.</div>}
+        {p.rows.length > 0 && <div style={tableWrap}><table className="t" style={{ marginTop: 10 }}><thead><tr><th>Code</th><th>Name</th><th>Paid days</th><th>Gross</th><th>Deductions</th><th>Net pay</th></tr></thead><tbody>
+          {p.rows.map((x) => <tr key={x.code}><td>{x.code}</td><td>{x.name}</td><td>{x.paidDays}</td><td>{inr(x.grossPaise)}</td><td>{inr(x.deductionsPaise)}</td><td><b>{inr(x.netPayPaise)}</b></td></tr>)}
+          <tr><td colSpan={3}><b>{p.totals.payslips} payslips</b></td><td><b>{inr(p.totals.grossPaise)}</b></td><td></td><td><b>{inr(p.totals.netPayPaise)}</b></td></tr></tbody></table></div>}
+        <p style={{ marginTop: 12 }}><button className="btn p" disabled={!!p.issues.length || !p.rows.length || save.isPending} onClick={() => save.mutate()}>{save.isPending ? "Importing…" : p.replaces ? `Replace ${label(p.month)} import` : `Import ${label(p.month)}`}</button>
+          <span className="k" style={{ marginLeft: 10 }}>Imported months are marked paid. They never create a bank advice and never pick up reimbursement claims.</span></p>
+      </div>}
+    </Card>
   );
 }
 
@@ -276,17 +397,18 @@ function RulesTab() {
   const submit = () => { setLocalErr(null); if (f.source.trim().length < 5) return setLocalErr("Source is required: say where these values were confirmed."); if (!f.effectiveFrom) return setLocalErr("Effective from date is required."); add.mutate(); };
   return (
     <>
-      <div className="note warn"><strong>Nothing is pre-filled.</strong> Statutory values (PF, TDS slabs, professional tax) must be confirmed from official sources (EPFO, the Income Tax Department, your state notification) before you enter them. Every rule set records its source and who added it. Payroll runs cannot be created until a rule set is effective for the month.</div>
+      <RulePresets have={new Set((rules.data?.history ?? []).map((h) => h.effectiveFrom))} />
       <Card>
         <h2>Rule sets</h2>
         <ErrorNote error={rules.error} />
         {rules.isLoading ? <p>Loading…</p> : !rules.data?.history.length ? <p className="k">No rule sets configured.</p> : (
-          <div style={tableWrap}><table className="t"><thead><tr><th>Effective from</th><th>PF</th><th>TDS</th><th>Prof. tax</th><th>Source</th><th>Added by</th></tr></thead><tbody>
+          <div style={tableWrap}><table className="t"><thead><tr><th>Effective from</th><th>PF</th><th>TDS</th><th>Prof. tax</th><th>ESI</th><th>Source</th><th>Added by</th></tr></thead><tbody>
             {rules.data.history.map((h) => (
               <tr key={h.id}><td>{h.effectiveFrom} {rules.data!.current?.id === h.id && <Chip tone="ok">Current</Chip>}</td>
                 <td>{h.rules.pf.enabled ? `${bpsPct(h.rules.pf.employeeBps)} / ${bpsPct(h.rules.pf.employerBps)}` : "Off"}</td>
                 <td>{h.rules.tds.enabled ? `${h.rules.tds.slabs.length} slabs, cess ${bpsPct(h.rules.tds.cessBps)}` : "Off"}</td>
-                <td>{h.rules.professionalTax.enabled ? inr(h.rules.professionalTax.monthlyPaise) + "/mo" : "Off"}</td>
+                <td>{!h.rules.professionalTax.enabled ? "Off" : h.rules.professionalTax.byState ? `By state: ${Object.keys(h.rules.professionalTax.byState).join(", ")}` : inr(h.rules.professionalTax.monthlyPaise) + "/mo"}</td>
+                <td>{h.rules.esi?.enabled ? `${bpsPct(h.rules.esi.employeeBps)} / ${bpsPct(h.rules.esi.employerBps)} up to ${inr(h.rules.esi.wageCeilingPaise).replace(/\.00$/, "")}` : "Off"}</td>
                 <td>{h.source}</td><td>{h.createdBy}</td></tr>
             ))}
           </tbody></table></div>
@@ -339,6 +461,53 @@ const componentToRow = (c: Component): CompRow => ({
   value: c.calc.type === "fixed" ? String(c.calc.amount / 100) : c.calc.type === "percent" ? String(c.calc.bps / 100) : "", of: c.calc.type === "percent" ? c.calc.of : "gross",
 });
 
+function RulePresets({ have }: { have: Set<string> }) {
+  const qc = useQueryClient();
+  const add = useMutation({
+    mutationFn: (k: string) => { const p = RULE_PRESETS.find((x) => x.key === k)!; return api("/payroll/rules", { body: { effectiveFrom: p.effectiveFrom, source: p.source, rules: p.rules } }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["payroll-rules"] }); qc.invalidateQueries({ queryKey: ["payroll-overview"] }); },
+  });
+  return (
+    <Card>
+      <div className="row-gap" style={{ justifyContent: "space-between", alignItems: "baseline" }}><h2 style={{ margin: 0 }}>Standard rule sets for India</h2><span className="k">Checked against official and payroll sources on 21 Nov 2026</span></div>
+      <p className="k" style={{ margin: "6px 0 12px" }}>Pick one and payroll is ready to run. Add both to cover months before and after the PF ceiling change. You can still add your own rule set below.</p>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 12 }}>
+        {RULE_PRESETS.map((p) => (
+          <div key={p.key} style={{ border: "1px solid var(--line)", borderRadius: 14, padding: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+            <b>{p.name}</b><span className="k">{p.summary}</span><span className="k">Effective from {p.effectiveFrom}</span>
+            <details><summary className="k" style={{ cursor: "pointer" }}>Sources</summary><ul className="k" style={{ margin: "6px 0 0", paddingLeft: 18, wordBreak: "break-word" }}>{p.sources.map((x) => <li key={x}>{x}</li>)}</ul></details>
+            <div style={{ marginTop: "auto" }}>{have.has(p.effectiveFrom) ? <Chip tone="ok">Added</Chip> : <button className="btn p" disabled={add.isPending} onClick={() => add.mutate(p.key)}>Use this</button>}</div>
+          </div>))}
+      </div>
+      <ErrorNote error={add.error} />
+    </Card>
+  );
+}
+
+function TemplatePresets({ have, onCustomise }: { have: Set<string>; onCustomise: (name: string, rows: CompRow[]) => void }) {
+  const qc = useQueryClient();
+  const add = useMutation({
+    mutationFn: (k: string) => { const t = TEMPLATE_PRESETS.find((x) => x.key === k)!; return api("/payroll/templates", { body: { name: t.name, components: t.components } }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["payroll-templates"] }); qc.invalidateQueries({ queryKey: ["payroll-overview"] }); },
+  });
+  return (
+    <Card>
+      <div className="row-gap" style={{ justifyContent: "space-between", alignItems: "baseline" }}><h2 style={{ margin: 0 }}>Standard salary structures</h2><span className="k">Basic stays at half of gross, as the Code on Wages expects</span></div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 12, marginTop: 12 }}>
+        {TEMPLATE_PRESETS.map((t) => (
+          <div key={t.key} style={{ border: "1px solid var(--line)", borderRadius: 14, padding: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+            <b>{t.name}</b><span className="k">{t.summary}</span>
+            <div className="row-gap" style={{ marginTop: "auto", alignItems: "center" }}>
+              {have.has(t.name) ? <Chip tone="ok">Added</Chip> : <button className="btn p" disabled={add.isPending} onClick={() => add.mutate(t.key)}>Use this</button>}
+              <button className="btn" onClick={() => onCustomise(`${t.name} (custom)`, t.components.map(componentToRow))}>Customise</button>
+            </div>
+          </div>))}
+      </div>
+      <ErrorNote error={add.error} />
+    </Card>
+  );
+}
+
 function Templates() {
   const qc = useQueryClient();
   const list = useQuery({ queryKey: ["payroll-templates"], queryFn: () => api<Template[]>("/payroll/templates") });
@@ -354,6 +523,7 @@ function Templates() {
   const upd = (i: number, p: Partial<CompRow>) => setRows(rows.map((r, j) => (j === i ? { ...r, ...p } : r)));
   return (
     <>
+      <TemplatePresets have={new Set((list.data ?? []).map((t) => t.name))} onCustomise={(n, r) => { setEditId(null); setName(n); setRows(r); setTimeout(() => document.getElementById("tpl-form")?.scrollIntoView({ behavior: "smooth" }), 50); }} />
       <Card>
         <h2>Salary templates</h2>
         <ErrorNote error={list.error} /><ErrorNote error={del.error} />
@@ -367,7 +537,7 @@ function Templates() {
         ))}
       </Card>
       <Card>
-        <h2>{editId ? "Edit template" : "New template"}</h2>
+        <h2 id="tpl-form">{editId ? "Edit template" : "New template"}</h2>
         <p className="k">Editing a template does not change compensation records already created from it.</p>
         <Field label="Template name"><input value={name} onChange={(e) => setName(e.target.value)} /></Field>
         {rows.map((r, i) => (
@@ -398,7 +568,7 @@ function Templates() {
 // ------------------------------------------------------------------ Compensation
 function Compensation() {
   const qc = useQueryClient();
-  const emps = useQuery({ queryKey: ["employees-all"], queryFn: () => api<{ employees: Employee[] }>("/employees") });
+  const emps = useQuery({ queryKey: ["payroll-employees"], queryFn: () => api<{ employees: Employee[] }>("/payroll/employees") });
   const tpls = useQuery({ queryKey: ["payroll-templates"], queryFn: () => api<Template[]>("/payroll/templates") });
   const [empId, setEmpId] = useState("");
   const [tplId, setTplId] = useState("");

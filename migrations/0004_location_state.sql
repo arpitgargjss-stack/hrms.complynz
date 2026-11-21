@@ -1,0 +1,1 @@
+ALTER TABLE "hr_locations" ADD COLUMN "state" text;

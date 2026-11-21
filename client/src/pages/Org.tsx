@@ -2,13 +2,14 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { Card, ErrorNote, Field, Page } from "../lib/ui";
+import { INDIAN_STATES } from "../../../shared/hr/presets";
 
-type Row = { id: string; name: string; level?: number | null; address?: string | null; lat?: string | null; lng?: string | null; radiusM?: number | null; isRemote?: boolean | null };
+type Row = { id: string; name: string; level?: number | null; address?: string | null; lat?: string | null; lng?: string | null; radiusM?: number | null; isRemote?: boolean | null; state?: string | null };
 type Kind = "departments" | "designations" | "locations";
 const TABS: { k: Kind; label: string; singular: string }[] = [
   { k: "departments", label: "Departments", singular: "department" }, { k: "designations", label: "Designations", singular: "designation" }, { k: "locations", label: "Locations", singular: "location" },
 ];
-const blank = { name: "", level: "", address: "", lat: "", lng: "", radiusM: "150", isRemote: false };
+const blank = { name: "", level: "", address: "", lat: "", lng: "", radiusM: "150", isRemote: false, state: "" };
 
 function Section({ kind, singular }: { kind: Kind; singular: string }) {
   const qc = useQueryClient();
@@ -18,13 +19,13 @@ function Section({ kind, singular }: { kind: Kind; singular: string }) {
   const body = () => {
     if (kind === "departments") return { name: f.name };
     if (kind === "designations") return { name: f.name, ...(f.level !== "" ? { level: Number(f.level) } : {}) };
-    if (f.isRemote) return { name: f.name, address: f.address || null, isRemote: true, lat: null, lng: null };
-    return { name: f.name, address: f.address || null, isRemote: false, lat: f.lat ? f.lat : null, lng: f.lng ? f.lng : null, radiusM: Number(f.radiusM) || 150 };
+    if (f.isRemote) return { name: f.name, address: f.address || null, isRemote: true, lat: null, lng: null, state: f.state || null };
+    return { name: f.name, address: f.address || null, state: f.state || null, isRemote: false, lat: f.lat ? f.lat : null, lng: f.lng ? f.lng : null, radiusM: Number(f.radiusM) || 150 };
   };
   const done = () => { setF(blank); setEditing(null); qc.invalidateQueries({ queryKey: [kind] }); };
   const save = useMutation({ mutationFn: () => api(editing ? `/${kind}/${editing}` : "/" + kind, { method: editing ? "PATCH" : "POST", body: body() }), onSuccess: done });
   const del = useMutation({ mutationFn: (id: string) => api(`/${kind}/${id}`, { method: "DELETE" }), onSuccess: done });
-  const edit = (r: Row) => { setEditing(r.id); setF({ name: r.name, level: r.level != null ? String(r.level) : "", address: r.address ?? "", lat: r.lat ?? "", lng: r.lng ?? "", radiusM: String(r.radiusM ?? 150), isRemote: !!r.isRemote }); };
+  const edit = (r: Row) => { setEditing(r.id); setF({ name: r.name, level: r.level != null ? String(r.level) : "", address: r.address ?? "", lat: r.lat ?? "", lng: r.lng ?? "", radiusM: String(r.radiusM ?? 150), isRemote: !!r.isRemote, state: r.state ?? "" }); };
   return (
     <>
       <Card>
@@ -34,7 +35,7 @@ function Section({ kind, singular }: { kind: Kind; singular: string }) {
             <tbody>{q.data?.map((r) => (
               <tr key={r.id}><td>{r.name}</td>
                 {kind === "designations" && <td>{r.level ?? 0}</td>}
-                {kind === "locations" && <><td>{r.address ?? ""}</td><td>{r.isRemote ? <span className="k">Remote, no geofence</span> : r.lat && r.lng ? `${r.lat}, ${r.lng} · ${r.radiusM ?? 150} m` : <span className="k">Not set</span>}</td></>}
+                {kind === "locations" && <><td>{r.address ?? ""}{r.state ? <div className="k">{r.state}</div> : <div className="k" style={{ color: "#8a1c1c" }}>State not set</div>}</td><td>{r.isRemote ? <span className="k">Remote, no geofence</span> : r.lat && r.lng ? `${r.lat}, ${r.lng} · ${r.radiusM ?? 150} m` : <span className="k">Not set</span>}</td></>}
                 <td><div className="row-gap"><button className="btn" aria-label={`Edit ${r.name}`} onClick={() => edit(r)}>Edit</button>
                   <button className="btn" aria-label={`Delete ${r.name}`} disabled={del.isPending} onClick={() => { if (confirm(`Delete ${r.name}?`)) del.mutate(r.id); }}>Delete</button></div></td></tr>
             ))}</tbody></table>
@@ -49,6 +50,7 @@ function Section({ kind, singular }: { kind: Kind; singular: string }) {
             {kind === "designations" && <Field label="Level (0 to 50)"><input type="number" min={0} max={50} value={f.level} onChange={(e) => setF({ ...f, level: e.target.value })} /></Field>}
             {kind === "locations" && <>
               <Field label="Address"><input maxLength={500} value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} /></Field>
+              <Field label="State (sets professional tax and state compliance)"><select value={f.state} onChange={(e) => setF({ ...f, state: e.target.value })}><option value="">Select state</option>{INDIAN_STATES.map((x) => <option key={x}>{x}</option>)}</select></Field>
               <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 14 }}><input type="checkbox" style={{ width: "auto", minHeight: 0 }} checked={f.isRemote} onChange={(e) => setF({ ...f, isRemote: e.target.checked })} />Remote (punch in and out allowed, no geofence)</label>
               {!f.isRemote && <><Field label="Latitude (-90 to 90)"><input inputMode="decimal" value={f.lat} onChange={(e) => setF({ ...f, lat: e.target.value })} /></Field>
               <Field label="Longitude (-180 to 180)"><input inputMode="decimal" value={f.lng} onChange={(e) => setF({ ...f, lng: e.target.value })} /></Field>
