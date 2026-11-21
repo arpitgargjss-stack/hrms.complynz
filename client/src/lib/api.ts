@@ -23,7 +23,7 @@ export async function publicApi<T = unknown>(path: string, init?: { method?: str
   if (!res.ok) { const j = await res.json().catch(() => ({})); throw new ApiError(res.status, (j as { error?: string }).error ?? "Request failed"); }
   return res.json() as Promise<T>;
 }
-export async function fileToBase64(f: File): Promise<string> {
+export async function fileToBase64(f: Blob): Promise<string> {
   const buf = new Uint8Array(await f.arrayBuffer()); let s = ""; buf.forEach((b) => (s += String.fromCharCode(b))); return btoa(s);
 }
 export async function getAuthToken(): Promise<string | null> { return getToken ? await getToken() : null; }

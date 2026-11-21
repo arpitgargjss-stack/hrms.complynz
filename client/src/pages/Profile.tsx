@@ -4,9 +4,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { openHtml } from "../lib/openHtml";
 import { Card, Chip, ErrorNote, Page, inr } from "../lib/ui";
+import { Avatar } from "../lib/Avatar";
+import { ProfileForm } from "./CompleteProfile";
 
 type Me = { email: string; employeeId: string | null; roles: string[] };
-type Emp = { fullName: string; code: string; workEmail: string; designation: string | null; department: string | null; location: string | null; joiningDate: string; employmentType: string; status: string; phone?: string | null; personalEmail?: string | null; panMasked?: string | null; accountMasked?: string | null; bankName?: string | null; ifsc?: string | null; managerId: string | null };
+type Emp = { fullName: string; code: string; workEmail: string; designation: string | null; department: string | null; location: string | null; joiningDate: string; employmentType: string; status: string; phone?: string | null; personalEmail?: string | null; panMasked?: string | null; accountMasked?: string | null; bankName?: string | null; ifsc?: string | null; managerId: string | null;
+  photoFileId: string | null; dob?: string | null; gender?: string | null; currentAddress?: string | null; emergencyContactName?: string | null; emergencyContactRelation?: string | null; emergencyContactPhone?: string | null };
+const GENDER: Record<string, string> = { male: "Male", female: "Female", other: "Other", undisclosed: "Prefer not to say" };
 type Consent = { key: string; label: string; required: boolean; status: string; noticeVersion: string | null; at: string | null };
 type Letter = { id: string; type: string; refNo: string; status: string; issuedAt: string | null };
 type MyAsset = { assignmentId: string; issuedOn: string; returnedOn: string | null; current: boolean; asset: { tag: string; category: string; model: string | null; costPaise: number | null } };
@@ -22,6 +26,7 @@ export default function Profile() {
   const letters = useQuery({ queryKey: ["my-letters"], enabled: !!id, queryFn: () => api<Letter[]>("/me/letters") });
   const assets = useQuery({ queryKey: ["my-assets"], enabled: !!id, queryFn: () => api<MyAsset[]>("/me/assets") });
   const [err, setErr] = useState<unknown>(null);
+  const [editing, setEditing] = useState(false);
   const toggle = useMutation({
     mutationFn: (v: { key: string; granted: boolean }) => api(`/me/consents/${v.key}`, { method: "PUT", body: { granted: v.granted, noticeVersion: NOTICE } }),
     onSuccess: () => { setErr(null); qc.invalidateQueries({ queryKey: ["consents"] }); qc.invalidateQueries({ queryKey: ["home"] }); },
@@ -32,15 +37,28 @@ export default function Profile() {
     <Page title="My profile">
       <ErrorNote error={me.error ?? emp.error} />
       {me.data && !id && <div className="note warn" role="status">No employee record is linked to {me.data.email} yet. Ask HR to link your login.</div>}
-      {e && (
+      {e && id && editing && (
         <Card>
-          <h2 style={{ fontSize: 20 }}>{e.fullName}</h2>
-          <p className="k">{[e.designation, e.department].filter(Boolean).join(" · ")} <Chip tone="ok">{e.status}</Chip></p>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}><h2 style={{ fontSize: 20 }}>Edit profile</h2><button className="btn" onClick={() => setEditing(false)}>Cancel</button></div>
+          <ProfileForm id={id} emp={e} onDone={() => setEditing(false)} />
+        </Card>
+      )}
+      {e && !editing && (
+        <Card>
+          <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap", marginBottom: 16 }}>
+            <Avatar name={e.fullName} fileId={e.photoFileId} size={88} />
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <h2 style={{ fontSize: 20 }}>{e.fullName}</h2>
+              <p className="k" style={{ margin: 0 }}>{[e.designation, e.department].filter(Boolean).join(" · ")} <Chip tone="ok">{e.status}</Chip></p>
+            </div>
+            <button className="btn p" onClick={() => setEditing(true)}>Edit profile</button>
+          </div>
           <dl style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 12, margin: 0 }}>
-            {([["Employee code", e.code], ["Work email", e.workEmail], ["Date of joining", e.joiningDate], ["Employment type", e.employmentType.replace("_", " ")], ["Location", e.location], ["Phone", e.phone], ["Personal email", e.personalEmail], ["PAN", e.panMasked], ["Bank account", e.accountMasked ? `${e.bankName ?? ""} ${e.accountMasked}` : null], ["IFSC", e.ifsc]] as [string, string | null | undefined][])
+            {([["Employee code", e.code], ["Work email", e.workEmail], ["Date of joining", e.joiningDate], ["Employment type", e.employmentType.replace("_", " ")], ["Location", e.location], ["Phone", e.phone], ["Personal email", e.personalEmail], ["Date of birth", e.dob], ["Gender", e.gender ? GENDER[e.gender] ?? e.gender : null], ["Current address", e.currentAddress],
+              ["Emergency contact", e.emergencyContactName ? `${e.emergencyContactName}${e.emergencyContactRelation ? ` (${e.emergencyContactRelation})` : ""}${e.emergencyContactPhone ? ` · ${e.emergencyContactPhone}` : ""}` : null], ["PAN", e.panMasked], ["Bank account", e.accountMasked ? `${e.bankName ?? ""} ${e.accountMasked}` : null], ["IFSC", e.ifsc]] as [string, string | null | undefined][])
               .filter(([, v]) => v).map(([k, v]) => <div key={k}><dt className="k">{k}</dt><dd style={{ margin: 0 }}>{v}</dd></div>)}
           </dl>
-          <p className="k">PAN and account numbers are shown masked. To update your details or upload documents, open <Link href={`/people/${id}`}>your people record</Link>.</p>
+          <p className="k">PAN and account numbers are shown masked. To upload PAN or Aadhaar, open <Link href={`/people/${id}`}>your people record</Link>.</p>
         </Card>
       )}
       {id && (
