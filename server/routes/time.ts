@@ -81,12 +81,15 @@ r.post("/attendance/punch", wrap(async (req, res) => {
   const [last] = await db.select().from(A.attendancePunches).where(and(eq(A.attendancePunches.employeeId, empId), eq(A.attendancePunches.workDate, workDate))).orderBy(desc(A.attendancePunches.at)).limit(1);
   if (last && last.kind === b.kind) throw new HttpError(409, `You have already punched ${b.kind}. Punch ${b.kind === "in" ? "out" : "in"} next.`);
   let within: boolean | null = null;
+  let remote = false;
   if (emp.locationId) {
     const [loc] = await db.select().from(A.locations).where(eq(A.locations.id, emp.locationId)).limit(1);
-    if (loc) within = withinGeofence({ lat: b.lat, lng: b.lng }, loc); // coordinates are used here only and never stored or logged
+    remote = !!loc?.isRemote;
+    // Remote locations skip the geofence entirely; coordinates, if sent, are ignored.
+    if (loc && !remote) within = withinGeofence({ lat: b.lat, lng: b.lng }, loc); // coordinates are used here only and never stored or logged
   }
   const [row] = await db.insert(A.attendancePunches).values({ employeeId: empId, kind: b.kind, workDate, withinOffice: within }).returning();
-  res.status(201).json({ kind: row.kind, at: row.at, workDate, withinOffice: row.withinOffice });
+  res.status(201).json({ kind: row.kind, at: row.at, workDate, withinOffice: row.withinOffice, remote });
 }));
 
 type PunchRow = typeof A.attendancePunches.$inferSelect;
@@ -115,8 +118,14 @@ r.get("/me/attendance", wrap(async (req, res) => {
     const hol = hols.find((h) => h.date === d && !h.optional);
     days.push({ date: d, working: isWorkingDay(d, cal, hols), holiday: hol?.name ?? null, onLeave, ...summariseDay(ps), punches: ps.map((p) => ({ kind: p.kind, at: p.at, withinOffice: p.withinOffice })) });
   }
-  res.json({ month, workStart: cal.workStart, workEnd: cal.workEnd, days });
+  res.json({ month, workStart: cal.workStart, workEnd: cal.workEnd, remote: await isRemoteEmployee(empId), days });
 }));
+
+/** True when the employee's work location is marked remote (punches allowed, no geofence). */
+async function isRemoteEmployee(empId: string): Promise<boolean> {
+  const [r] = await db.select({ isRemote: A.locations.isRemote }).from(A.employees).innerJoin(A.locations, eq(A.locations.id, A.employees.locationId)).where(eq(A.employees.id, empId)).limit(1);
+  return !!r?.isRemote;
+}
 
 r.get("/attendance", wrap(async (req, res) => {
   const scope = need(req, "attendance.read");

@@ -5,8 +5,8 @@ import { Card, Chip, ErrorNote, Field, Page } from "../lib/ui";
 
 type Me = { email: string; employeeId: string | null; roles: string[] };
 type Day = { date: string; working: boolean; holiday: string | null; onLeave: boolean; firstIn: string | null; lastOut: string | null; withinOffice: boolean | null; workedMinutes: number; punches: { kind: "in" | "out"; at: string; withinOffice: boolean | null }[] };
-type Month = { month: string; workStart: string; workEnd: string; days: Day[] };
-type PunchRes = { kind: "in" | "out"; at: string; withinOffice: boolean | null };
+type Month = { month: string; workStart: string; workEnd: string; remote?: boolean; days: Day[] };
+type PunchRes = { kind: "in" | "out"; at: string; withinOffice: boolean | null; remote?: boolean };
 type Cal = { weeklyOff: number[]; saturdays: { mode: "all_working" | "all_off" | "alternate"; offWeeks?: number[] }; workStart: string; workEnd: string };
 type Holiday = { id: string; date: string; name: string; optional: boolean | null };
 type TeamRow = { employeeId: string; code: string; name: string; status?: string; firstIn?: string | null; lastOut?: string | null; workedMinutes?: number; workingDays?: number; present?: number; leave?: number; absent?: number };
@@ -16,7 +16,7 @@ const hm = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString("en-I
 const dur = (m: number) => (m ? `${Math.floor(m / 60)}h ${m % 60}m` : "-");
 const DOW = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-function where(w: boolean | null) { return w === true ? <Chip tone="ok">Inside office</Chip> : w === false ? <Chip tone="warn">Outside office</Chip> : <Chip>Not checked</Chip>; }
+function where(w: boolean | null, remote = false) { return remote ? <Chip tone="info">Remote</Chip> : w === true ? <Chip tone="ok">Inside office</Chip> : w === false ? <Chip tone="warn">Outside office</Chip> : <Chip>Not checked</Chip>; }
 
 function getPosition(): Promise<{ lat?: number; lng?: number }> {
   // Asked once per punch. The coordinates go to the API in this request only and are never kept here.
@@ -35,18 +35,19 @@ function Mine() {
   const today = cur.data?.days.find((d) => d.date === istToday());
   const last = today?.punches[today.punches.length - 1];
   const next: "in" | "out" = last?.kind === "in" ? "out" : "in";
+  const remote = !!cur.data?.remote; // remote location: punch without asking for the browser location
   const punch = useMutation({
-    mutationFn: async () => { const pos = await getPosition(); return api<PunchRes>("/attendance/punch", { body: { kind: next, ...pos } }); },
+    mutationFn: async () => { const pos = remote ? {} : await getPosition(); return api<PunchRes>("/attendance/punch", { body: { kind: next, ...pos } }); },
     onSuccess: (r) => { setResult(r); qc.invalidateQueries({ queryKey: ["myAttendance"] }); },
   });
   return (
     <>
       <Card>
         <h2>Today, {istToday()}</h2>
-        <p className="k">Punching asks your browser for your location once, only to check whether you are at the office. The location is not saved.</p>
-        <button className="btn p" style={{ minWidth: 180 }} disabled={punch.isPending} onClick={() => { setResult(null); punch.mutate(); }}>{punch.isPending ? "Checking location…" : `Punch ${next}`}</button>
+        <p className="k">{remote ? "You work remotely, so punching does not check your location." : "Punching asks your browser for your location once, only to check whether you are at the office. The location is not saved."}</p>
+        <button className="btn p" style={{ minWidth: 180 }} disabled={punch.isPending} onClick={() => { setResult(null); punch.mutate(); }}>{punch.isPending ? (remote ? "Punching…" : "Checking location…") : `Punch ${next}`}</button>
         <ErrorNote error={punch.error} />
-        {result && <div className="note ok" role="status" style={{ marginTop: 12 }}>Punched {result.kind} at {hm(result.at)}. {where(result.withinOffice)}</div>}
+        {result && <div className="note ok" role="status" style={{ marginTop: 12 }}>Punched {result.kind} at {hm(result.at)}. {where(result.withinOffice, result.remote)}</div>}
         {today && today.punches.length > 0 && <p className="k">Today: {today.punches.map((p) => `${p.kind} ${hm(p.at)}`).join(", ")}</p>}
       </Card>
       <Card>
@@ -56,7 +57,7 @@ function Mine() {
         {data.data && <div style={{ overflowX: "auto" }}><table className="t"><thead><tr><th>Date</th><th>Status</th><th>In</th><th>Out</th><th>Worked</th><th>Location</th></tr></thead><tbody>
           {data.data.days.map((d) => <tr key={d.date}><td>{d.date}</td>
             <td>{d.holiday ? <Chip tone="info">{d.holiday}</Chip> : d.onLeave ? <Chip tone="info">Leave</Chip> : !d.working ? <Chip>Off</Chip> : d.firstIn ? <Chip tone="ok">Present</Chip> : d.date < istToday() ? <Chip tone="bad">Absent</Chip> : "-"}</td>
-            <td>{hm(d.firstIn)}</td><td>{hm(d.lastOut)}</td><td>{dur(d.workedMinutes)}</td><td>{d.firstIn ? where(d.withinOffice) : "-"}</td></tr>)}
+            <td>{hm(d.firstIn)}</td><td>{hm(d.lastOut)}</td><td>{dur(d.workedMinutes)}</td><td>{d.firstIn ? where(d.withinOffice, !!data.data?.remote && d.withinOffice == null) : "-"}</td></tr>)}
         </tbody></table></div>}
       </Card>
     </>
