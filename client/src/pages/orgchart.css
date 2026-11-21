@@ -1,0 +1,52 @@
+/* Org chart: top-down tree with connector lines, inside a pan/zoom viewport. */
+.oc-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.oc-bar .in{flex:1 1 220px;max-width:320px}
+.oc-bar .btn{padding:8px 12px}
+.oc-view{position:relative;height:calc(100vh - 230px);min-height:420px;overflow:hidden;border:1px solid var(--line);border-radius:12px;cursor:grab;touch-action:none;user-select:none;
+  background-color:#fafbfd;background-image:radial-gradient(#dfe3ee 1px,transparent 1px);background-size:20px 20px}
+.oc-view.drag{cursor:grabbing}
+.oc-canvas{position:absolute;left:0;top:0;transform-origin:0 0;padding:32px;width:max-content}
+.oc-zoom{position:absolute;right:12px;bottom:12px;display:flex;flex-direction:column;gap:6px;z-index:2}
+.oc-zoom button{width:40px;height:40px;min-height:0;padding:0;font-size:18px;line-height:1;border-radius:8px;border:1px solid #c9cfe0;background:#fff;cursor:pointer;color:var(--ink)}
+.oc-pct{position:absolute;left:12px;bottom:12px;font-size:12px;color:var(--mute);background:#fff;border:1px solid var(--line);border-radius:6px;padding:4px 8px}
+
+.oc ul{position:relative;display:flex;justify-content:center;margin:0;padding:24px 0 0}
+.oc li{position:relative;list-style:none;display:flex;flex-direction:column;align-items:center;padding:24px 10px 0}
+.oc>ul{padding-top:0;gap:48px;align-items:flex-start}
+.oc>ul>li{padding-top:0}
+.oc>ul>li::before,.oc>ul>li::after{display:none}
+/* horizontal rail + drop to each child */
+.oc li::before,.oc li::after{content:"";position:absolute;top:0;right:50%;width:50%;height:24px;border-top:2px solid #b9c1d6}
+.oc li::after{right:auto;left:50%;border-left:2px solid #b9c1d6}
+.oc li:only-child{padding-top:0}
+.oc li:only-child::before,.oc li:only-child::after{display:none}
+.oc li:first-child::before,.oc li:last-child::after{border:0 none}
+.oc li:last-child::before{border-right:2px solid #b9c1d6;border-radius:0 8px 0 0}
+.oc li:first-child::after{border-radius:8px 0 0 0}
+/* drop from parent to rail */
+.oc ul ul::before{content:"";position:absolute;top:0;left:50%;height:24px;border-left:2px solid #b9c1d6}
+
+/* many leaf reports: a compact grid instead of a very wide row */
+.oc-drop{width:0;height:38px;margin-top:-14px;border-left:2px solid #b9c1d6}
+.oc-stackbox{display:grid;gap:10px;border:1px dashed #c3cadc;border-radius:12px;padding:12px;background:rgba(255,255,255,.7)}
+
+.oc-card{position:relative;width:208px;background:#fff;border:1px solid #d5dbea;border-radius:12px;padding:14px 12px 12px;text-align:center;box-shadow:0 1px 2px rgba(26,32,54,.06);border-top:4px solid var(--dc,#c9cfe0)}
+.oc-card:hover{box-shadow:0 4px 14px rgba(26,32,54,.12)}
+.oc-card.hit{outline:3px solid var(--brand);outline-offset:3px}
+.oc-card .ph{display:flex;justify-content:center;margin-bottom:8px}
+.oc-card .ph>*{box-shadow:0 0 0 3px #fff,0 0 0 4px #e3e6ef}
+.oc-card a.nm{display:block;font-weight:600;font-size:14px;color:var(--ink);text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.oc-card a.nm:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:4px}
+.oc-card a.nm:hover{color:var(--brand);text-decoration:underline}
+.oc-card .ds{font-size:12px;color:#3a4260;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.oc-card .dp{display:inline-block;margin-top:6px;font-size:11px;font-weight:500;padding:2px 8px;border-radius:999px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.oc-card.mini{width:200px;display:flex;align-items:center;gap:10px;text-align:left;padding:10px;border-top-width:1px;border-left:4px solid var(--dc,#c9cfe0)}
+.oc-card.mini .ph{margin:0}
+.oc-card.mini .tx{min-width:0;flex:1}
+.oc-tog{position:absolute;left:50%;bottom:-14px;transform:translateX(-50%);min-width:28px;height:24px;padding:0 8px;border-radius:999px;border:1px solid #b9c1d6;background:#fff;font:inherit;font-size:12px;font-weight:600;color:#3a4260;cursor:pointer;z-index:1;white-space:nowrap}
+.oc-tog:hover{border-color:var(--brand);color:var(--brand)}
+.oc-tog.closed{background:var(--brand);border-color:var(--brand);color:#fff}
+.oc li.has-tog>.oc-card{margin-bottom:14px}
+.oc li.has-tog>ul{padding-top:24px}
+.oc li.has-tog>ul::before{top:-14px;height:38px}
+@media(max-width:700px){.oc-view{height:calc(100vh - 200px)}}
