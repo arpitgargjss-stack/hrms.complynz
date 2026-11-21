@@ -35,6 +35,9 @@ test("reimbursement: rate check, bill rule, approver tier, lateness", () => {
   assert.equal(checkClaim({ category: "expense", amountPaise: 600000, hasBill: true, expenseDate: "2026-10-05", submittedOn: "2026-10-06", month: "2026-10" }, pol).approver, "manager");
   assert.equal(checkClaim({ category: "expense", amountPaise: 1100000, hasBill: true, expenseDate: "2026-10-05", submittedOn: "2026-10-06", month: "2026-10" }, pol).approver, "ceo");
   assert.ok(checkClaim({ ...base, submittedOn: "2026-11-20" }, pol).flags.some((f) => f.code === "late"));
+  // per-km claims above the bill limit need no bill; other travel above it still does
+  assert.equal(checkClaim({ ...base, distanceKm: 600, amountPaise: 600000 }, pol).flags.length, 0);
+  assert.ok(checkClaim({ category: "travel", mode: "cab", amountPaise: 60000, hasBill: false, expenseDate: "2026-10-05", submittedOn: "2026-10-06", month: "2026-10" }, pol).flags.some((f) => f.code === "bill_required"));
 });
 test("bank advice validates, totals, neutralises csv formulas", () => {
   const bad = buildAdvice({ month: "2026-10", refNo: "R1", rows: [{ name: "A", bankName: "B", accountNo: "123", ifsc: "X", amountPaise: 1 }] });

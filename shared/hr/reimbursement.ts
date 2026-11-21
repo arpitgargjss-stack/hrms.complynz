@@ -21,7 +21,9 @@ export function checkClaim(c: ClaimInput, p: ReimbPolicy): { flags: PolicyFlag[]
       if (c.amountPaise !== expected) flags.push({ code: "rate_mismatch", message: "Amount differs from the per-km rate", blocking: true });
     }
   }
-  if (c.amountPaise > p.billRequiredAbovePaise && !c.hasBill) flags.push({ code: "bill_required", message: "A bill is required above the policy limit", blocking: true });
+  // Per-km claims are computed from distance, so no bill is needed for them.
+  const perKm = c.category === "travel" && !!c.mode && p.ratePerKmPaise[c.mode] !== undefined;
+  if (!perKm && c.amountPaise > p.billRequiredAbovePaise && !c.hasBill) flags.push({ code: "bill_required", message: "A bill is required above the policy limit", blocking: true });
   if (c.submittedOn > addDays(monthEnd(c.month), p.submitWithinDays)) flags.push({ code: "late", message: "Submitted after the allowed window", blocking: false });
   if (c.expenseDate.slice(0, 7) !== c.month) flags.push({ code: "month_mismatch", message: "Expense date is outside the claim month", blocking: false });
   const approver = c.amountPaise > p.ceoApprovalAbovePaise ? "ceo" : c.amountPaise > p.managerApprovalAbovePaise ? "manager" : "finance";
