@@ -1,4 +1,7 @@
-export type Role = "hr_admin" | "finance_signatory" | "manager" | "team_member";
+export type Role = "super_admin" | "hr_admin" | "finance_signatory" | "manager" | "team_member";
+
+/** A super admin holds every elevated role, so all existing checks (hr_admin, finance_signatory) pass for them. */
+export const SUPER_ADMIN_IMPLIES: readonly Role[] = ["hr_admin", "finance_signatory"];
 export type Scope = "none" | "own" | "reports" | "all";
 
 /** Mirrors the Roles and access board. Server-side source of truth. */

@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { db, schema } from "../db";
 import { env } from "../env";
 import { clerkMiddleware, getAuth, clerkClient } from "@clerk/express";
-import type { Role } from "../../shared/hr/access";
+import { SUPER_ADMIN_IMPLIES, type Role } from "../../shared/hr/access";
 
 export interface Actor {
   email: string; employeeId: string | null; roles: Set<Role>; directReportIds: string[];
@@ -31,6 +31,7 @@ export async function requireStaff(req: Request, res: Response, next: NextFuncti
     const [emp] = await db.select().from(schema.employees).where(eq(schema.employees.workEmail, email)).limit(1);
     const roleRows = await db.select().from(schema.userRoles).where(eq(schema.userRoles.email, email));
     const roles = new Set<Role>(["team_member", ...roleRows.map((r) => r.role as Role)]);
+    if (roles.has("super_admin")) for (const r of SUPER_ADMIN_IMPLIES) roles.add(r);
     let directReportIds: string[] = [];
     if (emp) {
       const reports = await db.select({ id: schema.employees.id }).from(schema.employees).where(eq(schema.employees.managerId, emp.id));
