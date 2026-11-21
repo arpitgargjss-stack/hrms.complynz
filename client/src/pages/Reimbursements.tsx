@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, fileToBase64, getAuthToken } from "../lib/api";
 import { Card, Chip, ErrorNote, Field, Page, inr } from "../lib/ui";
+import { celebrate } from "../lib/gz";
 
 type Me = { email: string; employeeId: string | null; roles: string[] };
 type Flag = { code: string; message: string; blocking: boolean };
@@ -23,7 +24,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 const titleCase = (s: string) => s.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 const tone = (s: string) => (s === "approved" || s === "paid" ? "ok" : s === "rejected" ? "bad" : s === "submitted" ? "warn" : "info") as "ok" | "bad" | "warn" | "info";
 const tableWrap = { overflowX: "auto" as const };
-const PALETTE = ["#2f4bd6", "#1f9d6b", "#d98e04", "#8a4fd6", "#c2415d", "#2a8fa8"];
+const PALETTE = ["#0048e4", "#1f9d6b", "#93c5fd", "#1d4ed8", "#64748b", "#2a8fa8"];
 
 async function openBill(claimId: string) {
   const w = window.open("", "_blank");
@@ -85,7 +86,7 @@ function Mine() {
       try { return await api("/reimbursement/claims", { body }); }
       catch (e) { throw e; }
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["my-reimb"] }); setF({ ...blank, category: f.category }); setBill(null); setFileKey((k) => k + 1); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["my-reimb"] }); setF({ ...blank, category: f.category }); setBill(null); setFileKey((k) => k + 1); celebrate("Claim submitted", "We'll let you know as it moves along"); },
   });
   const s = (k: keyof typeof blank) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
   const doSubmit = () => {
@@ -98,7 +99,7 @@ function Mine() {
       <Card>
         <h2>My months</h2>
         <ErrorNote error={mine.error} />
-        {mine.isLoading ? <p>Loading…</p> : !mine.data?.months.length ? <p className="k">No claims yet.</p> : mine.data.months.map((m) => (
+        {mine.isLoading ? <p>Loading…</p> : !mine.data?.months.length ? <p className="k">No claims yet. Spent money on work? Add the bill and we'll take it from there.</p> : mine.data.months.map((m) => (
           <details key={m.month} style={{ borderTop: "1px solid var(--line)", padding: "10px 0" }}>
             <summary style={{ cursor: "pointer", minHeight: 44, display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px 16px" }}>
               <strong>{monthLabel(m.month)}</strong><span>Claimed {inr(m.totalPaise)}</span><span>Approved {inr(m.approvedPaise)}</span>
@@ -192,7 +193,7 @@ function TrendChart({ data }: { data: Analytics["trend"] }) {
       <line x1={pad} y1={H} x2={W - pad} y2={H} stroke="#d9dde8" />
       {data.map((d, i) => {
         const h = (d.totalPaise / max) * (H - 24), x = pad + i * bw + bw * 0.15;
-        return <g key={d.month}><rect x={x} y={H - h} width={bw * 0.7} height={h} rx={3} fill="#2f4bd6"><title>{`${monthLabel(d.month)}: ${inr(d.totalPaise)} (${d.count} claims)`}</title></rect>
+        return <g key={d.month}><rect x={x} y={H - h} width={bw * 0.7} height={h} rx={3} fill="#0048e4"><title>{`${monthLabel(d.month)}: ${inr(d.totalPaise)} (${d.count} claims)`}</title></rect>
           <text x={x + bw * 0.35} y={H - h - 4} textAnchor="middle" fontSize="10" fill="#444c63">{d.totalPaise ? inr(d.totalPaise).replace(/\.00$/, "") : ""}</text>
           <text x={x + bw * 0.35} y={H + 16} textAnchor="middle" fontSize="11" fill="#5b6478">{MONTHS[Number(d.month.slice(5, 7)) - 1]}</text></g>;
       })}

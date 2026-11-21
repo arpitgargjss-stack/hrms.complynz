@@ -119,13 +119,13 @@ function Onboarding({ c }: { c: Candidate }) {
     <Card><h2>Onboarding</h2>
       <p className="k">The candidate opens one link, verifies their email with a code, then completes the steps you tick.</p>
       <label className="ck" style={{ display: "flex", gap: 12, padding: "10px 0" }}><input type="checkbox" checked disabled /><span><strong>Verify email with a one-time code</strong><br /><span className="k">Always on</span></span></label>
-      {STEPS.map((s) => <label key={s.key} style={{ display: "flex", gap: 12, padding: "10px 0", borderTop: "1px solid #eceef4", alignItems: "flex-start" }}>
+      {STEPS.map((s) => <label key={s.key} style={{ display: "flex", gap: 12, padding: "10px 0", borderTop: "1px solid var(--line)", alignItems: "flex-start" }}>
         <input type="checkbox" checked={steps.includes(s.key)} onChange={(e) => setSteps(e.target.checked ? [...steps, s.key] : steps.filter((x) => x !== s.key))} />
         <span><strong>{s.label}</strong><br /><span className="k">{s.hint}</span></span></label>)}
       <ErrorNote error={create.error} />
       <p><button className="btn p" disabled={create.isPending || !steps.length} onClick={() => create.mutate()}>Create onboarding link</button></p>
       {shared && <CopyLink shared={shared} title="Onboarding link created" />}
-      {(subs.data ?? []).map((o) => <div key={o.id} style={{ borderTop: "1px solid #eceef4", paddingTop: 10, marginTop: 10 }}>
+      {(subs.data ?? []).map((o) => <div key={o.id} style={{ borderTop: "1px solid var(--line)", paddingTop: 10, marginTop: 10 }}>
         <p style={{ margin: 0 }}><Chip tone={o.completedAt ? "ok" : "warn"}>{o.completedAt ? "Submitted" : "Waiting"}</Chip> <span className="k">Link created {o.createdAt.slice(0, 10)}, expires {o.expiresAt.slice(0, 10)}, steps: {o.steps.join(", ")}</span></p>
         {o.submission && <dl style={{ display: "grid", gridTemplateColumns: "max-content 1fr", gap: "4px 16px", fontSize: 14 }}>
           {Object.entries(o.submission.personal ?? {}).map(([k, v]) => <><dt className="k" key={k + "k"}>{k}</dt><dd key={k} style={{ margin: 0 }}>{String(v)}</dd></>)}

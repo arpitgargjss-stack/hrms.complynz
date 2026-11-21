@@ -9,7 +9,7 @@ const wrapStyle = { maxWidth: 680, margin: "0 auto", padding: "16px 16px 48px" }
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <main style={wrapStyle}><img src="/logo.png" alt="Complynz" width={160} height={37} style={{ display: "block", margin: "8px 0 16px" }} />{children}</main>
+    <main style={wrapStyle}><img src="/logo.png" alt="Complynz" width={160} height={37} style={{ display: "block", margin: "8px 0 12px" }} /><div aria-hidden="true" style={{ height: 6, borderRadius: 99, margin: "0 0 18px", background: "linear-gradient(90deg,#00236e,#0048e4,#3b82f6)" }} />{children}</main>
   );
 }
 
@@ -76,13 +76,13 @@ export default function Accept() {
       <div className="card"><h1>Review your offer</h1>
         <p>Read the whole document, including the data-processing choices and the confidentiality annexure, before you accept.</p>
         {set.letters.length > 1 && <div className="tabs" role="tablist">{set.letters.map((l, i) => <button key={l.id} role="tab" aria-selected={which === i} className={which === i ? "on" : ""} onClick={() => setWhich(i)}>{typeLabel(l.type)}</button>)}</div>}
-        {cur && <iframe title={`${typeLabel(cur.type)} ${cur.refNo}`} sandbox="" srcDoc={cur.html} style={{ width: "100%", height: "70vh", minHeight: 360, border: "1px solid #e3e6ef", borderRadius: 8, background: "#fff" }} />}
+        {cur && <iframe title={`${typeLabel(cur.type)} ${cur.refNo}`} sandbox="" srcDoc={cur.html} style={{ width: "100%", height: "70vh", minHeight: 360, border: "1px solid var(--line)", borderRadius: 8, background: "#fff" }} />}
       </div>
       <form className="card" onSubmit={(e) => { e.preventDefault(); submit(); }}>
         <h2>Your data choices (all optional)</h2>
         <p className="k">These are separate from your offer. Saying no does not affect your offer or employment. You can change them later.</p>
         {set.consentPurposes.map((c) => (
-          <label key={c.key} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "12px 0", borderTop: "1px solid #eceef4", fontSize: 14, lineHeight: 1.5, minHeight: 44 }}>
+          <label key={c.key} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "12px 0", borderTop: "1px solid var(--line)", fontSize: 14, lineHeight: 1.5, minHeight: 44 }}>
             <input type="checkbox" checked={!!consents[c.key]} onChange={(e) => setConsents({ ...consents, [c.key]: e.target.checked })} style={{ flex: "0 0 20px", marginTop: 2 }} /><span>{c.label}</span></label>))}
         <label className="fld"><span>Type your full name to sign</span><input required minLength={2} maxLength={120} autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} /></label>
         <label style={{ display: "flex", gap: 12, alignItems: "flex-start", margin: "16px 0", fontSize: 14, lineHeight: 1.5 }}>

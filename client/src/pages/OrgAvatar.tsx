@@ -24,7 +24,7 @@ function loadPhoto(fileId: string): Promise<string | null> {
 
 export const initials = (n: string) => n.trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase() || "?";
 
-const PALETTE = [["#e4e9fb", "#2438a8"], ["#e3f5ea", "#11663a"], ["#fff1cc", "#6e4a00"], ["#fde4e4", "#8a1c1c"], ["#efe4fb", "#5a24a8"], ["#e0f4f7", "#0e5d6b"], ["#fbe8dc", "#8a3f12"]];
+const PALETTE = [["#e6eeff", "#0039b8"], ["#dbeafe", "#1e40af"], ["#eff6ff", "#1d4ed8"], ["#e0f2fe", "#075985"], ["#f1f5f9", "#334155"], ["#dbe6ff", "#00236e"], ["#e0eaff", "#0048e4"]];
 export function hashColor(s: string): [string, string] {
   let h = 0;
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;

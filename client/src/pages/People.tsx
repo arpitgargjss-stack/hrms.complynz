@@ -118,7 +118,7 @@ function Documents({ id, canUpload }: { id: string; canUpload: boolean }) {
       <ErrorNote error={docs.error ?? err} />
       {docs.data?.length === 0 && <p className="k">No documents uploaded.</p>}
       {docs.data?.map((d) => (
-        <div key={d.id} className="row-gap" style={{ justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderTop: "1px solid #eceef4" }}>
+        <div key={d.id} className="row-gap" style={{ justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderTop: "1px solid var(--line)" }}>
           <span><Chip tone="info">{KIND[d.kind] ?? d.kind}</Chip> {d.name} <span className="k">{Math.ceil(d.sizeBytes / 1024)} KB · {new Date(d.createdAt).toLocaleDateString("en-IN")}</span></span>
           <button className="btn" aria-label={`View ${KIND[d.kind] ?? d.kind} document ${d.name}`} onClick={() => openAuthed(`/files/${d.id}`).catch(setErr)}>View</button>
         </div>))}
@@ -158,7 +158,7 @@ function ManagerCard({ id, current, names }: { id: string; current: string | nul
         <p><button className="btn p" disabled={m.isPending}>Change manager</button></p>
       </form>
       {hist.data?.map((h) => (
-        <div key={h.id} className="k" style={{ padding: "6px 0", borderTop: "1px solid #eceef4" }}>
+        <div key={h.id} className="k" style={{ padding: "6px 0", borderTop: "1px solid var(--line)" }}>
           {h.effectiveFrom}: {h.fromManagerId ? names.get(h.fromManagerId) ?? "unknown" : "nobody"} to {h.toManagerId ? names.get(h.toManagerId) ?? "unknown" : "nobody"} · {h.reason} · by {h.changedBy}
         </div>))}
     </Card>
@@ -215,7 +215,7 @@ function Detail({ id, admin, myId }: { id: string; admin: boolean; myId: string 
             <Card><h2>Assets</h2>
               <ErrorNote error={assets.error} />
               {assets.data?.length === 0 && <p className="k">No assets issued.</p>}
-              {assets.data?.map((a) => <div key={a.assignmentId} style={{ padding: "6px 0", borderTop: "1px solid #eceef4" }}><code>{a.asset.tag}</code> {[a.asset.category, a.asset.model].filter(Boolean).join(" · ")} {a.current ? <Chip tone="info">Issued {a.issuedOn}</Chip> : <Chip tone="mute">Returned {a.returnedOn}</Chip>}</div>)}
+              {assets.data?.map((a) => <div key={a.assignmentId} style={{ padding: "6px 0", borderTop: "1px solid var(--line)" }}><code>{a.asset.tag}</code> {[a.asset.category, a.asset.model].filter(Boolean).join(" · ")} {a.current ? <Chip tone="info">Issued {a.issuedOn}</Chip> : <Chip tone="mute">Returned {a.returnedOn}</Chip>}</div>)}
             </Card>)}
         </>
       )}

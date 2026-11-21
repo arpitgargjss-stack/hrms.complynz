@@ -1,10 +1,15 @@
+import { useState } from "react";
 import { Link } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
-import { Card, Chip, ErrorNote, Page, inr } from "../lib/ui";
+import { Card, Chip, ErrorNote, inr } from "../lib/ui";
+import { Story, celebrate } from "../lib/gz";
+import { KudosPreview, PulseCard } from "./Kudos";
+import { POLL_MS, useNewItemChime } from "../lib/sound";
+import "../gz.css";
 
 type Me = { email: string; employeeId: string | null; roles: string[] };
-type Ev = { id: string; name: string; kind: string; date: string; years?: number };
+type Ev = { id: string; name: string; kind: string; date: string; years?: number; photoFileId?: string | null };
 type Ann = { id: string; title: string; body: string; kind: string; pinned: boolean; createdAt: string };
 type HomeData = { today: string; birthdays: Ev[]; anniversaries: Ev[]; announcements: Ann[]; pending: { policiesToAck: number } };
 type Trends = {
@@ -59,51 +64,155 @@ function Dashboard() {
         {stats.map(([k, v]) => <div className="card" key={k} style={{ marginBottom: 0 }}><div className="k">{k}</div><div style={{ fontSize: 28, fontWeight: 600 }}>{v}</div></div>)}
       </div>
       <div className="grid">
-        <Card><Bars title="Net salary, last 3 months" labels={net3.map((n) => mLabel(n.month))} series={[{ name: "Net pay", color: "#2f4bd6", values: net3.map((n) => n.netPaise) }]} fmt={(n) => (n ? inr(n).replace(/\.00$/, "") : "none")} />
+        <Card><Bars title="Net salary, last 3 months" labels={net3.map((n) => mLabel(n.month))} series={[{ name: "Net pay", color: "#0048e4", values: net3.map((n) => n.netPaise) }]} fmt={(n) => (n ? inr(n).replace(/\.00$/, "") : "none")} />
           <p className="k">Locked and paid runs only.</p></Card>
-        <Card><Bars title="Headcount and new joiners" labels={hc6.map(mLabel)} series={[{ name: "Headcount", color: "#2f4bd6", values: d.headcount.map((h) => h.headcount) }, { name: "New joiners", color: "#11a36a", values: d.joiners.map((j) => j.count) }]} /></Card>
-        <Card><Bars title="Offboarding" labels={d.offboarding.map((o) => mLabel(o.month))} series={[{ name: "Exits", color: "#c2410c", values: d.offboarding.map((o) => o.count) }]} /></Card>
+        <Card><Bars title="Headcount and new joiners" labels={hc6.map(mLabel)} series={[{ name: "Headcount", color: "#0048e4", values: d.headcount.map((h) => h.headcount) }, { name: "New joiners", color: "#11a36a", values: d.joiners.map((j) => j.count) }]} /></Card>
+        <Card><Bars title="Offboarding" labels={d.offboarding.map((o) => mLabel(o.month))} series={[{ name: "Exits", color: "#1d4ed8", values: d.offboarding.map((o) => o.count) }]} /></Card>
       </div>
     </>
   );
 }
 
+// ---------------------------------------------------------------------
+// Personal home: greeting, start my day, quick actions, moments, kudos, pulse
+// ---------------------------------------------------------------------
+type Today = {
+  today: string; firstName: string; workStart: string; latestStart: string | null;
+  day: { state: "not_started" | "working" | "done"; startedAt: string | null }; streak: number; week: { date: string; status: string }[];
+  longWeekend: { holiday: string; take: string[]; from: string; to: string; daysOff: number } | null;
+  latestPayslip: string | null; lastClaim: { amountPaise: number; status: string } | null;
+  newJoiners: { id: string; fullName: string; photoFileId: string | null; department: string | null }[];
+};
+type Leave = { balances: { key: string; name: string; available?: number; entitledX2: number }[] };
+const fmtDay = (d: string) => new Date(d + "T00:00:00Z").toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+const timeOf = (s: string) => new Date(s).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" });
+function greeting() { const h = new Date().getHours(); return h < 5 ? "Up late" : h < 12 ? "Morning" : h < 17 ? "Afternoon" : "Evening"; }
+const DOT: Record<string, [string, string]> = { done: ["#fff", "Started"], today: ["transparent", "Today"], leave: ["rgba(255,255,255,.35)", "On leave"], holiday: ["rgba(255,255,255,.35)", "Holiday"], missed: ["transparent", "No punch"], future: ["transparent", "Coming up"] };
+
+function coords(): Promise<{ lat?: number; lng?: number }> {
+  return new Promise((ok) => {
+    if (!navigator.geolocation) return ok({});
+    navigator.geolocation.getCurrentPosition((p) => ok({ lat: p.coords.latitude, lng: p.coords.longitude }), () => ok({}), { timeout: 8000, maximumAge: 60000 });
+  });
+}
+
+function StartMyDay({ t }: { t: Today }) {
+  const qc = useQueryClient();
+  const punch = useMutation({
+    mutationFn: async (kind: "in" | "out") => api<{ withinOffice: boolean | null; remote: boolean }>("/attendance/punch", { body: { kind, ...(await coords()) } }),
+    onSuccess: (r, kind) => {
+      qc.invalidateQueries({ queryKey: ["today"] }); qc.invalidateQueries({ queryKey: ["attendance"] });
+      if (kind === "in") celebrate("You're in. Go get it.", r.remote ? "Remote day recorded" : r.withinOffice === false ? "Recorded as outside the office" : `${t.streak + 1}-day streak`, t.streak + 1 >= 5 && (t.streak + 1) % 5 === 0);
+      else celebrate("Day done. Nice work.", "See you tomorrow");
+    },
+  });
+  const working = t.day.state === "working";
+  const title = t.day.state === "not_started" ? "Ready when you are." : working ? "You're in. Go get it." : "That's a wrap for today.";
+  const sub = t.day.state === "not_started" ? `Day starts ${t.workStart}${t.latestStart ? `, any time up to ${t.latestStart}` : ""}. One tap and you're in.` : working ? `Started at ${timeOf(t.day.startedAt!)}.` : "Rest up. Your streak is safe.";
+  return (
+    <section className="gz-hero" style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: 16, padding: 26 }}>
+      <svg className="gz-float" width="220" height="220" viewBox="0 0 260 260" aria-hidden="true" style={{ right: -50, top: -60, opacity: 0.25 }}><circle cx="130" cy="130" r="120" fill="none" stroke="#fff" strokeWidth="2" /><circle cx="130" cy="130" r="80" fill="none" stroke="#fff" strokeWidth="2" /><circle cx="130" cy="130" r="40" fill="none" stroke="#fff" strokeWidth="2" /></svg>
+      <span className="gz-pill gz-glass" style={{ alignSelf: "flex-start", color: "#fff" }}>{t.day.state === "not_started" ? "Not started yet" : working ? <><span className="gz-live" />Working</> : "Done for today"}</span>
+      <div><b className="display" style={{ fontSize: 30, display: "block", position: "relative" }}>{title}</b><span style={{ color: "#dbe6ff" }}>{sub}</span></div>
+      <div style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap", position: "relative" }}>
+        {t.day.state !== "done" && <button className="gz-btn white" style={{ minHeight: 52, fontSize: 16, padding: "0 26px" }} disabled={punch.isPending} onClick={() => punch.mutate(working ? "out" : "in")}>{working ? "End my day" : "Start my day"}</button>}
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <b style={{ fontSize: 13 }}>{t.streak > 0 ? `${t.streak}-day streak` : "Start a streak today"} <span style={{ fontWeight: 500, color: "#dbe6ff" }}>· only you see this</span></b>
+          <div style={{ display: "flex", gap: 6 }}>{t.week.map((d) => <span key={d.date} title={`${fmtDay(d.date)}: ${DOT[d.status][1]}`} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+            <span style={{ width: 26, height: 26, borderRadius: 9, background: DOT[d.status][0], border: d.status === "today" ? "2px dashed #fff" : "1.5px solid rgba(255,255,255,.6)" }} />
+            <span style={{ fontSize: 11, color: "#dbe6ff" }}>{fmtDay(d.date).slice(0, 2)}</span></span>)}</div>
+        </div>
+      </div>
+      <ErrorNote error={punch.error} />
+      <span style={{ fontSize: 12, color: "#dbe6ff", position: "relative" }}>Leave and holidays pause your streak, they never break it. Managers never see it.</span>
+    </section>
+  );
+}
+
+function Quick({ href, title, sub, bg, fg, icon }: { href: string; title: string; sub: string; bg: string; fg: string; icon: string }) {
+  return (
+    <Link href={href} className="gz-card lift" style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 16, padding: 16, textDecoration: "none", color: "inherit" }}>
+      <span style={{ width: 40, height: 40, borderRadius: 12, background: bg, color: fg, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={icon} /></svg></span>
+      <span><b style={{ display: "block", fontSize: 15 }}>{title}</b><span style={{ fontSize: 13, color: "var(--gz-mute)" }}>{sub}</span></span>
+    </Link>
+  );
+}
+
+function Moment({ name, fileId, title, sub, cta, href, bg }: { name: string; fileId?: string | null; title: string; sub: string; cta: string; href: string; bg: string }) {
+  return (
+    <div style={{ display: "flex", gap: 12, alignItems: "center", padding: 12, borderRadius: 18, background: bg }}>
+      <Story name={name} fileId={fileId} size={48} />
+      <span style={{ flex: 1, minWidth: 0 }}><b style={{ display: "block", fontSize: 14, color: "#0f172a" }}>{title}</b><span style={{ fontSize: 12, color: "#475569" }}>{sub}</span></span>
+      <Link className="gz-btn sm" href={href}>{cta}</Link>
+    </div>
+  );
+}
+
 export default function Home() {
   const me = useQuery({ queryKey: ["me"], queryFn: () => api<Me>("/me") });
-  const home = useQuery({ queryKey: ["home"], queryFn: () => api<HomeData>("/home") });
+  const feed = useQuery({ queryKey: ["feed", "team"], refetchInterval: POLL_MS, queryFn: () => api<{ createdAt: string; author: { id: string } }[]>("/feed?tab=team") });
+  useNewItemChime(feed.data, (p) => p.createdAt, (p) => p.author.id);
+  const home = useQuery({ queryKey: ["home"], queryFn: () => api<HomeData & { birthdays: (Ev & { photoFileId?: string | null })[]; anniversaries: (Ev & { photoFileId?: string | null })[] }>("/home") });
+  const hasEmp = !!me.data?.employeeId;
+  const t = useQuery({ queryKey: ["today"], enabled: hasEmp, queryFn: () => api<Today>("/home/today") });
+  const leave = useQuery({ queryKey: ["my-leave-home"], enabled: hasEmp, queryFn: () => api<Leave>("/me/leave") });
   const admin = !!me.data?.roles.includes("hr_admin");
-  const h = home.data;
+  const [showDash, setShowDash] = useState(false);
+  const h = home.data, d = t.data;
+  const earned = leave.data?.balances.find((b) => b.key !== "unpaid" && b.key !== "sick") ?? leave.data?.balances[0];
+  const avail = earned ? (earned.available ?? earned.entitledX2) / 2 : null;
+  const todayMD = h?.today.slice(5);
+  const bdays = (h?.birthdays ?? []).filter((b) => b.date === todayMD), annivs = (h?.anniversaries ?? []).filter((b) => b.date === todayMD);
+  const soon = [...(h?.birthdays ?? []), ...(h?.anniversaries ?? [])].filter((b) => b.date !== todayMD).slice(0, 3);
   return (
-    <Page title={admin ? "HR dashboard" : "Home"} actions={<Link href="/org-chart" className="btn" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center" }}>Org chart</Link>}>
-      <ErrorNote error={home.error} />
-      {admin && <Dashboard />}
-      {h && (
-        <>
-          {h.pending.policiesToAck > 0 && (
-            <div className="note warn" role="status">You have {h.pending.policiesToAck} {h.pending.policiesToAck === 1 ? "policy" : "policies"} waiting for your acknowledgement. <Link href="/policies">Read policies</Link></div>
-          )}
-          <div className="grid">
-            <Card><h2>Announcements</h2>
-              {h.announcements.length === 0 && <p className="k">Nothing new.</p>}
-              {h.announcements.map((a) => (
-                <div key={a.id} style={{ padding: "10px 0", borderTop: "1px solid #eceef4" }}>
-                  <div><strong>{a.title}</strong> {a.pinned && <Chip tone="info">Pinned</Chip>}</div>
-                  <div style={{ whiteSpace: "pre-wrap", fontSize: 14 }}>{a.body}</div>
-                  <div className="k">{new Date(a.createdAt).toLocaleDateString("en-IN")}</div>
-                </div>))}
-            </Card>
-            <Card><h2>Birthdays</h2>
-              {h.birthdays.length === 0 && <p className="k">No birthdays in the next 30 days. Only people who chose to show theirs appear here.</p>}
-              {h.birthdays.map((b) => <div key={b.id + b.date} className="row-gap" style={{ justifyContent: "space-between", padding: "8px 0", borderTop: "1px solid #eceef4" }}><span>{b.name}</span><span className="k">{dLabel(b.date)}</span></div>)}
-            </Card>
-            <Card><h2>Work anniversaries</h2>
-              {h.anniversaries.length === 0 && <p className="k">No anniversaries in the next 30 days.</p>}
-              {h.anniversaries.map((b) => <div key={b.id + b.date} className="row-gap" style={{ justifyContent: "space-between", padding: "8px 0", borderTop: "1px solid #eceef4" }}><span>{b.name} <span className="k">{b.years} {b.years === 1 ? "year" : "years"}</span></span><span className="k">{dLabel(b.date)}</span></div>)}
-            </Card>
-          </div>
-        </>
-      )}
+    <div className="gz" style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+      <ErrorNote error={home.error ?? t.error} />
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 16, flexWrap: "wrap" }}>
+        <div><span style={{ fontSize: 14, color: "var(--gz-mute)" }}>{h ? fmtDay(h.today) : ""}</span>
+          <h1 style={{ margin: "4px 0 0", fontSize: "clamp(30px,4vw,42px)", fontWeight: 800, lineHeight: 1.05 }}>{greeting()}{d ? `, ${d.firstName}` : ""}. <span style={{ color: "var(--gz-blue)" }}>{new Date().getDay() === 5 ? "Last stretch before the weekend." : "Let's make it a good one."}</span></h1></div>
+        <div className="gz-chips">
+          {h && h.pending.policiesToAck > 0 && <Link href="/policies" className="gz-pill" style={{ background: "#f0f5ff", color: "#1e3a8a", border: "1px solid #bfdbfe", textDecoration: "none" }}>{h.pending.policiesToAck} {h.pending.policiesToAck === 1 ? "policy" : "policies"} to read</Link>}
+          {d?.lastClaim?.status === "paid" && <span className="gz-pill" style={{ background: "#ecfdf5", color: "#047857", border: "1px solid #a7f3d0" }}>Claim of {inr(d.lastClaim.amountPaise).replace(/\.00$/, "")} paid</span>}
+        </div>
+      </div>
+
+      {hasEmp && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 20 }}>
+        {d ? <StartMyDay t={d} /> : <div className="gz-card">Loading your day…</div>}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 12 }}>
+          <Quick href="/leave" title="Plan time off" sub={avail != null ? `${avail} ${earned?.name.toLowerCase() ?? "days"} left` : "Apply in a few taps"} bg="#f0f5ff" fg="#0048e4" icon="M3 5h18v16H3zM16 3v4M8 3v4M3 11h18M12 14v4M10 16h4" />
+          <Quick href="/reimbursements" title="Snap a bill" sub="Claim in three steps" bg="#eff6ff" fg="#2563eb" icon="M3 8h3l2-3h8l2 3h3v12H3zM12 10a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z" />
+          <Quick href="/payslips" title="My payslips" sub={d?.latestPayslip ? `${new Date(d.latestPayslip + "-01").toLocaleDateString("en-IN", { month: "long" })} payslip ready` : "All your payslips"} bg="#eff6ff" fg="#0048e4" icon="M2 6h20v12H2zM12 9.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z" />
+          <Quick href="/kudos" title="Give kudos" sub="Thank someone, publicly" bg="#eff6ff" fg="#2563eb" icon="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z" />
+        </div>
+      </div>}
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 20, alignItems: "start" }}>
+        <section className="gz-card gz-pop" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between" }}><b style={{ fontSize: 16 }}>Today's moments</b><Link href="/team" style={{ fontSize: 13, fontWeight: 700 }}>Know your team</Link></div>
+          {bdays.map((b) => <Moment key={"b" + b.id} name={b.name} fileId={b.photoFileId} title={`${b.name.split(" ")[0]}'s birthday`} sub="Shown because they opted in" cta="Send wishes" href={`/kudos?to=${b.id}&value=Wishes`} bg="#f0f5ff" />)}
+          {annivs.map((b) => <Moment key={"a" + b.id} name={b.name} fileId={b.photoFileId} title={`${b.name.split(" ")[0]}, ${b.years} year${b.years === 1 ? "" : "s"} here`} sub="Work anniversary" cta="Say congrats" href={`/kudos?to=${b.id}&value=Wishes`} bg="#eff6ff" />)}
+          {d?.newJoiners.map((j) => <Moment key={"n" + j.id} name={j.fullName} fileId={j.photoFileId} title={`${j.fullName.split(" ")[0]} joined${j.department ? ` ${j.department}` : ""}`} sub="New here" cta="Say hi" href={`/vibe/${j.id}`} bg="#f0f5ff" />)}
+          {!bdays.length && !annivs.length && !d?.newJoiners.length && <span className="k">No birthdays, anniversaries or new joiners today.</span>}
+          {soon.length > 0 && <div style={{ fontSize: 13, color: "var(--gz-mute)" }}>Coming up: {soon.map((x) => `${x.name.split(" ")[0]} (${dLabel(x.date)})`).join(", ")}</div>}
+        </section>
+        <KudosPreview />
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          {hasEmp && <PulseCard />}
+          {d?.longWeekend && <section className="gz-card gz-pop" style={{ background: "#f0f5ff", borderColor: "#bfdbfe", color: "#172554" }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#1e3a8a" }}>Leave planner tip · {d.longWeekend.holiday}</span>
+            <b style={{ display: "block", fontSize: 16, margin: "6px 0" }}>Take {d.longWeekend.take.map(fmtDay).join(" and ")} off, get {d.longWeekend.daysOff} days in a row.</b>
+            <Link href="/leave" style={{ fontSize: 13, fontWeight: 700, color: "#1e3a8a" }}>Plan it</Link></section>}
+        </div>
+      </div>
+
+      {h && h.announcements.length > 0 && <section className="gz-card"><b style={{ fontSize: 16 }}>Announcements</b>
+        {h.announcements.map((a) => <div key={a.id} style={{ padding: "10px 0", borderTop: "1px solid var(--gz-line)" }}><b>{a.title}</b> {a.pinned && <Chip tone="info">Pinned</Chip>}
+          <div style={{ whiteSpace: "pre-wrap", fontSize: 14 }}>{a.body}</div><div className="k">{new Date(a.createdAt).toLocaleDateString("en-IN")}</div></div>)}</section>}
+
+      {admin && <section><button className="gz-btn" aria-expanded={showDash} onClick={() => setShowDash((x) => !x)}>{showDash ? "Hide" : "Show"} HR dashboard</button>
+        {showDash && <div style={{ marginTop: 16 }}><Dashboard /></div>}</section>}
       {home.isLoading && <p>Loading…</p>}
-    </Page>
+    </div>
   );
 }

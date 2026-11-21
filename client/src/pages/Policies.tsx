@@ -3,6 +3,7 @@ import { Link, useLocation, useParams } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { Card, Chip, ErrorNote, Field, Page } from "../lib/ui";
+import { celebrate } from "../lib/gz";
 
 type PolicyRow = { slug: string; title: string; version: number; acknowledged: boolean };
 type Policy = PolicyRow & { html: string; publishedAt: string | null; acknowledgedAt: string | null };
@@ -18,7 +19,7 @@ export default function Policies() {
   const list = useQuery({ queryKey: ["policies"], queryFn: () => api<PolicyRow[]>("/policies") });
   const one = useQuery({ queryKey: ["policy", slug], enabled: !!slug, queryFn: () => api<Policy>(`/policies/${slug}`) });
   const sums = useQuery({ queryKey: ["policy-acks"], enabled: admin, queryFn: () => api<Summary[]>("/policies/acks/summary") });
-  const ack = useMutation({ mutationFn: () => api(`/policies/${slug}/ack`, { method: "POST", body: {} }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["policy", slug] }); qc.invalidateQueries({ queryKey: ["policies"] }); qc.invalidateQueries({ queryKey: ["policy-acks"] }); qc.invalidateQueries({ queryKey: ["home"] }); } });
+  const ack = useMutation({ mutationFn: () => api(`/policies/${slug}/ack`, { method: "POST", body: {} }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["policy", slug] }); qc.invalidateQueries({ queryKey: ["policies"] }); qc.invalidateQueries({ queryKey: ["policy-acks"] }); qc.invalidateQueries({ queryKey: ["home"] }); qc.invalidateQueries({ queryKey: ["privacy"] }); celebrate("Acknowledged", "Saved to My privacy"); } });
   const [show, setShow] = useState(false);
   const [f, setF] = useState({ slug: "", title: "", html: "" });
   const pub = useMutation({
@@ -51,7 +52,7 @@ export default function Policies() {
           <nav aria-label="Policies">
             {list.data?.map((p) => (
               <Link key={p.slug} href={`/policies/${p.slug}`} aria-current={p.slug === slug ? "page" : undefined}
-                style={{ display: "block", padding: "12px 4px", minHeight: 44, borderBottom: "1px solid #eceef4", color: "#1a2036", textDecoration: "none", fontWeight: p.slug === slug ? 600 : 400 }}>
+                style={{ display: "block", padding: "12px 4px", minHeight: 44, borderBottom: "1px solid var(--line)", color: "var(--ink)", textDecoration: "none", fontWeight: p.slug === slug ? 600 : 400 }}>
                 {p.title} <span className="k">v{p.version}</span>{" "}
                 {p.acknowledged ? <Chip tone="ok">Acknowledged</Chip> : <Chip tone="warn">To acknowledge</Chip>}
                 {sum(p.slug) && <span className="k" style={{ display: "block" }}>{sum(p.slug)!.acknowledged} of {sum(p.slug)!.total} acknowledged</span>}
@@ -69,7 +70,7 @@ export default function Policies() {
                 <>
                   <h2 style={{ fontSize: 20 }}>{one.data.title}</h2>
                   <p className="k">Version {one.data.version}{one.data.publishedAt ? ` · published ${new Date(one.data.publishedAt).toLocaleDateString("en-IN")}` : ""}</p>
-                  <iframe title={`${one.data.title} policy text`} sandbox="" srcDoc={DOC_CSS + one.data.html} style={{ width: "100%", height: 480, border: "1px solid #e3e6ef", borderRadius: 8, background: "#fff" }} />
+                  <iframe title={`${one.data.title} policy text`} sandbox="" srcDoc={DOC_CSS + one.data.html} style={{ width: "100%", height: 480, border: "1px solid var(--line)", borderRadius: 8, background: "#fff" }} />
                   <div style={{ marginTop: 12 }}>
                     {one.data.acknowledged
                       ? <Chip tone="ok">Acknowledged{one.data.acknowledgedAt ? ` on ${new Date(one.data.acknowledgedAt).toLocaleDateString("en-IN")}` : ""}</Chip>

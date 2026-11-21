@@ -98,11 +98,11 @@ export default function CompleteProfile({ id, onSkip }: { id: string; onSkip: ()
     <div style={{ minHeight: "100vh", padding: "32px 16px", display: "flex", justifyContent: "center" }}>
       <div style={{ width: "100%", maxWidth: 760 }}>
         <div className="brand" style={{ fontWeight: 600, fontSize: 20, color: "var(--brand)", marginBottom: 16 }}>Complynz</div>
-        <Card>
-          <h1>Complete your profile</h1>
-          <p className="k" style={{ fontSize: 14, margin: "8px 0 20px" }}>
+        <div className="pagehead" style={{ display: "block" }}><h1>Complete your profile</h1>
+          <p style={{ fontSize: 14, margin: "8px 0 0" }}>
             Welcome{emp.data ? `, ${emp.data.fullName.split(" ")[0]}` : ""}. Add your photo and a few details so HR has what it needs and colleagues can find you. It takes about two minutes.
-          </p>
+          </p></div>
+        <Card>
           <ErrorNote error={emp.error} />
           {emp.isLoading && <p>Loading…</p>}
           {emp.data && <ProfileForm id={id} emp={emp.data} submitLabel="Save and continue" />}

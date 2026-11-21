@@ -14,6 +14,8 @@ import publicRoutes from "./routes/public";
 import time from "./routes/time";
 import exits from "./routes/exits";
 import feedback from "./routes/feedback";
+import vibe from "./routes/vibe";
+import buzz from "./routes/buzz";
 
 const app = express();
 app.disable("x-powered-by");
@@ -54,6 +56,8 @@ app.use("/api", letters);
 app.use("/api", time);
 app.use("/api", exits);
 app.use("/api", feedback);
+app.use("/api", vibe);
+app.use("/api", buzz);
 
 const dist = path.resolve("dist/client");
 app.use(express.static(dist));

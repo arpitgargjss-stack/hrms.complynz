@@ -114,10 +114,10 @@ function ResultsView() {
       {r?.hidden && <div className="note warn">Hidden until {r.minResponses} responses. This protects anonymity.</div>}
       {r && !r.hidden && <>
         <p>{r.cycle.title} <Chip tone={r.cycle.status === "open" ? "ok" : "mute"}>{r.cycle.status}</Chip> · {r.responses} responses{r.participationPct != null ? ` · ${r.participationPct}% participation` : ""}</p>
-        {r.questions.map((q) => <div key={q.id} style={{ borderTop: "1px solid #eceef4", padding: "10px 0" }}><strong>{q.text}</strong>
+        {r.questions.map((q) => <div key={q.id} style={{ borderTop: "1px solid var(--line)", padding: "10px 0" }}><strong>{q.text}</strong>
           {q.type === "rating" ? <div>Average {q.average ?? "-"} of 5 · {q.count} answers
             <div role="img" aria-label={`Distribution of ratings 1 to 5: ${(q.distribution ?? []).join(", ")}`} style={{ display: "flex", gap: 6, alignItems: "end", height: 60, marginTop: 6 }}>
-              {(q.distribution ?? []).map((n, i) => <div key={i} style={{ flex: 1, textAlign: "center", fontSize: 12 }}><div style={{ background: "#2f4bd6", height: Math.max(2, (n / Math.max(1, ...(q.distribution ?? []))) * 40), borderRadius: 3 }} />{i + 1}</div>)}</div></div>
+              {(q.distribution ?? []).map((n, i) => <div key={i} style={{ flex: 1, textAlign: "center", fontSize: 12 }}><div style={{ background: "#0048e4", height: Math.max(2, (n / Math.max(1, ...(q.distribution ?? []))) * 40), borderRadius: 3 }} />{i + 1}</div>)}</div></div>
             : q.comments?.length ? <ul>{q.comments.map((c, i) => <li key={i}>{c}</li>)}</ul> : <p className="k">Comments show when at least 5 people have written one.</p>}</div>)}</>}
     </Card>
   );
@@ -131,7 +131,7 @@ function Suggestions() {
   return (
     <Card><h2>Suggestions</h2><ErrorNote error={list.error || reply.error} />
       {list.data && !list.data.length && <p>No suggestions yet.</p>}
-      {(list.data ?? []).map((s) => <div key={s.id} style={{ borderTop: "1px solid #eceef4", padding: "12px 0" }}>
+      {(list.data ?? []).map((s) => <div key={s.id} style={{ borderTop: "1px solid var(--line)", padding: "12px 0" }}>
         <p className="k" style={{ margin: 0 }}>{s.createdDay} · <Chip tone={s.status === "replied" ? "ok" : "warn"}>{s.status.replace(/_/g, " ")}</Chip></p>
         <p style={{ whiteSpace: "pre-wrap" }}>{s.body}</p>
         {s.reply && <p className="note info">Reply: {s.reply}</p>}
