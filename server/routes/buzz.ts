@@ -137,29 +137,31 @@ r.delete("/kudos/:id", wrap(async (req, res) => {
 // Weekly pulse (anonymous)
 // =====================================================================
 const marker = (employeeId: string, week: string) => hmac(`${employeeId}:${week}`, "pulse");
+const avg1 = (xs: (number | null)[]) => { const v = xs.filter((x): x is number => typeof x === "number"); return v.length >= MIN_ANONYMOUS_RESPONSES ? Math.round((v.reduce((a, b) => a + b, 0) / v.length) * 10) / 10 : null; };
 async function pulseState(me: string) {
   const today = istDate();
   const week = isoWeek(today);
   const [emp] = await db.select({ departmentId: S.employees.departmentId }).from(S.employees).where(eq(S.employees.id, me)).limit(1);
   const [p] = await db.select({ id: S.pulseParticipation.id }).from(S.pulseParticipation).where(and(eq(S.pulseParticipation.week, week), eq(S.pulseParticipation.markerHash, marker(me, week)))).limit(1);
-  const rows = await db.select({ mood: S.pulseResponses.mood }).from(S.pulseResponses)
+  const rows = await db.select({ mood: S.pulseResponses.mood, enjoy: S.pulseResponses.enjoy, belief: S.pulseResponses.belief }).from(S.pulseResponses)
     .where(and(eq(S.pulseResponses.week, week), emp?.departmentId ? eq(S.pulseResponses.departmentId, emp.departmentId) : isNull(S.pulseResponses.departmentId)));
   const count = rows.length;
   const team = shouldShowResults(count)
-    ? { count, average: Math.round((rows.reduce((a, x) => a + x.mood, 0) / count) * 10) / 10, distribution: MOODS.map((m, i) => ({ mood: m, n: rows.filter((x) => x.mood === i + 1).length })) }
+    ? { count, average: avg1(rows.map((x) => x.mood)), enjoy: avg1(rows.map((x) => x.enjoy)), belief: avg1(rows.map((x) => x.belief)), distribution: MOODS.map((m, i) => ({ mood: m, n: rows.filter((x) => x.mood === i + 1).length })) }
     : { count, needed: MIN_ANONYMOUS_RESPONSES };
   return { week, answered: !!p, team };
 }
 r.get("/pulse", wrap(async (req, res) => { res.json(await pulseState(selfId(req))); }));
 r.post("/pulse", wrap(async (req, res) => {
   const me = selfId(req);
-  const b = parse(z.object({ mood: z.number().int().min(1).max(5) }).strict(), req.body);
+  const one = z.number().int().min(1).max(5);
+  const b = parse(z.object({ mood: one, enjoy: one.optional(), belief: one.optional() }).strict(), req.body);
   const week = isoWeek(istDate());
   const [emp] = await db.select({ departmentId: S.employees.departmentId }).from(S.employees).where(eq(S.employees.id, me)).limit(1);
   // Participation marker and answer are separate rows with nothing joining them.
   const claimed = await db.insert(S.pulseParticipation).values({ week, markerHash: marker(me, week) }).onConflictDoNothing().returning({ id: S.pulseParticipation.id });
   if (!claimed.length) throw new HttpError(409, "You've already answered this week");
-  await db.insert(S.pulseResponses).values({ week, departmentId: emp?.departmentId ?? null, mood: b.mood, submittedDay: istDate() });
+  await db.insert(S.pulseResponses).values({ week, departmentId: emp?.departmentId ?? null, mood: b.mood, enjoy: b.enjoy ?? null, belief: b.belief ?? null, submittedDay: istDate() });
   res.status(201).json(await pulseState(me));
 }));
 

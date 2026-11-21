@@ -38,12 +38,35 @@ export interface TdsRule {
   rebate?: { thresholdPaise: Paise; maxRebatePaise: Paise };
 }
 
-export interface ProfessionalTaxRule { enabled: boolean; monthlyPaise: Paise }
+/** One professional tax slab: monthly gross up to `upToPaise` (null = no upper limit) pays `monthlyPaise`, or `februaryPaise` in February. */
+export interface PtSlab { upToPaise: Paise | null; monthlyPaise: Paise; februaryPaise?: Paise }
+export interface ProfessionalTaxRule {
+  enabled: boolean;
+  /** Flat amount used when no state table applies (kept for older rule sets). */
+  monthlyPaise: Paise;
+  /** State-wise slabs keyed by state name. A state that is not listed levies no professional tax. Women can have their own table. */
+  byState?: Record<string, { slabs: PtSlab[]; femaleSlabs?: PtSlab[] }>;
+}
+/** Employees' State Insurance: applies when monthly gross at full attendance is at or under the wage ceiling. */
+export interface EsiRule { enabled: boolean; employeeBps: number; employerBps: number; wageCeilingPaise: Paise }
 
 export interface StatutoryRules {
   pf: PfRule;
   tds: TdsRule;
   professionalTax: ProfessionalTaxRule;
+  esi?: EsiRule;
+}
+
+/** Monthly professional tax for a person, from the state table when there is one, else the flat amount. */
+export function professionalTaxFor(rule: ProfessionalTaxRule, grossPaise: Paise, ctx: { state?: string | null; gender?: string | null; month?: string }): Paise {
+  if (!rule.enabled) return 0;
+  if (!rule.byState) return rule.monthlyPaise;
+  const st = ctx.state ? rule.byState[ctx.state] : undefined;
+  if (!st) return 0;
+  const slabs = ctx.gender === "female" && st.femaleSlabs ? st.femaleSlabs : st.slabs;
+  const slab = slabs.find((x) => x.upToPaise === null || grossPaise <= x.upToPaise);
+  if (!slab) return 0;
+  return ctx.month?.slice(5, 7) === "02" && slab.februaryPaise !== undefined ? slab.februaryPaise : slab.monthlyPaise;
 }
 
 export interface SalaryInput {
@@ -60,6 +83,8 @@ export interface SalaryInput {
   /** Days paid (calendarDays minus loss of pay). May be fractional in halves. */
   paidDays: number;
   rules: StatutoryRules;
+  /** Work-location state, gender and month (YYYY-MM), used for state professional tax slabs. */
+  pt?: { state?: string | null; gender?: string | null; month?: string };
   /** Tax already deducted this FY and months remaining including this one, for TDS projection. */
   tds?: { taxDeductedSoFarPaise: Paise; /** Taxable earnings already paid this FY. */ taxableSoFarPaise?: Paise; monthsRemaining: number; annualOtherDeductionsPaise?: Paise };
 }
@@ -175,9 +200,15 @@ export function computeSalary(input: SalaryInput): SalaryResult {
     employer.push({ code: "PF_ER", name: "Provident Fund (Employer)", amount: bps(capped, rules.pf.employerBps) });
   }
 
-  if (rules.professionalTax.enabled && rules.professionalTax.monthlyPaise > 0) {
-    deductions.push({ code: "PT", name: "Professional Tax", amount: rules.professionalTax.monthlyPaise });
+  // ESI on gross paid, when full-month gross is within the ceiling. ESIC rounds contributions up to the next rupee.
+  if (rules.esi?.enabled && input.monthlyGrossPaise <= rules.esi.wageCeilingPaise) {
+    const up = (p: Paise) => Math.ceil(p / 100) * 100;
+    deductions.push({ code: "ESI_EE", name: "ESI (Employee)", amount: up(bps(grossPaid, rules.esi.employeeBps)) });
+    employer.push({ code: "ESI_ER", name: "ESI (Employer)", amount: up(bps(grossPaid, rules.esi.employerBps)) });
   }
+
+  const pt = professionalTaxFor(rules.professionalTax, input.monthlyGrossPaise, input.pt ?? {});
+  if (pt > 0) deductions.push({ code: "PT", name: "Professional Tax", amount: pt });
 
   // TDS: project annual taxable from this month's taxable earnings
   if (rules.tds.enabled) {

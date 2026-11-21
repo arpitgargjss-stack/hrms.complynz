@@ -14,6 +14,9 @@ import publicRoutes from "./routes/public";
 import time from "./routes/time";
 import exits from "./routes/exits";
 import feedback from "./routes/feedback";
+import dashboard from "./routes/dashboard";
+import fnf from "./routes/fnf";
+import compliance from "./routes/compliance";
 import vibe from "./routes/vibe";
 import buzz from "./routes/buzz";
 
@@ -56,6 +59,9 @@ app.use("/api", letters);
 app.use("/api", time);
 app.use("/api", exits);
 app.use("/api", feedback);
+app.use("/api", dashboard);
+app.use("/api", fnf);
+app.use("/api", compliance);
 app.use("/api", vibe);
 app.use("/api", buzz);
 

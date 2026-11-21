@@ -11,6 +11,7 @@ const paise = z.number().int().min(0);
 const bpsN = z.number().int().min(0).max(10000);
 
 /** Matches StatutoryRules. Every value is required: there are no defaults for statutory numbers. */
+const ptSlab = z.object({ upToPaise: paise.nullable(), monthlyPaise: paise, februaryPaise: paise.optional() }).strict();
 export const rulesSchema = z.object({
   pf: z.object({ enabled: z.boolean(), employeeBps: bpsN, employerBps: bpsN, wageCeilingPaise: paise.nullable() }).strict(),
   tds: z.object({
@@ -20,7 +21,11 @@ export const rulesSchema = z.object({
     cessBps: bpsN,
     rebate: z.object({ thresholdPaise: paise, maxRebatePaise: paise }).strict().optional(),
   }).strict(),
-  professionalTax: z.object({ enabled: z.boolean(), monthlyPaise: paise }).strict(),
+  professionalTax: z.object({
+    enabled: z.boolean(), monthlyPaise: paise,
+    byState: z.record(z.string().min(2).max(40), z.object({ slabs: z.array(ptSlab).min(1), femaleSlabs: z.array(ptSlab).min(1).optional() }).strict()).optional(),
+  }).strict(),
+  esi: z.object({ enabled: z.boolean(), employeeBps: bpsN, employerBps: bpsN, wageCeilingPaise: paise }).strict().optional(),
 }).strict().superRefine((r, ctx) => {
   const s = r.tds.slabs;
   if (r.tds.enabled && s.length === 0) ctx.addIssue({ code: "custom", path: ["tds", "slabs"], message: "TDS is enabled but no slabs are given" });

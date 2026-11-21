@@ -12,6 +12,7 @@ test("manager cannot read comp of reports or ID docs of others", () => {
 });
 test("only HR runs payroll and accepts resignations; HR cannot sign", () => {
   assert.equal(scopeFor(["team_member", "manager"], "payroll.run"), "none");
+  assert.equal(scopeFor(["team_member", "finance_signatory"], "payroll.run"), "all");
   assert.equal(scopeFor(["hr_admin"], "resign.accept"), "all");
   assert.equal(scopeFor(["hr_admin"], "sign.documents"), "none");
 });

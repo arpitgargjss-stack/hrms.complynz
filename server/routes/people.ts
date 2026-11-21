@@ -12,6 +12,8 @@ import { sendConsentEvent } from "../lib/consentClient";
 import { canSeeVibePhoto, personOf } from "../lib/vibe";
 import { scopeFor, canAccess, type Capability, type Scope } from "../../shared/hr/access";
 import { nextEmployeeCode, CONSENT_PURPOSES, upcomingEvents } from "../../shared/hr/misc";
+import { LOGIN_PURPOSE, onLoginConsent } from "../lib/loginDays";
+import { INDIAN_STATES } from "../../shared/hr/presets";
 import { missingProfileFields } from "../../shared/hr/profile";
 import type { Role } from "../../shared/hr/access";
 import type { Actor } from "../middleware/auth";
@@ -90,7 +92,7 @@ orgCrud("designations", "designation", S.designations, S.employees.designationId
 orgCrud("locations", "location", S.locations, S.employees.locationId, z.object({
   name: nameField, address: nullable(z.string().trim().max(500)),
   lat: nullable(coord(-90, 90)), lng: nullable(coord(-180, 180)), radiusM: z.number().int().min(20).max(5000).optional(),
-  isRemote: z.boolean().optional(),
+  isRemote: z.boolean().optional(), state: nullable(z.enum(INDIAN_STATES)),
 }));
 
 // =====================================================================
@@ -625,6 +627,7 @@ r.put("/me/consents/:key", wrap(async (req, res) => {
   const subjectId = subjectOf(empId);
   const [row] = await db.insert(S.consentEvents).values({ subjectId, purposeKey: key, status, noticeVersion: b.noticeVersion, source: "hr_app" }).returning();
   sendConsentEvent({ subjectId, purposeKey: key, status, noticeVersion: b.noticeVersion });
+  if (key === LOGIN_PURPOSE) await onLoginConsent(empId, b.granted);
   res.json({ key, status, noticeVersion: row.noticeVersion, at: row.at });
 }));
 

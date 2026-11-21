@@ -5,7 +5,7 @@ import { api } from "../lib/api";
 import { ErrorNote } from "../lib/ui";
 import { Story, ago, celebrate } from "../lib/gz";
 import { POLL_MS, playChime, useNewItemChime } from "../lib/sound";
-import { KUDOS_VALUES, MOODS } from "@shared/hr/buzz";
+import { KUDOS_VALUES } from "@shared/hr/buzz";
 import "../gz.css";
 
 type Who = { id: string; fullName: string; photoFileId: string | null };
@@ -107,25 +107,40 @@ export function KudosPreview() {
   );
 }
 
-type Pulse = { week: string; answered: boolean; team: { count: number; needed?: number; average?: number; distribution?: { mood: string; n: number }[] } };
-const MOOD_DOT = ["#64748b", "#94a3b8", "#93c5fd", "#2563eb", "#0048e4"];
+type Pulse = { week: string; answered: boolean; team: { count: number; needed?: number; average?: number | null; enjoy?: number | null; belief?: number | null; distribution?: { mood: string; n: number }[] } };
+const MOOD_DOT = ["#9aa7c7", "#b7c6ea", "#7aa2ff", "#3b6ff0", "#0048e4"];
+/** The three things that matter most: are people happy, enjoying the work, and do they believe in where we're going. */
+const PULSE_QS = [
+  { key: "mood", q: "How happy are you at work right now?", scale: ["Not at all", "A little", "Okay", "Happy", "Very happy"] },
+  { key: "enjoy", q: "Are you enjoying the work you do?", scale: ["Not really", "Some days", "Mostly", "Yes", "Loving it"] },
+  { key: "belief", q: "Do you believe in where Complynz is going?", scale: ["Not really", "Unsure", "Somewhat", "Yes", "Fully"] },
+] as const;
+const word = (key: string, v: number) => PULSE_QS.find((x) => x.key === key)!.scale[Math.max(0, Math.min(4, Math.round(v) - 1))];
+
 export function PulseCard() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["pulse"], queryFn: () => api<Pulse>("/pulse") });
-  const answer = useMutation({ mutationFn: (mood: number) => api<Pulse>("/pulse", { body: { mood } }), onSuccess: (d) => { qc.setQueryData(["pulse"], d); celebrate("Thanks for sharing", "Your answer is anonymous"); } });
+  const [a, setA] = useState<Record<string, number>>({});
+  const answer = useMutation({ mutationFn: () => api<Pulse>("/pulse", { body: a }), onSuccess: (d) => { qc.setQueryData(["pulse"], d); setA({}); celebrate("Thank you for telling us", "Your answers are anonymous"); } });
   const p = q.data;
   return (
-    <section className="gz-card gz-pop" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div><span style={{ fontSize: 12, fontWeight: 700, color: "#0048e4" }}>Weekly pulse · 10 seconds</span><b style={{ display: "block", fontSize: 16 }}>How was your week, honestly?</b></div>
-      {p && !p.answered && <div style={{ display: "grid", gridTemplateColumns: "repeat(5,minmax(0,1fr))", gap: 6 }}>{MOODS.map((m, i) =>
-        <button key={m} disabled={answer.isPending} onClick={() => answer.mutate(i + 1)} style={{ font: "inherit", minHeight: 64, borderRadius: 14, border: "1px solid var(--gz-line)", background: "var(--gz-soft)", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "var(--gz-ink)" }}>
-          <span style={{ width: 18, height: 18, borderRadius: 99, background: MOOD_DOT[i] }} />{m}</button>)}</div>}
+    <section id="pulse" className="gz-card gz-pop" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div><span style={{ fontSize: 12, fontWeight: 700, color: "#0048e4" }}>This week · three taps</span><b style={{ display: "block", fontSize: 16 }}>How are you, really?</b></div>
+      {p && !p.answered && <>
+        {PULSE_QS.map((x) => <div key={x.key} role="radiogroup" aria-label={x.q}>
+          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>{x.q}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(5,minmax(0,1fr))", gap: 6 }}>{x.scale.map((m, i) => { const on = a[x.key] === i + 1;
+            return <button key={m} role="radio" aria-checked={on} disabled={answer.isPending} onClick={() => setA({ ...a, [x.key]: i + 1 })} style={{ font: "inherit", minHeight: 52, borderRadius: 12, border: on ? "2px solid #0048e4" : "1px solid var(--gz-line)", background: on ? "#e6eeff" : "var(--gz-soft)", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, fontSize: 11, fontWeight: 700, color: "var(--gz-ink)", padding: 2 }}>
+              <span style={{ width: 14, height: 14, borderRadius: 99, background: MOOD_DOT[i] }} />{m}</button>; })}</div></div>)}
+        <button className="gz-btn" disabled={!a.mood || answer.isPending} onClick={() => answer.mutate()}>{a.mood ? "Send anonymously" : "Pick at least the first one"}</button>
+      </>}
       {p?.answered && (p.team.average != null
-        ? <div style={{ display: "flex", flexDirection: "column", gap: 6 }}><b>Your team this week: {MOODS[Math.round(p.team.average) - 1]} ({p.team.count} answers)</b>
-            <div style={{ display: "flex", height: 12, borderRadius: 99, overflow: "hidden" }} role="img" aria-label={p.team.distribution!.map((x) => `${x.mood} ${x.n}`).join(", ")}>
-              {p.team.distribution!.map((x, i) => x.n > 0 && <span key={x.mood} style={{ flex: x.n, background: MOOD_DOT[i] }} />)}</div></div>
-        : <span style={{ fontSize: 14 }}>Thanks. {p.team.count} of your team answered. The team result shows once {p.team.needed} or more people answer.</span>)}
-      <span className="k">Anonymous. Nobody, including HR, can see who answered what.</span>
+        ? <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 14 }}><b>Your team this week ({p.team.count} answers)</b>
+            <span>Happy at work: {word("mood", p.team.average)}</span>
+            {p.team.enjoy != null && <span>Enjoying the work: {word("enjoy", p.team.enjoy)}</span>}
+            {p.team.belief != null && <span>Believe in where we're going: {word("belief", p.team.belief)}</span>}</div>
+        : <span style={{ fontSize: 14 }}>Thank you. {p.team.count} of your team answered. The team result shows once {p.team.needed} or more people answer.</span>)}
+      <span className="k">Anonymous. Nobody, including HR or the CEO, can see who answered what. Only team averages from 5 or more people are ever shown.</span>
       <ErrorNote error={answer.error} />
     </section>
   );

@@ -1,11 +1,15 @@
+import { Link } from "wouter";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { LETTER_STATUS_LABEL, letterDef } from "../../../shared/hr/letters";
+import { FieldInput } from "./Letters";
+import { DataTable } from "../lib/DataTable";
 import { api } from "../lib/api";
 import { Card, Chip, ErrorNote, Field, Page } from "../lib/ui";
 import { openHtml } from "../lib/openHtml";
 
 type Candidate = { id: string; fullName: string; email: string; phone: string | null; position: string | null; status: string; expectedJoining: string | null };
-type Letter = { id: string; type: string; refNo: string; status: string };
+type Letter = { id: string; type: string; refNo: string; status: string; reviewNote?: string | null };
 type Onb = { id: string; steps: string[]; expiresAt: string; completedAt: string | null; createdAt: string; submission: null | {
   personal: Record<string, unknown> | null; panMasked: string | null; accountMasked: string | null; bankName: string | null; ifsc: string | null;
   documents: { fileId: string; kind: string; name: string }[]; submittedAt: string | null } };
@@ -18,7 +22,7 @@ const STEPS = [
   { key: "bank", label: "Bank details", hint: "Bank name, account number, IFSC" },
   { key: "documents", label: "Document uploads", hint: "Photo, PAN card, ID, address proof, other" },
 ];
-const typeLabel = (t: string) => (t === "offer_short" ? "Offer (summary)" : t === "offer_full" ? "Offer (full)" : t);
+const typeLabel = (t: string) => (t === "offer_short" ? "Offer, one page" : t === "offer_full" ? "Offer, full" : t);
 
 function CopyLink({ shared, title }: { shared: Shared; title: string }) {
   const [copied, setCopied] = useState(false);
@@ -57,30 +61,34 @@ function AddCandidate({ onDone }: { onDone: () => void }) {
   );
 }
 
-const PAYLOAD_FIELDS: { k: string; label: string; type?: string; money?: boolean }[] = [
-  { k: "position", label: "Position" }, { k: "department", label: "Department" }, { k: "reportingTo", label: "Reporting to" }, { k: "location", label: "Work location" },
-  { k: "joiningDate", label: "Date of joining", type: "date" }, { k: "employmentType", label: "Employment type" },
-  { k: "annualCtc", label: "Annual CTC (INR)", type: "number", money: true }, { k: "monthlyGross", label: "Monthly gross (INR)", type: "number", money: true },
-  { k: "validUntil", label: "Offer valid until", type: "date" }, { k: "probation", label: "Probation" }, { k: "noticePeriod", label: "Notice period" },
-  { k: "workingHours", label: "Working hours" }, { k: "leaveSummary", label: "Leave entitlement" }, { k: "salaryStructureNote", label: "Salary structure reference" },
-  { k: "signatoryName", label: "Signatory name" }, { k: "signatoryDesignation", label: "Signatory designation" },
-];
+/** One form fills both offer formats: the full letter's fields plus the one-page letter's salary note. */
+const OFFER_FIELDS = [...letterDef("offer_full")!.fields, ...letterDef("offer_short")!.fields.filter((f) => f.key === "salaryNote")];
+
+function ConsentChoices({ c }: { c: Candidate }) {
+  const q = useQuery({ queryKey: ["cand-consents", c.id], queryFn: () => api<{ key: string; title: string; granted: boolean | null; at: string | null }[] | null>(`/candidates/${c.id}/consents`) });
+  if (!q.data) return <Card><h2>Data consents</h2><p className="k">{q.isLoading ? "Loading…" : "Recorded when the candidate accepts the offer online: one yes or no for each purpose. They move to the employee's consent log on joining."}</p></Card>;
+  return <Card><h2>Data consents recorded at acceptance</h2>
+    <table className="t"><thead><tr><th>Purpose</th><th>Choice</th><th>When</th></tr></thead><tbody>{q.data.map((r) => <tr key={r.key}><td>{r.title}</td>
+      <td>{r.granted == null ? "-" : <Chip tone={r.granted ? "ok" : "mute"}>{r.granted ? "Yes" : "No"}</Chip>}</td><td className="k">{r.at ? new Date(r.at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : ""}</td></tr>)}</tbody></table>
+    <p className="k">{c.status === "joined" ? "Copied to the employee's consent log on joining." : "These move to the employee's consent log automatically when you convert the candidate."}</p></Card>;
+}
 
 function Letters({ c }: { c: Candidate }) {
   const qc = useQueryClient();
   const letters = useQuery({ queryKey: ["letters", c.id], queryFn: () => api<Letter[]>(`/letters?candidateId=${c.id}`) });
-  const [form, setForm] = useState<Record<string, string>>({ position: c.position ?? "", joiningDate: c.expectedJoining ?? "" });
+  const [form, setForm] = useState<Record<string, unknown>>({ position: c.position ?? undefined, joiningDate: c.expectedJoining ?? undefined, templateKey: "standard", employmentType: "Full-Time, Permanent" });
   const [shared, setShared] = useState<Shared | null>(null);
   const refresh = () => { qc.invalidateQueries({ queryKey: ["letters", c.id] }); qc.invalidateQueries({ queryKey: ["candidates"] }); };
   const create = useMutation({
     mutationFn: async () => {
-      const payload: Record<string, unknown> = {};
-      for (const f of PAYLOAD_FIELDS) { const v = (form[f.k] ?? "").trim(); if (!v) continue; payload[f.k] = f.money ? Math.round(Number(v) * 100) : v; }
+      const payload = Object.fromEntries(Object.entries(form).filter(([, v]) => v !== undefined && v !== ""));
       // Every hire gets both formats, from one payload.
       for (const type of ["offer_short", "offer_full"]) await api("/letters", { body: { type, candidateId: c.id, payload } });
     }, onSuccess: refresh,
   });
-  const issue = useMutation({ mutationFn: (id: string) => api(`/letters/${id}/issue`, { method: "POST", body: {} }), onSuccess: refresh });
+  const issue = useMutation({ mutationFn: (a: { id: string; step: string }) => api(`/letters/${a.id}/${a.step}`, { method: "POST", body: {} }), onSuccess: refresh });
+  const me = useQuery({ queryKey: ["me"], queryFn: () => api<{ roles: string[] }>("/me") });
+  const ceo = !!me.data?.roles.includes("super_admin");
   const share = useMutation({ mutationFn: (id: string) => api<Shared>(`/letters/${id}/share`, { method: "POST", body: {} }), onSuccess: (s) => { setShared(s); refresh(); } });
   const list = letters.data ?? [];
   const issued = list.find((l) => l.status === "issued" && (l.type === "offer_short" || l.type === "offer_full"));
@@ -88,9 +96,11 @@ function Letters({ c }: { c: Candidate }) {
   return (
     <Card><h2>Offer letters</h2>
       {list.length > 0 && <div style={{ overflowX: "auto" }}><table className="t"><thead><tr><th>Letter</th><th>Ref</th><th>Status</th><th></th></tr></thead><tbody>
-        {list.map((l) => <tr key={l.id}><td>{typeLabel(l.type)}</td><td>{l.refNo}</td><td><Chip tone={tone(l.status)}>{l.status}</Chip></td>
+        {list.map((l) => <tr key={l.id}><td>{typeLabel(l.type)}</td><td>{l.refNo}</td><td><Chip tone={tone(l.status)}>{LETTER_STATUS_LABEL[l.status] ?? l.status}</Chip>{l.reviewNote && l.status === "draft" && <div className="k">CEO note: {l.reviewNote}</div>}</td>
           <td className="row-gap"><button className="btn" onClick={() => openHtml(`/letters/${l.id}/html`)}>Preview</button>
-            {l.status === "draft" && <button className="btn p" disabled={issue.isPending} onClick={() => issue.mutate(l.id)}>Issue</button>}</td></tr>)}
+            {(l.status === "draft" || l.status === "pending_approval") && ceo && <button className="btn p" disabled={issue.isPending} onClick={() => issue.mutate({ id: l.id, step: "approve" })}>Approve as CEO</button>}
+            {l.status === "draft" && !ceo && <button className="btn p" disabled={issue.isPending} onClick={() => issue.mutate({ id: l.id, step: "submit" })}>Send to CEO</button>}
+            {l.status === "approved" && <button className="btn p" disabled={issue.isPending} onClick={() => issue.mutate({ id: l.id, step: "issue" })}>Issue</button>}</td></tr>)}
       </tbody></table></div>}
       <ErrorNote error={issue.error} />
       {issued && <div style={{ marginTop: 12 }}>
@@ -100,8 +110,8 @@ function Letters({ c }: { c: Candidate }) {
       </div>}
       {shared && <CopyLink shared={shared} title="Acceptance link created" />}
       {!hasOffers && <form onSubmit={(e) => { e.preventDefault(); create.mutate(); }} style={{ marginTop: 12 }}>
-        <p className="k">Create both the summary and full offer from these terms. Blank fields show as highlighted placeholders in the letter.</p>
-        <div className="grid">{PAYLOAD_FIELDS.map((f) => <Field key={f.k} label={f.label}><input type={f.type ?? "text"} min={f.type === "number" ? 0 : undefined} value={form[f.k] ?? ""} onChange={(e) => setForm({ ...form, [f.k]: e.target.value })} /></Field>)}</div>
+        <p className="k">Creates both the one-page and the full offer letter from these terms. Blank fields show as highlighted placeholders. Both go to the CEO for approval before they can be issued.</p>
+        <div className="grid">{OFFER_FIELDS.map((f) => <Field key={f.key} label={f.label}><FieldInput f={f} v={form[f.key]} set={(x) => setForm({ ...form, [f.key]: x })} />{f.hint && <span className="k">{f.hint}</span>}</Field>)}</div>
         <ErrorNote error={create.error} />
         <p><button className="btn p" disabled={create.isPending}>Create both offer letters</button></p>
       </form>}
@@ -156,24 +166,56 @@ function Convert({ c, onDone }: { c: Candidate; onDone: () => void }) {
   );
 }
 
+type Pipeline = { stages: string[]; pipeline: { id: string; name: string; position: string | null; expectedJoining: string | null; stage: string }[];
+  newJoiners: { id: string; name: string; code: string; joiningDate: string; steps: Record<string, boolean>; done: number; total: number }[] };
+const STEP_LABEL: Record<string, [string, string]> = { profile: ["Profile completed", "/people"], manager: ["Manager set", "/people"], salary: ["Salary set", "/payroll"], appointment: ["Appointment letter issued", "/letters"],
+  asset: ["Laptop or asset handed over", "/assets"], policies: ["Policies acknowledged", "/policies"], privacy: ["Privacy choices made", "/people"] };
+
+function PipelineBoard({ onOpen }: { onOpen: (id: string) => void }) {
+  const q = useQuery({ queryKey: ["pipeline"], queryFn: () => api<Pipeline>("/hiring/pipeline") });
+  if (q.error) return <ErrorNote error={q.error} />;
+  if (!q.data) return <Card><p>Loading…</p></Card>;
+  const d = q.data;
+  return <>
+    <div style={{ display: "grid", gridTemplateColumns: `repeat(${d.stages.length}, minmax(150px, 1fr))`, gap: 10, overflowX: "auto", paddingBottom: 8, marginBottom: 16 }}>
+      {d.stages.map((st) => { const items = d.pipeline.filter((x) => x.stage === st); return <div key={st} style={{ background: "var(--ch-grid)", borderRadius: 14, padding: 10, minHeight: 160 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontWeight: 700, marginBottom: 8 }}><span>{st}</span><span className="k">{items.length}</span></div>
+        {items.map((x) => <button key={x.id} onClick={() => onOpen(x.id)} className="card" style={{ display: "block", width: "100%", textAlign: "left", font: "inherit", padding: 10, marginBottom: 8, cursor: "pointer" }}>
+          <b style={{ fontSize: 13 }}>{x.name}</b><div className="k">{x.position ?? "No position"}{x.expectedJoining ? ` · joins ${x.expectedJoining}` : ""}</div></button>)}
+      </div>; })}
+    </div>
+    <Card><h2>New joiners, first 45 days</h2><p className="k">What is still open for each person who joined recently. Click a step to go where it is done.</p>
+      <DataTable rows={d.newJoiners} rowKey={(x) => x.id} file="new-joiners" initialSort={{ key: "joined", dir: -1 }} empty="Nobody has joined in the last 45 days."
+        cols={[{ key: "name", label: "Name", value: (x) => x.name, render: (x) => <Link href={`/people/${x.id}`}>{x.name}</Link> }, { key: "code", label: "Code", value: (x) => x.code },
+          { key: "joined", label: "Joined", value: (x) => x.joiningDate }, { key: "done", label: "Done", value: (x) => x.done, render: (x) => <Chip tone={x.done === x.total ? "ok" : "warn"}>{x.done} of {x.total}</Chip> },
+          { key: "open", label: "Still open", value: (x) => Object.entries(x.steps).filter(([, v]) => !v).map(([k]) => STEP_LABEL[k][0]).join(", "),
+            render: (x) => <div className="row-gap">{Object.entries(x.steps).filter(([, v]) => !v).map(([k]) => <Link key={k} href={STEP_LABEL[k][1]} className="chip warn" style={{ textDecoration: "none" }}>{STEP_LABEL[k][0]}</Link>)}</div> }]} /></Card>
+  </>;
+}
+
 export default function Hiring() {
   const qc = useQueryClient();
   const [sel, setSel] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [tab, setTab] = useState("pipeline");
   const list = useQuery({ queryKey: ["candidates"], queryFn: () => api<Candidate[]>("/candidates") });
   const c = (list.data ?? []).find((x) => x.id === sel);
+  const select = (id: string) => { setSel(id); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  const open = (id: string) => { select(id); setTab("candidates"); };
   return (
-    <Page title="Hiring" actions={<button className="btn p" onClick={() => setAdding(!adding)}>{adding ? "Close" : "Add candidate"}</button>}>
+    <Page title="Hiring and onboarding" actions={<button className="btn p" onClick={() => setAdding(!adding)}>{adding ? "Close" : "Add candidate"}</button>}>
       <ErrorNote error={list.error} />
-      {adding && <AddCandidate onDone={() => { setAdding(false); qc.invalidateQueries({ queryKey: ["candidates"] }); }} />}
-      <Card>
-        {list.isLoading ? <p>Loading…</p> : !(list.data ?? []).length ? <p>No candidates yet.</p> : <div style={{ overflowX: "auto" }}><table className="t">
-          <thead><tr><th>Name</th><th>Position</th><th>Expected joining</th><th>Status</th><th></th></tr></thead>
-          <tbody>{list.data!.map((x) => <tr key={x.id} style={x.id === sel ? { background: "#f3f5fd" } : undefined}>
-            <td>{x.fullName}<br /><span className="k">{x.email}</span></td><td>{x.position ?? "-"}</td><td>{x.expectedJoining ?? "-"}</td><td><Chip tone={tone(x.status)}>{x.status}</Chip></td>
-            <td><button className="btn" onClick={() => setSel(x.id === sel ? null : x.id)}>{x.id === sel ? "Hide" : "Open"}</button></td></tr>)}</tbody></table></div>}
-      </Card>
-      {c && <><h2>{c.fullName}</h2><Letters key={"l" + c.id} c={c} /><Onboarding key={"o" + c.id} c={c} /><Convert key={"c" + c.id} c={c} onDone={() => qc.invalidateQueries({ queryKey: ["candidates"] })} /></>}
+      {adding && <AddCandidate onDone={() => { setAdding(false); qc.invalidateQueries({ queryKey: ["candidates"] }); qc.invalidateQueries({ queryKey: ["pipeline"] }); }} />}
+      <div className="tabs" role="tablist">{[["pipeline", "Pipeline"], ["candidates", "Candidates"]].map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? "on" : ""} onClick={() => { setTab(k); setSel(null); }}>{l}</button>)}</div>
+      {tab === "pipeline" && <PipelineBoard onOpen={open} />}
+      {tab === "candidates" && c && <><div className="row-gap" style={{ alignItems: "center", margin: "4px 0 8px" }}><button className="btn" onClick={() => setSel(null)}>← All candidates</button><h2 style={{ margin: 0 }}>{c.fullName}</h2><Chip tone={tone(c.status)}>{c.status}</Chip><span className="k">{[c.position, c.email].filter(Boolean).join(" · ")}</span></div>
+        <Letters key={"l" + c.id} c={c} /><ConsentChoices key={"cc" + c.id} c={c} /><Onboarding key={"o" + c.id} c={c} /><Convert key={"c" + c.id} c={c} onDone={() => qc.invalidateQueries({ queryKey: ["candidates"] })} /></>}
+      {tab === "candidates" && !c && <><Card>
+        <DataTable rows={list.data ?? []} rowKey={(x) => x.id} file="candidates" initialSort={{ key: "joining", dir: -1 }} empty="No candidates yet." onRow={(x) => select(x.id)}
+          cols={[{ key: "name", label: "Name", value: (x) => x.fullName, render: (x) => <>{x.fullName}<br /><span className="k">{x.email}</span></> }, { key: "pos", label: "Position", value: (x) => x.position ?? null, filter: true },
+            { key: "joining", label: "Expected joining", value: (x) => x.expectedJoining ?? null }, { key: "status", label: "Status", value: (x) => x.status, filter: true, render: (x) => <Chip tone={tone(x.status)}>{x.status}</Chip> },
+            { key: "act", label: "", value: () => null, render: (x) => <button className="btn" onClick={(e) => { e.stopPropagation(); select(x.id); }}>Open</button> }]} />
+      </Card></>}
     </Page>
   );
 }

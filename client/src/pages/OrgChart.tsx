@@ -17,7 +17,7 @@ function walk(nodes: N[], f: (n: N, depth: number, parent: N | null) => void, de
 }
 function teamSize(n: N): number { return n.children.reduce((s, c) => s + 1 + teamSize(c), 0); }
 
-function Card({ n, mini, hit }: { n: N; mini?: boolean; hit: boolean }) {
+function Card({ n, mini, hit, hr }: { n: N; mini?: boolean; hit: boolean; hr?: boolean }) {
   const dc = n.department ? hashColor(n.department) : null;
   const style = { "--dc": dc ? dc[1] : undefined } as CSSProperties;
   const sub = n.designation || n.code;
@@ -25,16 +25,18 @@ function Card({ n, mini, hit }: { n: N; mini?: boolean; hit: boolean }) {
     <div className={`oc-card${mini ? " mini" : ""}${hit ? " hit" : ""}`} style={style} data-oc={n.id}>
       <div className="ph"><Avatar name={n.name} photoFileId={n.photoFileId} size={mini ? 40 : 64} /></div>
       <div className="tx">
-        <Link className="nm" href={`/people/${n.id}`} title={n.name}>{n.name}</Link>
+        {/* The name link stretches over the whole card, so a click anywhere opens their Know your team page. */}
+        <Link className="nm" href={`/vibe/${n.id}`} title={`Open ${n.name}'s profile`}>{n.name}</Link>
         <div className="ds" title={sub}>{sub}</div>
         {n.department && !mini && <span className="dp" style={{ background: dc![0], color: dc![1] }}>{n.department}</span>}
         {n.department && mini && <div className="k" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{n.department}</div>}
+        {hr && <Link className="oc-hr" href={`/people/${n.id}`} title={`${n.name}'s HR record`}>HR record</Link>}
       </div>
     </div>
   );
 }
 
-function Branch({ n, open, toggle, hit }: { n: N; open: Set<string>; toggle: (id: string) => void; hit: string | null }) {
+function Branch({ n, open, toggle, hit, hr }: { n: N; open: Set<string>; toggle: (id: string) => void; hit: string | null; hr: boolean }) {
   const has = n.children.length > 0;
   const isOpen = has && open.has(n.id);
   const stack = n.children.length >= STACK_AT && n.children.every((c) => c.children.length === 0);
@@ -42,7 +44,7 @@ function Branch({ n, open, toggle, hit }: { n: N; open: Set<string>; toggle: (id
   return (
     <li className={has ? "has-tog" : undefined}>
       <div style={{ position: "relative" }}>
-        <Card n={n} hit={hit === n.id} />
+        <Card n={n} hit={hit === n.id} hr={hr} />
         {has && (
           <button className={`oc-tog${isOpen ? "" : " closed"}`} aria-expanded={isOpen}
             aria-label={`${isOpen ? "Collapse" : "Expand"} ${n.name}'s team, ${n.children.length} direct report${n.children.length > 1 ? "s" : ""}`}
@@ -55,11 +57,11 @@ function Branch({ n, open, toggle, hit }: { n: N; open: Set<string>; toggle: (id
         <>
           <div className="oc-drop" />
           <div className="oc-stackbox" role="list" aria-label={`${n.name}'s direct reports`} style={{ gridTemplateColumns: `repeat(${cols}, auto)` }}>
-            {n.children.map((c) => <div role="listitem" key={c.id}><Card n={c} mini hit={hit === c.id} /></div>)}
+            {n.children.map((c) => <div role="listitem" key={c.id}><Card n={c} mini hit={hit === c.id} hr={hr} /></div>)}
           </div>
         </>
       ) : (
-        <ul aria-label={`${n.name}'s direct reports`}>{n.children.map((c) => <Branch key={c.id} n={c} open={open} toggle={toggle} hit={hit} />)}</ul>
+        <ul aria-label={`${n.name}'s direct reports`}>{n.children.map((c) => <Branch key={c.id} n={c} open={open} toggle={toggle} hit={hit} hr={hr} />)}</ul>
       ))}
     </li>
   );
@@ -67,6 +69,8 @@ function Branch({ n, open, toggle, hit }: { n: N; open: Set<string>; toggle: (id
 
 export default function OrgChart() {
   const q = useQuery({ queryKey: ["org-chart"], queryFn: () => api<{ tree: N[] }>("/org-chart") });
+  const me = useQuery({ queryKey: ["me"], queryFn: () => api<{ roles: string[] }>("/me") });
+  const hr = !!me.data?.roles.some((r) => r === "hr_admin" || r === "manager");
   const tree = q.data?.tree;
 
   const index = useMemo(() => {
@@ -91,7 +95,8 @@ export default function OrgChart() {
   const view = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLDivElement>(null);
   const [t, setT] = useState({ x: 0, y: 0, z: 1 });
-  const drag = useRef<{ x: number; y: number; ox: number; oy: number; id: number } | null>(null);
+  const drag = useRef<{ x: number; y: number; ox: number; oy: number; id: number; moved: boolean } | null>(null);
+  const justDragged = useRef(false);
   const [dragging, setDragging] = useState(false);
 
   const fit = useCallback(() => {
@@ -120,16 +125,21 @@ export default function OrgChart() {
     return () => v.removeEventListener("wheel", onWheel);
   }, [zoomAt, tree]);
 
+  // Cards are links, so a drag only starts once the pointer has moved a few pixels; a plain click still opens the profile.
   const onDown = (e: RPointerEvent<HTMLDivElement>) => {
-    if ((e.target as HTMLElement).closest("a,button,input")) return;
-    drag.current = { x: e.clientX, y: e.clientY, ox: t.x, oy: t.y, id: e.pointerId };
-    e.currentTarget.setPointerCapture(e.pointerId); setDragging(true);
+    if (e.button !== 0 || (e.target as HTMLElement).closest("button,input,a.oc-hr")) return;
+    drag.current = { x: e.clientX, y: e.clientY, ox: t.x, oy: t.y, id: e.pointerId, moved: false };
   };
   const onMove = (e: RPointerEvent<HTMLDivElement>) => {
     const d = drag.current; if (!d || d.id !== e.pointerId) return;
+    if (!d.moved) {
+      if (Math.hypot(e.clientX - d.x, e.clientY - d.y) < 5) return;
+      d.moved = true; e.currentTarget.setPointerCapture(e.pointerId); setDragging(true);
+    }
     setT((p) => ({ ...p, x: d.ox + e.clientX - d.x, y: d.oy + e.clientY - d.y }));
   };
-  const onUp = () => { drag.current = null; setDragging(false); };
+  const onUp = () => { if (drag.current?.moved) justDragged.current = true; drag.current = null; setDragging(false); };
+  const onClickCapture = (e: React.MouseEvent) => { if (justDragged.current) { justDragged.current = false; e.preventDefault(); e.stopPropagation(); } };
   const onKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.target !== e.currentTarget) return;
     const step = 60, map: Record<string, () => void> = {
@@ -198,10 +208,10 @@ export default function OrgChart() {
             <span className="k">{people} {people === 1 ? "person" : "people"}</span>
           </div>
           <div ref={view} className={`oc-view${dragging ? " drag" : ""}`} tabIndex={0} aria-label="Org chart. Drag or use arrow keys to move, Ctrl and scroll or plus and minus to zoom, 0 to fit."
-            onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} onKeyDown={onKey}>
+            onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} onKeyDown={onKey} onClickCapture={onClickCapture}>
             <div ref={canvas} className="oc-canvas" style={{ transform: `translate(${t.x}px, ${t.y}px) scale(${t.z})` }}>
               <div className="oc">
-                <ul aria-label="Reporting lines">{tree.map((n) => <Branch key={n.id} n={n} open={open} toggle={toggle} hit={hit} />)}</ul>
+                <ul aria-label="Reporting lines">{tree.map((n) => <Branch key={n.id} n={n} open={open} toggle={toggle} hit={hit} hr={hr} />)}</ul>
               </div>
             </div>
             <div className="oc-zoom" onPointerDown={(e) => e.stopPropagation()}>

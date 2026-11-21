@@ -9,6 +9,9 @@ import { paidDaysX2 } from "../../shared/hr/leave";
 import { decryptField, safeEqualHex } from "../lib/crypto";
 import { logAudit } from "../lib/audit";
 import { saveFile, readFileBytes } from "../lib/files";
+import { toXlsx } from "../lib/xlsx";
+import { readSheet } from "../lib/xlsxRead";
+import { IMPORT_COLUMNS, daysInMonth, parseImport } from "../../shared/hr/payrollImport";
 import { HttpError, parse, wrap } from "./util";
 import {
   MONTH_RE, componentsSchema, employmentGapX2, employmentWindow, fyStartMonth, lossOfPayX2, maskAccount, maskedRows, monthDays, monthEnd,
@@ -24,7 +27,7 @@ const SAMPLE_GROSS_PAISE = 1_000_000_00; // sample gross used only to validate a
 const actorOf = (req: Request) => req.actor!;
 /** hr_admin or finance signatory. */
 const canViewPayroll = (req: Request) => scopeFor(actorOf(req).roles, "bank_advice.generate") === "all";
-/** hr_admin only. */
+/** hr_admin or finance signatory: salary templates, compensation, runs and locking. */
 const canRunPayroll = (req: Request) => scopeFor(actorOf(req).roles, "payroll.run") === "all";
 const deny = (): never => { throw new HttpError(403, "Not allowed"); };
 const uuid = z.string().uuid();
@@ -56,6 +59,135 @@ r.post("/payroll/rules", wrap(async (req, res) => {
   const [row] = await db.insert(schema.statutoryRules).values({ effectiveFrom: body.effectiveFrom, rules: body.rules, source: body.source, createdBy: actorOf(req).email }).returning();
   await logAudit(actorOf(req).email, "payroll.rules.create", "statutory_rules", row.id, { effectiveFrom: body.effectiveFrom, source: body.source });
   res.status(201).json(row);
+}));
+
+/** Minimal employee list for the payroll screens, so finance can pick people without seeing personal details. */
+r.get("/payroll/employees", wrap(async (req, res) => {
+  if (!canRunPayroll(req)) deny();
+  const rows = await db.select({ id: schema.employees.id, code: schema.employees.code, fullName: schema.employees.fullName, status: schema.employees.status })
+    .from(schema.employees).orderBy(asc(schema.employees.code));
+  res.json({ employees: rows });
+}));
+
+/** Set-up checklist and a 12-month status strip for the Payroll overview. */
+r.get("/payroll/overview", wrap(async (req, res) => {
+  if (!canViewPayroll(req)) deny();
+  const today = todayIst(), thisMonth = today.slice(0, 7);
+  const months: string[] = [];
+  { let y = Number(thisMonth.slice(0, 4)), m = Number(thisMonth.slice(5, 7)); for (let i = 0; i < 12; i++) { months.unshift(`${y}-${String(m).padStart(2, "0")}`); if (--m === 0) { m = 12; y--; } } }
+  const [rule] = await db.select({ effectiveFrom: schema.statutoryRules.effectiveFrom }).from(schema.statutoryRules).where(lte(schema.statutoryRules.effectiveFrom, monthStart(thisMonth))).orderBy(desc(schema.statutoryRules.effectiveFrom)).limit(1);
+  const [{ n: templates }] = await db.select({ n: sql<number>`count(*)::int` }).from(schema.salaryTemplates);
+  const active = await db.select({ id: schema.employees.id, code: schema.employees.code, fullName: schema.employees.fullName }).from(schema.employees).where(inArray(schema.employees.status, ["active", "notice"]));
+  const withComp = new Set((await db.selectDistinct({ id: schema.compensation.employeeId }).from(schema.compensation)).map((x) => x.id));
+  const sigs = await db.select().from(schema.signatories);
+  const runs = await db.select().from(schema.payrollRuns).where(inArray(schema.payrollRuns.month, months));
+  const agg = runs.length ? await db.select({ runId: schema.payslips.runId, n: sql<number>`count(*)::int`, net: sql<number>`coalesce(sum(${schema.payslips.netPayPaise}),0)::bigint` })
+    .from(schema.payslips).where(inArray(schema.payslips.runId, runs.map((x) => x.id))).groupBy(schema.payslips.runId) : [];
+  const by = new Map(agg.map((a) => [a.runId, a]));
+  const missingComp = active.filter((e) => !withComp.has(e.id));
+  res.json({
+    month: thisMonth,
+    setup: [
+      { key: "rules", label: "Statutory rule set covering this month", ok: !!rule, detail: rule ? `Effective from ${rule.effectiveFrom}` : "None yet. Add PF, ESI, TDS and professional tax values under Statutory rules.", tab: "rules" },
+      { key: "templates", label: "Salary templates", ok: templates > 0, detail: templates ? `${templates} template${templates > 1 ? "s" : ""}` : "No salary structure yet.", tab: "templates" },
+      { key: "comp", label: "Compensation for every active employee", ok: missingComp.length === 0, detail: missingComp.length ? `${missingComp.length} missing: ${missingComp.slice(0, 4).map((e) => e.fullName).join(", ")}${missingComp.length > 4 ? "…" : ""}` : `${active.length} of ${active.length} set`, tab: "comp" },
+      { key: "sign", label: "Signatory with signature and stamp", ok: sigs.some((x) => x.signatureFileId && x.stampFileId), detail: sigs.length ? `${sigs.length} signator${sigs.length > 1 ? "ies" : "y"}` : "No signatory yet.", tab: "sign" },
+    ],
+    strip: months.map((m) => {
+      const run = runs.find((x) => x.month === m);
+      const a = run ? by.get(run.id) : undefined;
+      const imported = !!run && (run.rulesSnapshot as { imported?: boolean } | null)?.imported === true;
+      return { month: m, status: run ? (imported ? "imported" : run.status) : "none", runId: run?.id ?? null, payslips: a?.n ?? 0, netPayPaise: Number(a?.net ?? 0) };
+    }),
+  });
+}));
+
+// ============================================================ import past months (paid outside the HRMS)
+const MONTH_ONLY = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
+async function employedIn(month: string) {
+  const from = `${month}-01`, to = `${month}-${String(daysInMonth(month)).padStart(2, "0")}`;
+  const rows = await db.select({ id: schema.employees.id, code: schema.employees.code, fullName: schema.employees.fullName, joiningDate: schema.employees.joiningDate, status: schema.employees.status, lastWorkingDay: schema.employees.lastWorkingDay })
+    .from(schema.employees).orderBy(asc(schema.employees.code));
+  return rows.filter((e) => e.joiningDate <= to && !(e.status === "exited" && e.lastWorkingDay && e.lastWorkingDay < from));
+}
+function pastMonth(month: string) { if (month >= todayIst().slice(0, 7)) throw new HttpError(400, "Only past months can be imported"); }
+
+r.get("/payroll/import/template", wrap(async (req, res) => {
+  if (!canRunPayroll(req)) deny();
+  const { month } = parse(z.object({ month: MONTH_ONLY }), req.query);
+  pastMonth(month);
+  const emps = await employedIn(month);
+  const cal = daysInMonth(month);
+  const buf = toXlsx([
+    { name: `Payroll ${month}`, header: IMPORT_COLUMNS.map((c) => c.label), rows: emps.map((e) => IMPORT_COLUMNS.map((c) => c.key === "code" ? e.code : c.key === "name" ? e.fullName : c.key === "paidDays" || c.key === "calendarDays" ? cal : "")) },
+    { name: "How to fill", header: ["Notes"], rows: [
+      [`One row per person paid for ${month}. Enter what was actually paid, in rupees (e.g. 31000 or 31,000.50).`],
+      ["Leave a cell blank for zero. Paid days can use halves (e.g. 29.5)."],
+      ["Net pay must equal earnings plus reimbursements minus deductions; leave it blank to have it worked out."],
+      ["Do not rename or remove the column headings. Rows for people not paid that month can be deleted."],
+    ] },
+  ]);
+  await logAudit(actorOf(req).email, "payroll.import.template", "payroll_run", undefined, { month });
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", `attachment; filename="complynz-payroll-${month}.xlsx"`);
+  res.send(buf);
+}));
+
+const importBody = z.object({ month: MONTH_ONLY, fileBase64: z.string().min(10).max(8_000_000) });
+async function parseUpload(b: z.infer<typeof importBody>) {
+  pastMonth(b.month);
+  const [existing] = await db.select().from(schema.payrollRuns).where(eq(schema.payrollRuns.month, b.month)).limit(1);
+  const existingImported = !!existing && (existing.rulesSnapshot as { imported?: boolean } | null)?.imported === true;
+  if (existing && !existingImported) throw new HttpError(409, `${b.month} already has a ${existing.status} payroll run in the system, so it cannot be imported`);
+  let rows: string[][];
+  try { rows = readSheet(Buffer.from(b.fileBase64.replace(/^data:[^,]+,/, ""), "base64")); } catch (e) { throw new HttpError(400, (e as Error).message); }
+  const emps = await employedIn(b.month);
+  const out = parseImport(rows, b.month, new Map(emps.map((e) => [e.code.toUpperCase(), e.fullName])));
+  return { ...out, emps, existing: existingImported ? existing : null };
+}
+
+r.post("/payroll/import/preview", wrap(async (req, res) => {
+  if (!canRunPayroll(req)) deny();
+  const b = parse(importBody, req.body);
+  const { slips, issues, emps, existing } = await parseUpload(b);
+  const listed = new Set([...slips.map((x) => x.code), ...issues.map((x) => x.code)]);
+  res.json({
+    month: b.month, replaces: !!existing, issues,
+    rows: slips.map((x) => ({ code: x.code, name: x.name, paidDays: x.paidDaysX2 / 2, grossPaise: x.result.grossPaidPaise, deductionsPaise: x.result.totalDeductionsPaise, netPayPaise: x.result.netPayPaise })),
+    totals: { payslips: slips.length, grossPaise: slips.reduce((s, x) => s + x.result.grossPaidPaise, 0), netPayPaise: slips.reduce((s, x) => s + x.result.netPayPaise, 0) },
+    notInFile: emps.filter((e) => !listed.has(e.code.toUpperCase())).map((e) => `${e.fullName} (${e.code})`),
+  });
+}));
+
+r.post("/payroll/import", wrap(async (req, res) => {
+  if (!canRunPayroll(req)) deny();
+  const b = parse(importBody, req.body);
+  const { slips, issues, emps, existing } = await parseUpload(b);
+  if (issues.length) throw new HttpError(400, `Fix ${issues.length} problem${issues.length > 1 ? "s" : ""} in the file first`);
+  if (!slips.length) throw new HttpError(400, "The file has no payslip rows");
+  const idOf = new Map(emps.map((e) => [e.code.toUpperCase(), e.id]));
+  const a = actorOf(req);
+  const runId = await db.transaction(async (tx) => {
+    if (existing) { await tx.delete(schema.payslips).where(eq(schema.payslips.runId, existing.id)); await tx.delete(schema.payrollRuns).where(eq(schema.payrollRuns.id, existing.id)); }
+    const snapshot = { imported: true, importedAt: new Date().toISOString(), importedBy: a.email, exceptions: [] };
+    const [run] = await tx.insert(schema.payrollRuns).values({ month: b.month, status: "paid", rulesSnapshot: snapshot, createdBy: a.email, lockedBy: a.email, lockedAt: new Date() }).returning({ id: schema.payrollRuns.id });
+    await tx.insert(schema.payslips).values(slips.map((x) => ({ runId: run.id, employeeId: idOf.get(x.code)!, paidDays: x.paidDaysX2, calendarDays: x.calendarDays, result: { ...x.result, meta: { month: b.month, imported: true } }, netPayPaise: x.result.netPayPaise })));
+    return run.id;
+  });
+  await logAudit(a.email, existing ? "payroll.import.replace" : "payroll.import", "payroll_run", runId, { month: b.month, payslips: slips.length });
+  res.status(201).json({ ok: true, runId, payslips: slips.length });
+}));
+
+/** Undo an import (only imported months; engine-built runs are never deleted). */
+r.delete("/payroll/import/:id", wrap(async (req, res) => {
+  if (!canRunPayroll(req)) deny();
+  const [run] = await db.select().from(schema.payrollRuns).where(eq(schema.payrollRuns.id, idParam(req))).limit(1);
+  if (!run || (run.rulesSnapshot as { imported?: boolean } | null)?.imported !== true) throw new HttpError(404, "Imported month not found");
+  const [adv] = await db.select({ id: schema.bankAdvices.id }).from(schema.bankAdvices).where(eq(schema.bankAdvices.runId, run.id)).limit(1);
+  if (adv) throw new HttpError(409, "A bank advice exists for this month");
+  await db.transaction(async (tx) => { await tx.delete(schema.payslips).where(eq(schema.payslips.runId, run.id)); await tx.delete(schema.payrollRuns).where(eq(schema.payrollRuns.id, run.id)); });
+  await logAudit(actorOf(req).email, "payroll.import.undo", "payroll_run", run.id, { month: run.month });
+  res.json({ ok: true });
 }));
 
 // ============================================================ salary templates
@@ -165,6 +297,7 @@ async function buildDraft(month: string, actorEmail: string) {
 
   const mStart = monthStart(month), mEnd = monthEnd(month), calendarDays = monthDays(month);
   const allEmps = await db.select().from(schema.employees);
+  const stateOf = new Map((await db.select({ id: schema.locations.id, state: schema.locations.state }).from(schema.locations)).map((l) => [l.id, l.state]));
   const emps = allEmps.filter((e) => e.joiningDate <= mEnd && (e.status !== "exited" || (e.lastWorkingDay != null && e.lastWorkingDay >= mStart)));
   const ids = emps.map((e) => e.id);
 
@@ -205,7 +338,7 @@ async function buildDraft(month: string, actorEmail: string) {
         const reimb = myClaims.reduce((s, c) => s + c.amountPaise, 0);
         const result = computeSalary({
           monthlyGrossPaise: comp.monthlyGrossPaise, components: comp.components as ComponentDef[], reimbursementsPaise: reimb,
-          calendarDays, paidDays: payableX2 / 2, rules,
+          calendarDays, paidDays: payableX2 / 2, rules, pt: { state: e.locationId ? stateOf.get(e.locationId) ?? null : null, gender: e.gender, month },
           tds: { taxDeductedSoFarPaise: sumTdsYtd(priorBy.get(e.id) ?? []), taxableSoFarPaise: sumGrossYtd(priorBy.get(e.id) ?? []), monthsRemaining: monthsRemainingInFy(month) },
         });
         slips.push({ employeeId: e.id, paidDaysX2: payableX2, result: { ...result, meta: { month, lopDaysX2: lop, outsideEmploymentDaysX2: outside, reimbursementClaimIds: myClaims.map((c) => c.id), compensationId: comp.id } } });
@@ -446,6 +579,7 @@ r.post("/payroll/runs/:id/bank-advice", wrap(async (req, res) => {
   const [run] = await db.select().from(schema.payrollRuns).where(eq(schema.payrollRuns.id, idParam(req))).limit(1);
   if (!run) throw new HttpError(404, "Payroll run not found");
   if (run.status === "draft") throw new HttpError(409, "Lock the payroll run before generating a bank advice");
+  if ((run.rulesSnapshot as { imported?: boolean } | null)?.imported === true) throw new HttpError(409, "This month was imported as already paid, so it has no bank advice");
   const existing = await db.select().from(schema.bankAdvices).where(eq(schema.bankAdvices.runId, run.id));
   if (existing.some((x) => x.signedAt)) throw new HttpError(409, "A signed bank advice already exists for this run");
   const allRefs = await db.select({ ref: schema.bankAdvices.refNo }).from(schema.bankAdvices).where(sql`${schema.bankAdvices.refNo} like ${"BA/" + run.month + "/%"}`);

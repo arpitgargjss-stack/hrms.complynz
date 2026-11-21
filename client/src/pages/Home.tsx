@@ -12,65 +12,22 @@ type Me = { email: string; employeeId: string | null; roles: string[] };
 type Ev = { id: string; name: string; kind: string; date: string; years?: number; photoFileId?: string | null };
 type Ann = { id: string; title: string; body: string; kind: string; pinned: boolean; createdAt: string };
 type HomeData = { today: string; birthdays: Ev[]; anniversaries: Ev[]; announcements: Ann[]; pending: { policiesToAck: number } };
-type Trends = {
-  asOf: string; netSalary: { month: string; netPaise: number; payslips: number }[]; headcount: { month: string; headcount: number }[];
-  joiners: { month: string; count: number }[]; offboarding: { month: string; count: number }[];
-  org: { total: number; active: number; onNotice: number; exited: number; onLeaveToday: number; pendingLeaveRequests: number; openResignations: number; openPips: number };
-};
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const mLabel = (m: string) => MON[Number(m.slice(5, 7)) - 1] + " " + m.slice(2, 4);
 const dLabel = (md: string) => `${Number(md.slice(3, 5))} ${MON[Number(md.slice(0, 2)) - 1]}`;
 
-type Series = { name: string; color: string; values: number[] };
-/** Grouped bar chart in plain SVG. Values are also available as a data table for screen readers. */
-function Bars({ title, labels, series, fmt = String }: { title: string; labels: string[]; series: Series[]; fmt?: (n: number) => string }) {
-  const W = 360, H = 170, pad = { l: 8, r: 8, t: 18, b: 24 };
-  const max = Math.max(1, ...series.flatMap((s) => s.values));
-  const gw = (W - pad.l - pad.r) / labels.length, bw = Math.min(26, (gw - 10) / series.length);
-  const desc = labels.map((l, i) => `${l}: ${series.map((s) => `${s.name} ${fmt(s.values[i])}`).join(", ")}`).join("; ");
-  return (
-    <figure style={{ margin: 0 }}>
-      <figcaption style={{ fontWeight: 500, marginBottom: 4 }}>{title}</figcaption>
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${title}. ${desc}`} style={{ width: "100%", height: "auto", maxWidth: 480 }}>
-        <line x1={pad.l} x2={W - pad.r} y1={H - pad.b} y2={H - pad.b} stroke="#d9dde8" />
-        {labels.map((l, i) => {
-          const x0 = pad.l + i * gw + (gw - bw * series.length) / 2;
-          return (
-            <g key={l}>
-              {series.map((s, j) => {
-                const h = ((H - pad.t - pad.b) * s.values[i]) / max;
-                return (<g key={s.name}><rect x={x0 + j * bw} y={H - pad.b - h} width={bw - 2} height={h} fill={s.color} rx={2} />
-                  <text x={x0 + j * bw + (bw - 2) / 2} y={H - pad.b - h - 4} textAnchor="middle" fontSize="10" fill="#3a4260">{fmt(s.values[i])}</text></g>);
-              })}
-              <text x={pad.l + i * gw + gw / 2} y={H - 8} textAnchor="middle" fontSize="11" fill="#5b6478">{l}</text>
-            </g>);
-        })}
-      </svg>
-      {series.length > 1 && <div className="k" style={{ display: "flex", gap: 12 }}>{series.map((s) => <span key={s.name}><span aria-hidden style={{ display: "inline-block", width: 10, height: 10, background: s.color, borderRadius: 2, marginRight: 4 }} />{s.name}</span>)}</div>}
-    </figure>
-  );
-}
-
-function Dashboard() {
-  const t = useQuery({ queryKey: ["trends"], queryFn: () => api<Trends>("/dashboard/trends") });
-  if (t.error) return <ErrorNote error={t.error} />;
-  if (!t.data) return <Card><p>Loading dashboard…</p></Card>;
-  const d = t.data;
-  const stats: [string, number][] = [["Active employees", d.org.active], ["On notice", d.org.onNotice], ["On leave today", d.org.onLeaveToday], ["Leave requests pending", d.org.pendingLeaveRequests], ["Open resignations", d.org.openResignations], ["Open PIPs", d.org.openPips]];
-  const net3 = d.netSalary, hc6 = d.headcount.map((h) => h.month);
-  return (
-    <>
-      <div className="grid" style={{ marginBottom: 16 }}>
-        {stats.map(([k, v]) => <div className="card" key={k} style={{ marginBottom: 0 }}><div className="k">{k}</div><div style={{ fontSize: 28, fontWeight: 600 }}>{v}</div></div>)}
-      </div>
-      <div className="grid">
-        <Card><Bars title="Net salary, last 3 months" labels={net3.map((n) => mLabel(n.month))} series={[{ name: "Net pay", color: "#0048e4", values: net3.map((n) => n.netPaise) }]} fmt={(n) => (n ? inr(n).replace(/\.00$/, "") : "none")} />
-          <p className="k">Locked and paid runs only.</p></Card>
-        <Card><Bars title="Headcount and new joiners" labels={hc6.map(mLabel)} series={[{ name: "Headcount", color: "#0048e4", values: d.headcount.map((h) => h.headcount) }, { name: "New joiners", color: "#11a36a", values: d.joiners.map((j) => j.count) }]} /></Card>
-        <Card><Bars title="Offboarding" labels={d.offboarding.map((o) => mLabel(o.month))} series={[{ name: "Exits", color: "#1d4ed8", values: d.offboarding.map((o) => o.count) }]} /></Card>
-      </div>
-    </>
-  );
+/** One-time ask for the login-count consent. It also lives in My privacy, with the other choices. */
+type Consent = { key: string; status: string };
+function LoginConsentAsk() {
+  const qc = useQueryClient();
+  const c = useQuery({ queryKey: ["my-consents"], queryFn: () => api<Consent[]>("/me/consents") });
+  const set = useMutation({ mutationFn: (granted: boolean) => api("/me/consents/login_activity", { method: "PUT", body: { granted, noticeVersion: "login-v1" } }), onSuccess: () => qc.invalidateQueries({ queryKey: ["my-consents"] }) });
+  if (c.data?.find((x) => x.key === "login_activity")?.status !== "not_set") return null;
+  return <section className="gz-card" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+    <b style={{ fontSize: 16 }}>One quick privacy choice</b>
+    <span style={{ fontSize: 14 }}>May we record the days you sign in? Only the date is kept, no times or devices. HR sees company-wide counts only, never you by name. You can change this any time in My privacy, and saying no deletes anything recorded.</span>
+    <ErrorNote error={set.error} />
+    <div style={{ display: "flex", gap: 8 }}><button className="gz-btn" disabled={set.isPending} onClick={() => set.mutate(true)}>Yes, that's fine</button><button className="gz-btn" disabled={set.isPending} onClick={() => set.mutate(false)}>No thanks</button></div>
+  </section>;
 }
 
 // ---------------------------------------------------------------------
@@ -87,7 +44,6 @@ type Leave = { balances: { key: string; name: string; available?: number; entitl
 const fmtDay = (d: string) => new Date(d + "T00:00:00Z").toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 const timeOf = (s: string) => new Date(s).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" });
 function greeting() { const h = new Date().getHours(); return h < 5 ? "Up late" : h < 12 ? "Morning" : h < 17 ? "Afternoon" : "Evening"; }
-const DOT: Record<string, [string, string]> = { done: ["#fff", "Started"], today: ["transparent", "Today"], leave: ["rgba(255,255,255,.35)", "On leave"], holiday: ["rgba(255,255,255,.35)", "Holiday"], missed: ["transparent", "No punch"], future: ["transparent", "Coming up"] };
 
 function coords(): Promise<{ lat?: number; lng?: number }> {
   return new Promise((ok) => {
@@ -102,29 +58,23 @@ function StartMyDay({ t }: { t: Today }) {
     mutationFn: async (kind: "in" | "out") => api<{ withinOffice: boolean | null; remote: boolean }>("/attendance/punch", { body: { kind, ...(await coords()) } }),
     onSuccess: (r, kind) => {
       qc.invalidateQueries({ queryKey: ["today"] }); qc.invalidateQueries({ queryKey: ["attendance"] });
-      if (kind === "in") celebrate("You're in. Go get it.", r.remote ? "Remote day recorded" : r.withinOffice === false ? "Recorded as outside the office" : `${t.streak + 1}-day streak`, t.streak + 1 >= 5 && (t.streak + 1) % 5 === 0);
-      else celebrate("Day done. Nice work.", "See you tomorrow");
+      if (kind === "in") celebrate("Good to see you.", r.remote ? "Working remotely today" : r.withinOffice === false ? "Recorded as outside the office" : "Have a good day");
+      else celebrate("Thanks for today.", "Switch off and rest well");
     },
   });
   const working = t.day.state === "working";
-  const title = t.day.state === "not_started" ? "Ready when you are." : working ? "You're in. Go get it." : "That's a wrap for today.";
-  const sub = t.day.state === "not_started" ? `Day starts ${t.workStart}${t.latestStart ? `, any time up to ${t.latestStart}` : ""}. One tap and you're in.` : working ? `Started at ${timeOf(t.day.startedAt!)}.` : "Rest up. Your streak is safe.";
+  const title = t.day.state === "not_started" ? "Hope you're doing well today." : working ? "Glad you're here." : "Thanks for today.";
+  const sub = t.day.state === "not_started" ? `Start your day whenever you're ready${t.latestStart ? ` (by ${t.latestStart})` : ""}.` : working ? `Started at ${timeOf(t.day.startedAt!)}. Take your breaks, and shout if you need a hand.` : "Log off and switch off. Time away matters as much as time in.";
   return (
     <section className="gz-hero" style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: 16, padding: 26 }}>
       <svg className="gz-float" width="220" height="220" viewBox="0 0 260 260" aria-hidden="true" style={{ right: -50, top: -60, opacity: 0.25 }}><circle cx="130" cy="130" r="120" fill="none" stroke="#fff" strokeWidth="2" /><circle cx="130" cy="130" r="80" fill="none" stroke="#fff" strokeWidth="2" /><circle cx="130" cy="130" r="40" fill="none" stroke="#fff" strokeWidth="2" /></svg>
-      <span className="gz-pill gz-glass" style={{ alignSelf: "flex-start", color: "#fff" }}>{t.day.state === "not_started" ? "Not started yet" : working ? <><span className="gz-live" />Working</> : "Done for today"}</span>
+      <span className="gz-pill gz-glass" style={{ alignSelf: "flex-start", color: "#fff" }}>{t.day.state === "not_started" ? greeting() : working ? <><span className="gz-live" />At work</> : "Done for today"}</span>
       <div><b className="display" style={{ fontSize: 30, display: "block", position: "relative" }}>{title}</b><span style={{ color: "#dbe6ff" }}>{sub}</span></div>
       <div style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap", position: "relative" }}>
         {t.day.state !== "done" && <button className="gz-btn white" style={{ minHeight: 52, fontSize: 16, padding: "0 26px" }} disabled={punch.isPending} onClick={() => punch.mutate(working ? "out" : "in")}>{working ? "End my day" : "Start my day"}</button>}
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <b style={{ fontSize: 13 }}>{t.streak > 0 ? `${t.streak}-day streak` : "Start a streak today"} <span style={{ fontWeight: 500, color: "#dbe6ff" }}>· only you see this</span></b>
-          <div style={{ display: "flex", gap: 6 }}>{t.week.map((d) => <span key={d.date} title={`${fmtDay(d.date)}: ${DOT[d.status][1]}`} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
-            <span style={{ width: 26, height: 26, borderRadius: 9, background: DOT[d.status][0], border: d.status === "today" ? "2px dashed #fff" : "1.5px solid rgba(255,255,255,.6)" }} />
-            <span style={{ fontSize: 11, color: "#dbe6ff" }}>{fmtDay(d.date).slice(0, 2)}</span></span>)}</div>
-        </div>
+        <a href="#pulse" style={{ color: "#fff", fontSize: 14, fontWeight: 600, textDecoration: "underline", textUnderlineOffset: 3 }}>How are you, really? Three anonymous taps</a>
       </div>
       <ErrorNote error={punch.error} />
-      <span style={{ fontSize: 12, color: "#dbe6ff", position: "relative" }}>Leave and holidays pause your streak, they never break it. Managers never see it.</span>
     </section>
   );
 }
@@ -157,8 +107,7 @@ export default function Home() {
   const hasEmp = !!me.data?.employeeId;
   const t = useQuery({ queryKey: ["today"], enabled: hasEmp, queryFn: () => api<Today>("/home/today") });
   const leave = useQuery({ queryKey: ["my-leave-home"], enabled: hasEmp, queryFn: () => api<Leave>("/me/leave") });
-  const admin = !!me.data?.roles.includes("hr_admin");
-  const [showDash, setShowDash] = useState(false);
+  const dashRole = !!me.data?.roles.some((r) => r === "hr_admin" || r === "finance_signatory");
   const h = home.data, d = t.data;
   const earned = leave.data?.balances.find((b) => b.key !== "unpaid" && b.key !== "sick") ?? leave.data?.balances[0];
   const avail = earned ? (earned.available ?? earned.entitledX2) / 2 : null;
@@ -210,8 +159,8 @@ export default function Home() {
         {h.announcements.map((a) => <div key={a.id} style={{ padding: "10px 0", borderTop: "1px solid var(--gz-line)" }}><b>{a.title}</b> {a.pinned && <Chip tone="info">Pinned</Chip>}
           <div style={{ whiteSpace: "pre-wrap", fontSize: 14 }}>{a.body}</div><div className="k">{new Date(a.createdAt).toLocaleDateString("en-IN")}</div></div>)}</section>}
 
-      {admin && <section><button className="gz-btn" aria-expanded={showDash} onClick={() => setShowDash((x) => !x)}>{showDash ? "Hide" : "Show"} HR dashboard</button>
-        {showDash && <div style={{ marginTop: 16 }}><Dashboard /></div>}</section>}
+      {hasEmp && <LoginConsentAsk />}
+      {dashRole && <section><Link href="/dashboards" className="gz-btn" style={{ textDecoration: "none" }}>Open dashboards</Link></section>}
       {home.isLoading && <p>Loading…</p>}
     </div>
   );

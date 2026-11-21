@@ -8,14 +8,15 @@ export type Scope = "none" | "own" | "reports" | "all";
 export type Capability =
   | "people.read_work" | "people.write" | "id_docs.read" | "comp.read" | "payroll.run" | "bank_advice.generate" | "sign.documents"
   | "attendance.read" | "leave.approve" | "calendar.configure" | "claims.read" | "claims.verify" | "claims.approve" | "policy.reimb.edit"
-  | "resign.read" | "resign.accept" | "pip.manage" | "hiring.manage" | "letters.generate" | "policies.manage" | "org.configure" | "audit.read";
+  | "resign.read" | "resign.accept" | "pip.manage" | "hiring.manage" | "letters.generate" | "policies.manage" | "org.configure" | "audit.read"
+  | "dashboard.people" | "dashboard.finance" | "compliance.manage";
 
 const M: Record<Capability, Partial<Record<Role, Scope>>> = {
   "people.read_work": { hr_admin: "all", manager: "reports" },
   "people.write": { hr_admin: "all" },
   "id_docs.read": { hr_admin: "all", team_member: "own", finance_signatory: "own", manager: "own" },
   "comp.read": { hr_admin: "all", finance_signatory: "all", team_member: "own", manager: "own" },
-  "payroll.run": { hr_admin: "all" },
+  "payroll.run": { hr_admin: "all", finance_signatory: "all" },
   "bank_advice.generate": { hr_admin: "all", finance_signatory: "all" },
   "sign.documents": { finance_signatory: "own" },
   "attendance.read": { hr_admin: "all", manager: "reports", team_member: "own", finance_signatory: "own" },
@@ -33,6 +34,9 @@ const M: Record<Capability, Partial<Record<Role, Scope>>> = {
   "policies.manage": { hr_admin: "all" },
   "org.configure": { hr_admin: "all" },
   "audit.read": { hr_admin: "all" },
+  "dashboard.people": { hr_admin: "all" },
+  "dashboard.finance": { hr_admin: "all", finance_signatory: "all" },
+  "compliance.manage": { hr_admin: "all", finance_signatory: "all" },
 };
 
 const RANK: Record<Scope, number> = { none: 0, own: 1, reports: 2, all: 3 };
