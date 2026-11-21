@@ -1,0 +1,1 @@
+ALTER TABLE "hr_locations" ADD COLUMN "is_remote" boolean DEFAULT false NOT NULL;

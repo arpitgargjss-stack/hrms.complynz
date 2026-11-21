@@ -21,6 +21,7 @@ export const designations = pgTable("hr_designations", { id: id(), name: text("n
 export const locations = pgTable("hr_locations", {
   id: id(), name: text("name").notNull().unique(), address: text("address"),
   lat: text("lat"), lng: text("lng"), radiusM: integer("radius_m").default(150), // office geofence, used only for the inside/outside check
+  isRemote: boolean("is_remote").notNull().default(false), // remote: punches are recorded but no geofence check and no location prompt
   createdAt: created(),
 });
 

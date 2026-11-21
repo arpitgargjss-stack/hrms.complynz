@@ -89,6 +89,7 @@ orgCrud("designations", "designation", S.designations, S.employees.designationId
 orgCrud("locations", "location", S.locations, S.employees.locationId, z.object({
   name: nameField, address: nullable(z.string().trim().max(500)),
   lat: nullable(coord(-90, 90)), lng: nullable(coord(-180, 180)), radiusM: z.number().int().min(20).max(5000).optional(),
+  isRemote: z.boolean().optional(),
 }));
 
 // =====================================================================
