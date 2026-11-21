@@ -1,7 +1,9 @@
 export interface CalendarSettings {
   weeklyOff: number[]; // 0=Sun..6=Sat
   saturdays: { mode: "all_working" | "all_off" | "alternate"; offWeeks?: number[] }; // week-of-month numbers that are off
-  workStart: string; workEnd: string; // HH:mm
+  workStart: string; workEnd: string; // HH:mm; with flexi timing these are the earliest start and the earliest finish
+  latestStart?: string; latestEnd?: string; // HH:mm; end of the flexi windows (arrive by latestStart, leave by latestEnd)
+  wfhDays?: number[]; // 0=Sun..6=Sat; working days on which everyone works from home (punch allowed, no geofence)
 }
 export interface Holiday { date: string; optional?: boolean }
 

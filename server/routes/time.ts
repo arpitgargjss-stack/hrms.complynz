@@ -19,7 +19,12 @@ const calendarSchema = z.object({
   weeklyOff: z.array(z.number().int().min(0).max(6)).max(7),
   saturdays: z.object({ mode: z.enum(["all_working", "all_off", "alternate"]), offWeeks: z.array(z.number().int().min(1).max(5)).max(5).optional() }),
   workStart: hhmm, workEnd: hhmm,
-}).refine((c) => c.workStart < c.workEnd, "workEnd must be after workStart");
+  latestStart: hhmm.optional(), latestEnd: hhmm.optional(),
+  wfhDays: z.array(z.number().int().min(0).max(6)).max(7).optional(),
+}).refine((c) => c.workStart < c.workEnd, "workEnd must be after workStart")
+  .refine((c) => !c.latestStart || c.latestStart >= c.workStart, "Latest start must be at or after the start time")
+  .refine((c) => !c.latestEnd || c.latestEnd >= c.workEnd, "Latest finish must be at or after the finish time");
+const dowOf = (d: string) => new Date(d + "T00:00:00Z").getUTCDay();
 
 async function getCalendar(): Promise<CalendarSettings> {
   const [row] = await db.select().from(A.workCalendar).orderBy(desc(A.workCalendar.id)).limit(1);
@@ -88,6 +93,7 @@ r.post("/attendance/punch", wrap(async (req, res) => {
     // Remote locations skip the geofence entirely; coordinates, if sent, are ignored.
     if (loc && !remote) within = withinGeofence({ lat: b.lat, lng: b.lng }, loc); // coordinates are used here only and never stored or logged
   }
+  if (!remote && ((await getCalendar()).wfhDays ?? []).includes(dowOf(workDate))) { remote = true; within = null; } // work-from-home day: no geofence
   const [row] = await db.insert(A.attendancePunches).values({ employeeId: empId, kind: b.kind, workDate, withinOffice: within }).returning();
   res.status(201).json({ kind: row.kind, at: row.at, workDate, withinOffice: row.withinOffice, remote });
 }));
@@ -116,9 +122,9 @@ r.get("/me/attendance", wrap(async (req, res) => {
     const ps = punches.filter((p) => p.workDate === d);
     const onLeave = leaves.some((l) => l.fromDate <= d && l.toDate >= d);
     const hol = hols.find((h) => h.date === d && !h.optional);
-    days.push({ date: d, working: isWorkingDay(d, cal, hols), holiday: hol?.name ?? null, onLeave, ...summariseDay(ps), punches: ps.map((p) => ({ kind: p.kind, at: p.at, withinOffice: p.withinOffice })) });
+    days.push({ date: d, working: isWorkingDay(d, cal, hols), holiday: hol?.name ?? null, onLeave, wfh: (cal.wfhDays ?? []).includes(dowOf(d)), ...summariseDay(ps), punches: ps.map((p) => ({ kind: p.kind, at: p.at, withinOffice: p.withinOffice })) });
   }
-  res.json({ month, workStart: cal.workStart, workEnd: cal.workEnd, remote: await isRemoteEmployee(empId), days });
+  res.json({ month, workStart: cal.workStart, workEnd: cal.workEnd, latestStart: cal.latestStart ?? null, latestEnd: cal.latestEnd ?? null, remote: await isRemoteEmployee(empId), wfhToday: (cal.wfhDays ?? []).includes(dowOf(istDate())), days });
 }));
 
 /** True when the employee's work location is marked remote (punches allowed, no geofence). */
