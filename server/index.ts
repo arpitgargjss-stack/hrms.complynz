@@ -3,7 +3,10 @@ import path from "node:path";
 import { env } from "./env";
 import { clerkHandler, requireStaff } from "./middleware/auth";
 import { HttpError } from "./routes/util";
-import people from "./routes/people";
+import { eq } from "drizzle-orm";
+import { db, schema } from "./db";
+import people, { markProfileIfComplete } from "./routes/people";
+import { missingProfileFields } from "../shared/hr/profile";
 import payroll from "./routes/payroll";
 import reimbursements from "./routes/reimbursements";
 import letters from "./routes/letters";
@@ -30,7 +33,20 @@ app.use("/api/public", publicRoutes);
 
 // Everything else requires a verified staff login.
 app.use("/api", clerkHandler, requireStaff);
-app.get("/api/me", (req, res) => res.json({ email: req.actor!.email, employeeId: req.actor!.employeeId, roles: [...req.actor!.roles] }));
+app.get("/api/me", async (req, res, next) => {
+  try {
+    const a = req.actor!;
+    let profile: { fullName: string; photoFileId: string | null; complete: boolean; missing: string[] } | null = null;
+    if (a.employeeId) {
+      const [e] = await db.select().from(schema.employees).where(eq(schema.employees.id, a.employeeId)).limit(1);
+      if (e) {
+        const row = await markProfileIfComplete(e);
+        profile = { fullName: row.fullName, photoFileId: row.photoFileId, complete: !!row.profileCompletedAt, missing: missingProfileFields(row) };
+      }
+    }
+    res.json({ email: a.email, employeeId: a.employeeId, roles: [...a.roles], profile });
+  } catch (e) { next(e); }
+});
 app.use("/api", people);
 app.use("/api", payroll);
 app.use("/api", reimbursements);

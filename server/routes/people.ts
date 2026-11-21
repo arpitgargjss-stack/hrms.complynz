@@ -11,6 +11,7 @@ import { sanitizeHtml } from "../lib/sanitizeHtml";
 import { sendConsentEvent } from "../lib/consentClient";
 import { scopeFor, canAccess, type Capability, type Scope } from "../../shared/hr/access";
 import { nextEmployeeCode, CONSENT_PURPOSES, upcomingEvents } from "../../shared/hr/misc";
+import { missingProfileFields } from "../../shared/hr/profile";
 import type { Role } from "../../shared/hr/access";
 import type { Actor } from "../middleware/auth";
 
@@ -111,7 +112,17 @@ const work = (e: EmpRow, L: Lookups) => ({
   status: e.status, lastWorkingDay: e.lastWorkingDay,
 });
 /** Personal fields: owner and hr_admin only. */
-const personal = (e: EmpRow) => ({ personalEmail: e.personalEmail, phone: e.phone, dob: e.dob, gender: e.gender });
+const personal = (e: EmpRow) => ({
+  personalEmail: e.personalEmail, phone: e.phone, dob: e.dob, gender: e.gender, currentAddress: e.currentAddress,
+  emergencyContactName: e.emergencyContactName, emergencyContactRelation: e.emergencyContactRelation, emergencyContactPhone: e.emergencyContactPhone,
+  profileCompletedAt: e.profileCompletedAt,
+});
+/** Stamp the first-login profile as complete once every required field is filled. Returns the (possibly updated) row. */
+export async function markProfileIfComplete(row: EmpRow): Promise<EmpRow> {
+  if (row.profileCompletedAt || missingProfileFields(row).length) return row;
+  const [u] = await db.update(S.employees).set({ profileCompletedAt: new Date() }).where(eq(S.employees.id, row.id)).returning();
+  return u ?? row;
+}
 function safeMask(enc: string | null): string | null {
   if (!enc) return null;
   try { return maskTail(decryptField(enc), 4); } catch { return null; }
@@ -201,14 +212,23 @@ r.post("/employees", wrap(async (req, res) => {
   res.status(201).json({ ...work(row, L), ...personal(row), ...bankView(row) });
 }));
 
+const pastDate = isoDate.refine((v) => v >= "1900-01-01" && v <= istToday(), "must be a past date");
+const profileFields = {
+  dob: nullable(pastDate), gender: nullable(z.enum(["male", "female", "other", "undisclosed"])),
+  currentAddress: nullable(z.string().trim().min(1).max(500)),
+  emergencyContactName: nullable(z.string().trim().min(1).max(160)), emergencyContactRelation: nullable(z.string().trim().min(1).max(60)),
+  emergencyContactPhone: nullable(phoneField),
+};
 const adminPatch = z.object({
   fullName: z.string().trim().min(1).max(160), workEmail: domainEmail, personalEmail: nullable(z.string().trim().toLowerCase().email()),
-  phone: nullable(phoneField), dob: nullable(isoDate), gender: nullable(z.enum(["male", "female", "other", "undisclosed"])), joiningDate: isoDate,
+  phone: nullable(phoneField), joiningDate: isoDate,
   departmentId: nullable(uuid), designationId: nullable(uuid), locationId: nullable(uuid),
   employmentType: z.enum(["full_time", "part_time", "contract", "intern"]), status: z.enum(["active", "notice", "exited"]), lastWorkingDay: nullable(isoDate),
   pan: nullable(panField), bankName: nullable(z.string().trim().max(120)), accountNumber: nullable(accountField), ifsc: nullable(ifscField),
+  ...profileFields,
 }).partial().strict();
 const selfPatch = z.object({
+  ...profileFields,
   phone: nullable(phoneField), personalEmail: nullable(z.string().trim().toLowerCase().email()),
   bankName: nullable(z.string().trim().max(120)), accountNumber: nullable(accountField), ifsc: nullable(ifscField),
 }).partial().strict();
@@ -226,8 +246,9 @@ r.patch("/employees/:id", wrap(async (req, res) => {
   const set: Partial<typeof S.employees.$inferInsert> = { ...rest };
   if (pan !== undefined) set.panEnc = pan ? encryptField(pan) : null;
   if (accountNumber !== undefined) set.accountEnc = accountNumber ? encryptField(accountNumber) : null;
-  const [row] = await uniq(db.update(S.employees).set(set).where(eq(S.employees.id, id)).returning(), "Work email already in use");
-  if (!row) throw new HttpError(404, "Not found");
+  const [updated] = await uniq(db.update(S.employees).set(set).where(eq(S.employees.id, id)).returning(), "Work email already in use");
+  if (!updated) throw new HttpError(404, "Not found");
+  const row = await markProfileIfComplete(updated);
   const touchesSensitive = pan !== undefined || accountNumber !== undefined || b.ifsc !== undefined || b.bankName !== undefined;
   await logAudit(a.email, touchesSensitive ? "employee.update_sensitive" : "employee.update", "employee", id, { fields: Object.keys(b), by: admin && !own ? "hr_admin" : "self" });
   const L = await lookups();
@@ -314,7 +335,10 @@ r.post("/employees/:id/documents", wrap(async (req, res) => {
   if (!SIG[b.mime](buf)) throw new HttpError(400, "File content does not match the declared type");
   // Aadhaar and PAN images/PDFs are stored as-is. No text or number extraction is done anywhere.
   const f = await saveFile({ kind: b.kind, buf, name: b.name, mime: b.mime, uploadedBy: a.email, ownerEmployeeId: id });
-  if (b.kind === "photo") await db.update(S.employees).set({ photoFileId: f.id }).where(eq(S.employees.id, id));
+  if (b.kind === "photo") {
+    const [row] = await db.update(S.employees).set({ photoFileId: f.id }).where(eq(S.employees.id, id)).returning();
+    if (row) await markProfileIfComplete(row);
+  }
   await logAudit(a.email, "document.upload", "file", f.id, { kind: b.kind, ownerEmployeeId: id, sizeBytes: f.sizeBytes });
   res.status(201).json({ id: f.id, kind: f.kind, name: f.originalName, mime: f.mime, sizeBytes: f.sizeBytes, createdAt: f.createdAt });
 }));

@@ -38,6 +38,10 @@ export const employees = pgTable("hr_employees", {
   panEnc: text("pan_enc"), // AES-GCM encrypted; needed for TDS
   bankName: text("bank_name"), accountEnc: text("account_enc"), ifsc: text("ifsc"),
   photoFileId: uuid("photo_file_id"),
+  // Self-service profile details, asked for in the first-login "complete your profile" step.
+  currentAddress: text("current_address"),
+  emergencyContactName: text("emergency_contact_name"), emergencyContactRelation: text("emergency_contact_relation"), emergencyContactPhone: text("emergency_contact_phone"),
+  profileCompletedAt: timestamp("profile_completed_at", { withTimezone: true }),
   createdAt: created(),
 }, (t) => [index("hr_emp_manager").on(t.managerId), index("hr_emp_status").on(t.status)]);
 
