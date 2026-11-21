@@ -44,7 +44,7 @@ function Shell() {
   const roles = new Set(me.data!.roles);
   return (
     <div className="shell">
-      <aside className="side"><div className="brand">Complynz</div><div className="sub">HR · hrms.complynz.com</div>
+      <aside className="side"><div className="brand"><img src="/logo.png" alt="Complynz" width={160} height={37} /></div><div className="sub">HR · hrms.complynz.com</div>
         <nav aria-label="Sections">{NAV.filter((n) => !n.roles || n.roles.some((r) => roles.has(r))).map((n) =>
           <Link key={n.to} href={n.to} className={(n.to === "/" ? loc === "/" : loc.startsWith(n.to)) ? "on" : ""}>{n.label}</Link>)}</nav>
       </aside>
@@ -70,5 +70,5 @@ export default function App({ devNoClerk }: { devNoClerk?: boolean }) {
     return <Suspense fallback={<p>Loading…</p>}><Switch><Route path="/accept/:token" component={P.Accept} /><Route path="/onboarding/:token" component={P.Onboarding} /></Switch></Suspense>;
   }
   if (devNoClerk) return <Shell />;
-  return (<><SignedOut><div style={{ display: "grid", placeItems: "center", minHeight: "100vh" }}><SignIn routing="hash" /></div></SignedOut><SignedIn><Shell /></SignedIn></>);
+  return (<><SignedOut><div style={{ display: "grid", placeItems: "center", alignContent: "center", gap: 24, minHeight: "100vh", padding: 16 }}><img src="/logo-full.png" alt="Complynz: Privacy First. Zero-Trust Compliance" style={{ width: 320, maxWidth: "100%", height: "auto" }} /><SignIn routing="hash" /></div></SignedOut><SignedIn><Shell /></SignedIn></>);
 }
