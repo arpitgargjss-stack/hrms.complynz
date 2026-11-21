@@ -138,7 +138,7 @@ function IssuePip() {
           <Field label="Length"><select value={f.lengthDays} onChange={(e) => setF({ ...f, lengthDays: e.target.value })}><option value="30">30 days</option><option value="60">60 days</option><option value="90">90 days</option></select></Field>
         </div>
         <Field label="Concerns"><textarea required minLength={5} rows={3} maxLength={4000} value={f.concerns} onChange={(e) => setF({ ...f, concerns: e.target.value })} /></Field>
-        {f.goals.map((g, i) => <fieldset key={i} style={{ border: "1px solid #e3e6ef", borderRadius: 8, margin: "12px 0 0" }}><legend className="k">Goal {i + 1}</legend>
+        {f.goals.map((g, i) => <fieldset key={i} style={{ border: "1px solid var(--line)", borderRadius: 8, margin: "12px 0 0" }}><legend className="k">Goal {i + 1}</legend>
           <Field label="Goal"><input required minLength={2} value={g.goal} onChange={(e) => setGoal(i, "goal", e.target.value)} /></Field>
           <Field label="How it is measured"><input required minLength={2} value={g.measure} onChange={(e) => setGoal(i, "measure", e.target.value)} /></Field>
           <Field label="Due date"><input type="date" required value={g.due} onChange={(e) => setGoal(i, "due", e.target.value)} /></Field></fieldset>)}
@@ -168,16 +168,16 @@ function PipManage({ hr, me }: { hr: boolean; me: Me }) {
         <h2>{p.employeeName} <span className="k">{p.code}</span> <Chip tone={tone(p.status)}>{label(p.status)}</Chip></h2>
         <p className="k">{p.startDate}, {p.lengthDays} days · {p.acknowledgedAt ? `receipt acknowledged ${p.acknowledgedAt.slice(0, 10)}` : "not yet acknowledged"}</p>
         <p>{p.concerns}</p>
-        {p.goals.map((g, i) => <div key={i} style={{ borderTop: "1px solid #eceef4", paddingTop: 8 }}><strong>{g.goal}</strong> <span className="k">({g.measure}, due {g.due})</span> <Chip tone={g.status === "met" ? "ok" : g.status === "at_risk" || g.status === "not_met" ? "bad" : "info"}>{label(g.status)}</Chip>
+        {p.goals.map((g, i) => <div key={i} style={{ borderTop: "1px solid var(--line)", paddingTop: 8 }}><strong>{g.goal}</strong> <span className="k">({g.measure}, due {g.due})</span> <Chip tone={g.status === "met" ? "ok" : g.status === "at_risk" || g.status === "not_met" ? "bad" : "info"}>{label(g.status)}</Chip>
           {g.progressNote && <div className="k">{g.progressNote}</div>}
           {open && <div className="row-gap" style={{ alignItems: "end" }}><Field label="Progress note"><input value={t[`g${p.id}${i}`] ?? ""} onChange={(e) => setT({ ...t, [`g${p.id}${i}`]: e.target.value })} /></Field>
             <Field label="Status"><select value={g.status} onChange={(e) => goal.mutate({ id: p.id, i, status: e.target.value })}>{["open", "on_track", "at_risk", "met", "not_met"].map((s) => <option key={s} value={s}>{label(s)}</option>)}</select></Field></div>}</div>)}
-        {(p.checkpoints ?? []).map((c, i) => <div key={i} style={{ borderTop: "1px solid #eceef4", paddingTop: 8 }}>Checkpoint {c.date}: {c.note ?? <span className="k">no note yet</span>}
+        {(p.checkpoints ?? []).map((c, i) => <div key={i} style={{ borderTop: "1px solid var(--line)", paddingTop: 8 }}>Checkpoint {c.date}: {c.note ?? <span className="k">no note yet</span>}
           {open && <div className="row-gap" style={{ alignItems: "end" }}><Field label="Checkpoint note"><input value={t[`c${p.id}${i}`] ?? ""} onChange={(e) => setT({ ...t, [`c${p.id}${i}`]: e.target.value })} /></Field>
             <button className="btn" disabled={cp.isPending || !(t[`c${p.id}${i}`] ?? "").trim()} onClick={() => cp.mutate({ id: p.id, i })}>Save note</button></div>}</div>)}
         {p.employeeResponse && <p><strong>Employee response:</strong> {p.employeeResponse}</p>}
         {p.outcome && <p>Outcome: {p.outcome}</p>}
-        {hr && open && <div style={{ borderTop: "1px solid #eceef4", paddingTop: 8 }}><Field label="Closing note (optional)"><input value={t["o" + p.id] ?? ""} onChange={(e) => setT({ ...t, ["o" + p.id]: e.target.value })} /></Field>
+        {hr && open && <div style={{ borderTop: "1px solid var(--line)", paddingTop: 8 }}><Field label="Closing note (optional)"><input value={t["o" + p.id] ?? ""} onChange={(e) => setT({ ...t, ["o" + p.id]: e.target.value })} /></Field>
           <p className="row-gap">{[["met", "Close: met"], ["extended", "Extend"], ["not_met", "Close: not met"], ["withdrawn", "Withdraw plan"]].map(([o, l]) => <button key={o} className="btn" disabled={close.isPending} onClick={() => window.confirm(`${l}? This records the outcome only.`) && close.mutate({ id: p.id, outcome: o })}>{l}</button>)}</p></div>}
       </Card>; })}
       {!rows.length && <Card><p>No performance plans to show.</p></Card>}

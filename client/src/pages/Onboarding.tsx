@@ -9,7 +9,7 @@ const MAX = 10 * 1024 * 1024;
 const wrapStyle = { maxWidth: 680, margin: "0 auto", padding: "16px 16px 48px" } as const;
 
 function Shell({ children }: { children: React.ReactNode }) {
-  return <main style={wrapStyle}><img src="/logo.png" alt="Complynz" width={160} height={37} style={{ display: "block", margin: "8px 0 16px" }} />{children}</main>;
+  return <main style={wrapStyle}><img src="/logo.png" alt="Complynz" width={160} height={37} style={{ display: "block", margin: "8px 0 12px" }} /><div aria-hidden="true" style={{ height: 6, borderRadius: 99, margin: "0 0 18px", background: "linear-gradient(90deg,#00236e,#0048e4,#3b82f6)" }} />{children}</main>;
 }
 
 export default function Onboarding() {

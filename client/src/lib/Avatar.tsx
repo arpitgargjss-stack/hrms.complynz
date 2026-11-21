@@ -21,9 +21,9 @@ export function Avatar({ name, fileId, src, size = 40 }: { name: string; fileId?
   const q = usePhotoUrl(src ? null : fileId);
   const url = src ?? q.data;
   const base = { width: size, height: size, borderRadius: "50%", flex: `0 0 ${size}px` } as const;
-  if (url) return <img src={url} alt={name} style={{ ...base, objectFit: "cover", background: "#e4e9fb" }} />;
+  if (url) return <img src={url} alt={name} style={{ ...base, objectFit: "cover", background: "#e6eeff" }} />;
   return (
-    <span role="img" aria-label={name} style={{ ...base, background: "#e4e9fb", color: "#2438a8", display: "inline-flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: Math.max(11, Math.round(size * 0.36)) }}>
+    <span role="img" aria-label={name} style={{ ...base, background: "#e6eeff", color: "#0039b8", display: "inline-flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: Math.max(11, Math.round(size * 0.36)) }}>
       {initials(name)}
     </span>
   );

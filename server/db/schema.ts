@@ -146,7 +146,27 @@ export const policyAcks = pgTable("hr_policy_acks", {
 export const consentEvents = pgTable("hr_consent_events", {
   id: id(), subjectId: text("subject_id").notNull(), purposeKey: text("purpose_key").notNull(), status: text("status").notNull(), // granted|withdrawn
   noticeVersion: text("notice_version").notNull(), source: text("source").notNull(), at: created(),
+  detail: jsonb("detail"), // receipt context: audience, others confirmed, post id. Never personal content.
 }, (t) => [index("hr_consent_subject").on(t.subjectId, t.purposeKey)]);
+
+// ---------- vibe pages and team feed ----------
+/** One row per section a person has filled in. Who can see it also depends on the latest consent event for vibe_<section>. */
+export const vibeSections = pgTable("hr_vibe_sections", {
+  id: id(), employeeId: uuid("employee_id").notNull().references(() => employees.id), sectionKey: text("section_key").notNull(),
+  content: jsonb("content").notNull(), audience: text("audience").notNull().default("only_me"), // only_me | team | everyone
+  consentEventId: uuid("consent_event_id"), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("hr_vibe_section_uq").on(t.employeeId, t.sectionKey)]);
+
+export const feedPosts = pgTable("hr_feed_posts", {
+  id: id(), employeeId: uuid("employee_id").notNull().references(() => employees.id), kind: text("kind").notNull(), // quote | ai_news | article | linkedin
+  audience: text("audience").notNull(), departmentId: uuid("department_id"), // team posts are scoped to the author's department when posted
+  quote: text("quote"), source: text("source"), url: text("url"), title: text("title"), note: text("note"),
+  consentEventId: uuid("consent_event_id"), deletedAt: timestamp("deleted_at", { withTimezone: true }), createdAt: created(),
+}, (t) => [index("hr_feed_created").on(t.createdAt)]);
+export const feedReactions = pgTable("hr_feed_reactions", {
+  id: id(), postId: uuid("post_id").notNull().references(() => feedPosts.id), employeeId: uuid("employee_id").notNull(), kind: text("kind").notNull(), // clap | mind | save
+  createdAt: created(),
+}, (t) => [uniqueIndex("hr_feed_reaction_uq").on(t.postId, t.employeeId, t.kind)]);
 
 // ---------- assets ----------
 export const assets = pgTable("hr_assets", {
@@ -232,3 +252,23 @@ export const suggestions = pgTable("hr_suggestions", {
   id: id(), body: text("body").notNull(), replyCodeHash: text("reply_code_hash").notNull().unique(),
   status: text("status").notNull().default("new"), reply: text("reply"), createdDay: date("created_day").notNull(),
 });
+
+// ---------- recognition and pulse ----------
+/** Public thank-yous. The recipient can hide one from the wall; the giver or HR can remove it. */
+export const kudos = pgTable("hr_kudos", {
+  id: id(), fromEmployeeId: uuid("from_employee_id").notNull().references(() => employees.id), toEmployeeId: uuid("to_employee_id").notNull().references(() => employees.id),
+  value: text("value").notNull(), message: text("message").notNull(),
+  consentEventId: uuid("consent_event_id"), hiddenAt: timestamp("hidden_at", { withTimezone: true }), deletedAt: timestamp("deleted_at", { withTimezone: true }), createdAt: created(),
+}, (t) => [index("hr_kudos_to").on(t.toEmployeeId), index("hr_kudos_created").on(t.createdAt)]);
+export const kudosReactions = pgTable("hr_kudos_reactions", {
+  id: id(), kudosId: uuid("kudos_id").notNull().references(() => kudos.id), employeeId: uuid("employee_id").notNull(), kind: text("kind").notNull(), // clap | fire
+  createdAt: created(),
+}, (t) => [uniqueIndex("hr_kudos_reaction_uq").on(t.kudosId, t.employeeId, t.kind)]);
+
+/** Weekly 1-tap mood. Anonymous like the satisfaction survey: no identity columns, day-bucketed, results only at 5+ answers. */
+export const pulseResponses = pgTable("hr_pulse_responses", {
+  id: id(), week: text("week").notNull(), departmentId: uuid("department_id"), mood: integer("mood").notNull(), submittedDay: date("submitted_day").notNull(),
+}, (t) => [index("hr_pulse_week").on(t.week, t.departmentId)]);
+export const pulseParticipation = pgTable("hr_pulse_participation", {
+  id: id(), week: text("week").notNull(), markerHash: text("marker_hash").notNull(),
+}, (t) => [uniqueIndex("hr_pulse_part_uq").on(t.week, t.markerHash)]);

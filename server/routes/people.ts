@@ -9,6 +9,7 @@ import { encryptField, decryptField, maskTail } from "../lib/crypto";
 import { saveFile, readFileBytes } from "../lib/files";
 import { sanitizeHtml } from "../lib/sanitizeHtml";
 import { sendConsentEvent } from "../lib/consentClient";
+import { canSeeVibePhoto, personOf } from "../lib/vibe";
 import { scopeFor, canAccess, type Capability, type Scope } from "../../shared/hr/access";
 import { nextEmployeeCode, CONSENT_PURPOSES, upcomingEvents } from "../../shared/hr/misc";
 import { missingProfileFields } from "../../shared/hr/profile";
@@ -361,6 +362,11 @@ r.get("/files/:fileId", wrap(async (req, res) => {
   let allowed = false;
   let sensitive = false;
   if (f.kind === "photo") allowed = true;
+  else if (f.kind === "vibe_photo") {
+    // Vibe page snaps follow the owner's section audience and consent, not HR rights.
+    const viewer = a.employeeId ? await personOf(a.employeeId) : null;
+    allowed = await canSeeVibePhoto(viewer, f.ownerEmployeeId, f.id);
+  }
   else if (f.kind === "pan" || f.kind === "aadhaar") {
     sensitive = true;
     const s = scope(req, "id_docs.read");

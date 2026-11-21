@@ -64,7 +64,7 @@ export default function Access() {
         <div style={{ overflowX: "auto" }}>
           <table className="t"><thead><tr><th scope="col">What</th><th scope="col">HR admin</th><th scope="col">Finance signatory</th><th scope="col">Manager</th><th scope="col">Team member</th></tr></thead>
             {MATRIX.map(([g, rows]) => (
-              <tbody key={g}><tr><th scope="rowgroup" colSpan={5} style={{ background: "#fafbfd", fontWeight: 600 }}>{g}</th></tr>
+              <tbody key={g}><tr><th scope="rowgroup" colSpan={5} style={{ background: "var(--bg)", fontWeight: 600 }}>{g}</th></tr>
                 {rows.map((r) => <tr key={r[0]}><th scope="row" style={{ fontWeight: 400, textAlign: "left" }}>{r[0]}</th>{r.slice(1).map((v, i) => <td key={i}><span className={`chip ${tone(v)}`}>{v}</span></td>)}</tr>)}
               </tbody>))}
           </table>

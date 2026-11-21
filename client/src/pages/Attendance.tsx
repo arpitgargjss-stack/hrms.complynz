@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { Card, Chip, ErrorNote, Field, Page } from "../lib/ui";
+import { celebrate } from "../lib/gz";
 
 type Me = { email: string; employeeId: string | null; roles: string[] };
 type Day = { date: string; working: boolean; wfh?: boolean; holiday: string | null; onLeave: boolean; firstIn: string | null; lastOut: string | null; withinOffice: boolean | null; workedMinutes: number; punches: { kind: "in" | "out"; at: string; withinOffice: boolean | null }[] };
@@ -38,16 +39,16 @@ function Mine() {
   const remote = !!cur.data?.remote || !!cur.data?.wfhToday; // remote location or work-from-home day: punch without asking for the browser location
   const punch = useMutation({
     mutationFn: async () => { const pos = remote ? {} : await getPosition(); return api<PunchRes>("/attendance/punch", { body: { kind: next, ...pos } }); },
-    onSuccess: (r) => { setResult(r); qc.invalidateQueries({ queryKey: ["myAttendance"] }); },
+    onSuccess: (r) => { setResult(r); qc.invalidateQueries({ queryKey: ["myAttendance"] }); qc.invalidateQueries({ queryKey: ["today"] }); celebrate(r.kind === "in" ? "You're in. Go get it." : "Day done. Nice work.", `Recorded at ${hm(r.at)}`); },
   });
   return (
     <>
       <Card>
         <h2>Today, {istToday()}</h2>
         <p className="k">{remote ? (cur.data?.remote ? "You work remotely" : "Today is a work-from-home day") + ", so punching does not check your location." : "Punching asks your browser for your location once, only to check whether you are at the office. The location is not saved."}</p>
-        <button className="btn p" style={{ minWidth: 180 }} disabled={punch.isPending} onClick={() => { setResult(null); punch.mutate(); }}>{punch.isPending ? (remote ? "Punching…" : "Checking location…") : `Punch ${next}`}</button>
+        <button className="btn p" style={{ minWidth: 180 }} disabled={punch.isPending} onClick={() => { setResult(null); punch.mutate(); }}>{punch.isPending ? (remote ? "Punching…" : "Checking location…") : next === "in" ? "Start my day" : "End my day"}</button>
         <ErrorNote error={punch.error} />
-        {result && <div className="note ok" role="status" style={{ marginTop: 12 }}>Punched {result.kind} at {hm(result.at)}. {where(result.withinOffice, result.remote)}</div>}
+        {result && <div className="note ok" role="status" style={{ marginTop: 12 }}>{result.kind === "in" ? "Started your day" : "Ended your day"} at {hm(result.at)}. {where(result.withinOffice, result.remote)}</div>}
         {today && today.punches.length > 0 && <p className="k">Today: {today.punches.map((p) => `${p.kind} ${hm(p.at)}`).join(", ")}</p>}
       </Card>
       <Card>

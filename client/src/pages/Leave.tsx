@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { Card, Chip, ErrorNote, Field, Page } from "../lib/ui";
+import { celebrate } from "../lib/gz";
 
 type Me = { email: string; employeeId: string | null; roles: string[] };
 type Balance = { leaveTypeId: string; key: string; name: string; paid: boolean; entitledX2: number; available: number; used: number; pending: number };
@@ -20,7 +21,7 @@ function Mine() {
   const [f, setF] = useState({ leaveTypeId: "", fromDate: "", toDate: "", halfDay: false, reason: "" });
   const apply = useMutation({
     mutationFn: () => api("/leave/requests", { body: { leaveTypeId: f.leaveTypeId, fromDate: f.fromDate, toDate: f.halfDay ? f.fromDate : f.toDate || f.fromDate, halfDay: f.halfDay, reason: f.reason || undefined } }),
-    onSuccess: () => { setF({ leaveTypeId: "", fromDate: "", toDate: "", halfDay: false, reason: "" }); qc.invalidateQueries({ queryKey: ["myLeave"] }); },
+    onSuccess: () => { setF({ leaveTypeId: "", fromDate: "", toDate: "", halfDay: false, reason: "" }); qc.invalidateQueries({ queryKey: ["myLeave"] }); celebrate("Sent to your manager", "You'll see it here the moment it's approved"); },
   });
   const cancel = useMutation({ mutationFn: (id: string) => api(`/leave/requests/${id}/cancel`, { method: "POST", body: {} }), onSuccess: () => qc.invalidateQueries({ queryKey: ["myLeave"] }) });
   const name = (id: string) => data.data?.balances.find((b) => b.leaveTypeId === id)?.name ?? "Leave";
