@@ -9,7 +9,7 @@ const wrapStyle = { maxWidth: 680, margin: "0 auto", padding: "16px 16px 48px" }
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <main style={wrapStyle}><div style={{ fontWeight: 600, fontSize: 20, color: "#2f4bd6", margin: "8px 0 16px" }}>Complynz</div>{children}</main>
+    <main style={wrapStyle}><img src="/logo.png" alt="Complynz" width={160} height={37} style={{ display: "block", margin: "8px 0 16px" }} />{children}</main>
   );
 }
 
