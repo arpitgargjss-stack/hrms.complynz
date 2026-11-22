@@ -7,6 +7,18 @@ type Item = { id: string; at: string; actorEmail: string; action: string; entity
 type Resp = { items: Item[]; total: number; limit: number; offset: number };
 const LIMIT = 50;
 
+/** One-line summary of an entry's detail, with the rest behind "Show details" (cut at 500 characters). */
+function Detail({ d }: { d: unknown }) {
+  if (d == null) return null;
+  const json = JSON.stringify(d);
+  const o = typeof d === "object" && !Array.isArray(d) ? (d as Record<string, unknown>) : null;
+  const summary = o ? Object.entries(o).filter(([, v]) => v === null || ["string", "number", "boolean"].includes(typeof v)).slice(0, 4).map(([k, v]) => `${k}: ${String(v)}`).join(" · ") : "";
+  const line = summary || json;
+  if (json.length <= 120) return <>{json}</>;
+  return <details><summary style={{ cursor: "pointer" }}>{line.slice(0, 120)}{line.length > 120 ? "…" : ""} <span style={{ color: "var(--brand)" }}>Show details</span></summary>
+    <code style={{ display: "block", whiteSpace: "pre-wrap", marginTop: 4 }}>{json.length > 500 ? `${json.slice(0, 500)}… (${json.length} characters)` : json}</code></details>;
+}
+
 export default function Audit() {
   const [offset, setOffset] = useState(0);
   const [action, setAction] = useState("");
@@ -32,7 +44,7 @@ export default function Audit() {
             <tbody>{q.data?.items.map((i) => (
               <tr key={i.id}><td>{new Date(i.at).toLocaleString("en-IN")}</td><td>{i.actorEmail}</td><td>{i.action}</td>
                 <td>{i.entityType ?? ""} <span className="k">{i.entityId ? i.entityId.slice(0, 8) : ""}</span></td>
-                <td className="k" style={{ wordBreak: "break-word" }}>{i.detail ? JSON.stringify(i.detail) : ""}</td></tr>
+                <td className="k" style={{ wordBreak: "break-word", maxWidth: 420 }}><Detail d={i.detail} /></td></tr>
             ))}</tbody></table>
         </div>
         {q.isLoading && <p>Loading…</p>}

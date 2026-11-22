@@ -8,6 +8,8 @@ import { logAudit } from "../lib/audit";
 import { encryptField, decryptField, maskTail } from "../lib/crypto";
 import { saveFile, readFileBytes } from "../lib/files";
 import { sanitizeHtml } from "../lib/sanitizeHtml";
+import { renderLive } from "../lib/policyRender";
+import { placeholderValues } from "../lib/policyValues";
 import { sendConsentEvent } from "../lib/consentClient";
 import { canSeeVibePhoto, personOf } from "../lib/vibe";
 import { scopeFor, canAccess, type Capability, type Scope } from "../../shared/hr/access";
@@ -548,7 +550,9 @@ r.get("/policies/:slug", wrap(async (req, res) => {
   const [v] = await db.select().from(S.policyVersions).where(and(eq(S.policyVersions.policyId, p.id), eq(S.policyVersions.version, p.currentVersion))).limit(1);
   const empId = actorOf(req).employeeId;
   const [ack] = empId ? await db.select().from(S.policyAcks).where(and(eq(S.policyAcks.policyId, p.id), eq(S.policyAcks.version, p.currentVersion), eq(S.policyAcks.employeeId, empId))).limit(1) : [];
-  res.json({ slug: p.slug, title: p.title, version: p.currentVersion, html: v ? sanitizeHtml(v.html) : "", publishedAt: v?.publishedAt ?? v?.createdAt ?? null, acknowledged: !!ack, acknowledgedAt: ack?.at ?? null,
+    // Filled in with today's Configuration values (committee, contacts, company), so updates show without re-publishing.
+  const live = v && !v.fileId ? renderLive(v, await placeholderValues()) : null;
+  res.json({ slug: p.slug, title: p.title, version: p.currentVersion, html: live ? live.html : v ? sanitizeHtml(v.html) : "", publishedAt: v?.publishedAt ?? v?.createdAt ?? null, acknowledged: !!ack, acknowledgedAt: ack?.at ?? null,
     kind: p.kind, fileUrl: v?.fileId ? `/api/policies/${p.slug}/file` : null });
 }));
 
@@ -595,7 +599,10 @@ r.post("/policies/:slug/ack", wrap(async (req, res) => {
   const slug = parse(slugField, req.params.slug);
   const [p] = await db.select().from(S.policies).where(eq(S.policies.slug, slug)).limit(1);
   if (!p || p.currentVersion < 1) throw new HttpError(404, "Not found");
-  await db.insert(S.policyAcks).values({ policyId: p.id, version: p.currentVersion, employeeId: empId }).onConflictDoNothing();
+  // Record exactly what was shown: the values filled in and a hash of the rendered text.
+  const [v] = await db.select().from(S.policyVersions).where(and(eq(S.policyVersions.policyId, p.id), eq(S.policyVersions.version, p.currentVersion))).limit(1);
+  const live = v && !v.fileId ? renderLive(v, await placeholderValues()) : null;
+  await db.insert(S.policyAcks).values({ policyId: p.id, version: p.currentVersion, employeeId: empId, contentHash: live?.contentHash ?? null, values: live?.snapshot ?? null }).onConflictDoNothing();
   await logAudit(actorOf(req).email, "policy.ack", "policy", p.id, { slug, version: p.currentVersion });
   res.json({ ok: true, slug, version: p.currentVersion });
 }));

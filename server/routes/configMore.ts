@@ -4,6 +4,7 @@ import { and, desc, eq, gte, inArray, lte, ne } from "drizzle-orm";
 import { db, schema } from "../db";
 import { wrap, parse, HttpError } from "./util";
 import { logAudit } from "../lib/audit";
+import { digest } from "../lib/auditTrim";
 import { need, istDate, idParam } from "../lib/routeHelpers";
 import { DEFAULT_CHECKLIST, nextChecklistVersion, validateChecklist, type Checklist, type ChecklistItem, type LinkChecklist } from "../../shared/hr/onboardingChecklist";
 import { EMAIL_TEMPLATES, emailTemplateDef, unknownEmailPlaceholders } from "../../shared/hr/emailTemplates";
@@ -68,7 +69,7 @@ r.put("/config/onboarding", wrap(async (req, res) => {
   const version = nextChecklistVersion(before, b.items);
   if (version === before.version && before.updatedBy) return res.json({ version, changed: false });
   await db.insert(A.onboardingChecklist).values({ version: Math.max(version, 1), items: b.items, updatedBy: req.actor!.email });
-  await logAudit(req.actor!.email, "config.onboarding_checklist.update", "onboarding_checklist", String(Math.max(version, 1)), { before: { version: before.version, items: before.items }, after: { version: Math.max(version, 1), items: b.items } });
+  await logAudit(req.actor!.email, "config.onboarding_checklist.update", "onboarding_checklist", String(Math.max(version, 1)), { before: { version: before.version, items: before.items.length, sha256: digest(before.items) }, after: { version: Math.max(version, 1), items: b.items.length, sha256: digest(b.items) } });
   res.json({ version: Math.max(version, 1), changed: true });
 }));
 /** HR ticks an item on one onboarding link's own copy of the checklist. */
@@ -103,7 +104,7 @@ r.put("/config/email-templates/:key", wrap(async (req, res) => {
   if (unknown.length) throw new HttpError(422, `Unknown placeholders: ${unknown.map((k) => `{{${k}}}`).join(", ")}`);
   const [before] = await db.select().from(A.emailTemplates).where(eq(A.emailTemplates.key, def.key)).limit(1);
   await db.insert(A.emailTemplates).values({ key: def.key, ...b }).onConflictDoUpdate({ target: A.emailTemplates.key, set: { ...b, updatedAt: new Date() } });
-  await logAudit(req.actor!.email, "config.email_template.update", "email_template", def.key, { before: before ? { subject: before.subject, body: before.body } : { subject: def.subject, body: def.body, default: true }, after: b });
+  await logAudit(req.actor!.email, "config.email_template.update", "email_template", def.key, { before: { subject: before?.subject ?? def.subject, bodySha256: digest(before?.body ?? def.body), default: !before }, after: { subject: b.subject, bodySha256: digest(b.body) } });
   res.json({ ok: true });
 }));
 r.delete("/config/email-templates/:key", wrap(async (req, res) => {
@@ -111,7 +112,7 @@ r.delete("/config/email-templates/:key", wrap(async (req, res) => {
   const def = emailTemplateDef(String(req.params.key));
   if (!def) throw new HttpError(404, "Unknown email template");
   const [before] = await db.delete(A.emailTemplates).where(eq(A.emailTemplates.key, def.key)).returning();
-  await logAudit(req.actor!.email, "config.email_template.reset", "email_template", def.key, { before: before ? { subject: before.subject, body: before.body } : null, after: { subject: def.subject, body: def.body, default: true } });
+  await logAudit(req.actor!.email, "config.email_template.reset", "email_template", def.key, { before: before ? { subject: before.subject, bodySha256: digest(before.body) } : null, after: { subject: def.subject, bodySha256: digest(def.body), default: true } });
   res.json({ ok: true });
 }));
 

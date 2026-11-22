@@ -159,6 +159,8 @@ export const policyVersions = pgTable("hr_policy_versions", {
 }, (t) => [uniqueIndex("hr_policy_ver_uq").on(t.policyId, t.version)]);
 export const policyAcks = pgTable("hr_policy_acks", {
   id: id(), policyId: uuid("policy_id").notNull(), version: integer("version").notNull(), employeeId: uuid("employee_id").notNull(), at: created(),
+  // What the person saw when they acknowledged: values are filled in live, so keep the values and a hash of the rendered text.
+  contentHash: text("content_hash"), values: jsonb("values"),
 }, (t) => [uniqueIndex("hr_policy_ack_uq").on(t.policyId, t.version, t.employeeId)]);
 
 /** Local ledger of consent events. The CMP stays the system of record; the subject is an opaque id, never the email. */

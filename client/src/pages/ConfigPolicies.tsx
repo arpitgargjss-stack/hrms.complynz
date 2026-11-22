@@ -2,15 +2,16 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { openAuthed } from "../lib/openHtml";
+import { RichEditor } from "../lib/RichEditor";
 import { Card, ErrorNote, Field } from "../lib/ui";
 import { PLACEHOLDERS, type PlaceholderDef } from "../../../shared/hr/placeholders";
 
 type Ver = { id: string; version: number; status: string; statusLabel: string; summary: string | null; createdBy: string | null; createdAt: string; submittedBy: string | null; submittedAt: string | null;
   approvedBy: string | null; approvedAt: string | null; reviewNote: string | null; publishedBy: string | null; publishedAt: string | null; fileId: string | null; hasTemplate: boolean };
-type Row = { slug: string; title: string; category: string | null; kind: string; version: number | null; publishedAt: string | null; draft: Ver | null; acks: { done: number; total: number } | null; outOfDate: string[] };
+type Row = { slug: string; title: string; category: string | null; kind: string; version: number | null; publishedAt: string | null; draft: Ver | null; acks: { done: number; total: number } | null; updatedSince: string[]; missing: string[] };
 type ListResp = { ceo: boolean; starters: { slug: string; title: string; category: string; summary: string }[]; policies: Row[] };
 type Detail = { ceo: boolean; policy: { slug: string; title: string; category: string | null; kind: string; version: number | null };
-  draft: (Ver & { template: string | null }) | null; published: (Ver & { html: string; template: string | null; outOfDate: string[] }) | null;
+  draft: (Ver & { template: string | null }) | null; published: (Ver & { html: string; template: string | null; legacy: boolean; missing: string[]; unknown: string[]; updatedSince: string[]; updates: { group: string; at: string }[] }) | null;
   preview: { html: string; missing: string[]; unknown: string[] } | null; history: Ver[] };
 type Preview = { html: string; missing: string[]; unknown: string[] };
 
@@ -93,7 +94,6 @@ function Editor({ slug, onBack, goConfig }: { slug: string; onBack: () => void; 
   const [f, setF] = useState({ title: "", category: "", summary: "", template: "" });
   const [note, setNote] = useState("");
   const [preview, setPreview] = useState<Preview | null>(null);
-  const ta = useRef<HTMLTextAreaElement>(null);
   useEffect(() => { if (d) { setF({ title: d.policy.title, category: d.policy.category ?? "", summary: d.draft?.summary ?? "", template: d.draft?.template ?? "" }); setPreview(d.preview); } }, [d]);
   const dirty = !!d?.draft && (f.template !== (d.draft.template ?? "") || f.title !== d.policy.title || (f.category || null) !== d.policy.category || (f.summary || null) !== (d.draft.summary ?? null));
   // Live preview with real values, a moment after typing stops.
@@ -106,13 +106,6 @@ function Editor({ slug, onBack, goConfig }: { slug: string; onBack: () => void; 
   const save = useMutation({ mutationFn: () => api(`/config/policies/${slug}/draft`, { method: "PUT", body: { title: f.title, category: f.category || null, summary: f.summary || null, template: f.template } }), onSuccess: refresh });
   const act = useMutation({ mutationFn: (a: string) => api(`/config/policies/${slug}/${a}`, { body: a === "return" || a === "approve" ? { note: note || undefined } : {} }), onSuccess: () => { setNote(""); refresh(); } });
   const newVersion = useMutation({ mutationFn: () => api("/config/policies", { body: { slug, title: d!.policy.title, category: d!.policy.category } }), onSuccess: refresh });
-  const insert = (k: PlaceholderDef) => {
-    const el = ta.current, token = `{{${k.key}}}`;
-    if (!el) { setF({ ...f, template: f.template + token }); return; }
-    const a = el.selectionStart, b = el.selectionEnd, next = f.template.slice(0, a) + token + f.template.slice(b);
-    setF({ ...f, template: next });
-    requestAnimationFrame(() => { el.focus(); el.setSelectionRange(a + token.length, a + token.length); });
-  };
   if (q.error) return <ErrorNote error={q.error} />;
   if (!d) return <Card><p className="k">Loading…</p></Card>;
   const dr = d.draft, pub = d.published, ready = !!preview && !preview.missing.length && !preview.unknown.length;
@@ -123,7 +116,9 @@ function Editor({ slug, onBack, goConfig }: { slug: string; onBack: () => void; 
       <div><h2>{d.policy.title}</h2><p className="k">{d.policy.category ?? "Uncategorised"} · {d.policy.kind === "pdf" ? "PDF, view and acknowledge" : "Template with placeholders"}{pub ? ` · Published version ${pub.version} on ${dt(pub.publishedAt)}` : " · Not published yet"}</p></div>
       {dr ? <span className={`cp-tag ${tone(dr.status)}`}>Version {dr.version}: {dr.statusLabel}</span> : pub && <span className="cp-tag green">Published</span>}
     </div>
-    {pub && pub.outOfDate.length > 0 && <div className="cfg-banner amber"><b>Out of date: re-publish.</b> Changed since version {pub.version}: {pub.outOfDate.map(label).join(", ")}. {dr ? "Publish the new version to update it." : "Start a new version below; it needs CEO approval before publishing."}</div>}
+    {pub && pub.missing.length > 0 && <div className="cfg-banner amber"><b>Details missing in the published policy:</b> {pub.missing.map(label).join(", ")}. Employees see these as highlighted blanks until they are set. <button type="button" className="cp-link" onClick={() => goConfig(pub.missing.some((k) => k.startsWith("company.")) ? "company" : "people")}>Fill them in Configuration</button></div>}
+    {pub && pub.updates.length > 0 && <div className="cfg-banner slate">Details updated since version {pub.version} was published: {pub.updates.map((u) => `${u.group} on ${dt(u.at)}`).join(", ")}. Employees already see the new details; no re-publish or new acknowledgement is needed.</div>}
+    {pub?.legacy && <div className="cfg-banner slate">This version was published before fields existed. Its blanks have been matched to fields where the wording was clear, and they fill in from Configuration.</div>}
     {dr?.reviewNote && <div className="cfg-banner slate"><b>CEO note:</b> {dr.reviewNote}</div>}
     {err && <ErrorNote error={err} />}
 
@@ -135,9 +130,8 @@ function Editor({ slug, onBack, goConfig }: { slug: string; onBack: () => void; 
       </div>
       <div className="cfg-editor">
         <div className="cfg-pane">
-          <div className="cfg-pane-bar"><b>Template</b><PlaceholderPicker onPick={insert} /></div>
-          <textarea ref={ta} aria-label="Policy template (HTML)" spellCheck={false} value={f.template} onChange={(e) => setF({ ...f, template: e.target.value })} />
-          <p className="k">HTML with placeholders such as <code>{"{{company.legal_name}}"}</code>. Values are filled in when the policy is published.</p>
+          <div className="cfg-pane-bar"><b>Policy text</b></div>
+          <RichEditor label="Policy text" value={f.template} onChange={(t) => setF((x) => ({ ...x, template: t }))} />
         </div>
         <div className="cfg-pane">
           <div className="cfg-pane-bar"><b>Preview with current values</b></div>
@@ -162,11 +156,11 @@ function Editor({ slug, onBack, goConfig }: { slug: string; onBack: () => void; 
       </div>
     </Card>
 
-    {pub && <Card><h2>Published version {pub.version}</h2><p className="k">What employees see and acknowledge. This version is frozen.</p>
+    {pub && <Card><h2>Published version {pub.version}</h2><p className="k">What employees see and acknowledge, filled in with today's details from Configuration.</p>
       {pub.fileId ? <button className="btn sm" onClick={() => openAuthed(`/policies/${slug}/file`, "application/pdf")}>Open PDF</button> : <Doc html={pub.html} title="Published version" />}</Card>}
 
     {pub && <Acks slug={slug} />}
-    {d.history.filter((v) => v.hasTemplate).length > 1 && <Compare slug={slug} versions={d.history.filter((v) => v.hasTemplate).map((v) => v.version)} />}
+    {d.history.filter((v) => !v.fileId).length > 1 && <Compare slug={slug} versions={d.history.filter((v) => !v.fileId).map((v) => v.version)} />}
 
     <Card><h2>Version history</h2>
       <div className="cfg-table-wrap"><table className="cfg-table">
@@ -174,7 +168,8 @@ function Editor({ slug, onBack, goConfig }: { slug: string; onBack: () => void; 
         <tbody>{d.history.map((v) => <tr key={v.id}><td>{v.version}</td><td><span className={`cp-tag ${tone(v.status)}`}>{v.statusLabel}</span></td>
           <td>{dt(v.createdAt)}<span className="k cfg-by">{v.createdBy}</span></td><td>{dt(v.submittedAt)}<span className="k cfg-by">{v.submittedBy}</span></td>
           <td>{dt(v.approvedAt)}<span className="k cfg-by">{v.approvedBy}</span></td><td>{dt(v.publishedAt)}<span className="k cfg-by">{v.publishedBy}</span></td><td className="k">{v.summary ?? v.reviewNote ?? ""}</td></tr>)}</tbody>
-      </table></div></Card>
+      </table></div>
+      {pub && pub.updates.length > 0 && <ul className="cfg-updates">{pub.updates.map((u) => <li key={u.group}><span className="cp-tag slate">Updated details</span> {u.group} changed on {dt(u.at)}; shown live in version {pub.version}.</li>)}</ul>}</Card>
   </>;
 }
 
@@ -229,7 +224,8 @@ export function PoliciesTab({ goConfig }: { goConfig: (tab: string) => void }) {
       {rows.length === 0 && <div className="cfg-pol-row"><span className="k">No policies yet. Start from the POSH or Leave template.</span></div>}
       {rows.map((r) => { const pct = r.acks && r.acks.total ? Math.round((100 * r.acks.done) / r.acks.total) : 0; return <div key={r.slug} className="cfg-pol-row">
         <span><b>{r.title}</b><span className="k">{r.category ?? "Uncategorised"}{r.kind === "pdf" ? " · PDF" : ""}</span></span>
-        <span>{r.version ? <>Version {r.version}<span className="k">{dt(r.publishedAt)}</span></> : <span className="k">Not yet</span>}{r.outOfDate.length > 0 && <span className="cp-tag amber cfg-ood" title={`Changed: ${r.outOfDate.map(label).join(", ")}`}>Out of date: re-publish</span>}</span>
+        <span>{r.version ? <>Version {r.version}<span className="k">{dt(r.publishedAt)}</span></> : <span className="k">Not yet</span>}{r.missing.length > 0 ? <span className="cp-tag amber cfg-ood" title={`Missing: ${r.missing.map(label).join(", ")}`}>{r.missing.length} detail{r.missing.length === 1 ? "" : "s"} missing</span>
+          : r.updatedSince.length > 0 && <span className="cp-tag slate cfg-ood" title={`Updated: ${r.updatedSince.map(label).join(", ")}`}>Details updated, shown live</span>}</span>
         <span>{r.draft ? <span className={`cp-tag ${tone(r.draft.status)}`}>v{r.draft.version}: {r.draft.statusLabel}</span> : <span className="k">None</span>}</span>
         <span>{r.acks ? <span className="cfg-ack"><span className="k">{r.acks.done} of {r.acks.total} ({pct}%)</span><span className={`cp-bar ${pct >= 80 ? "green" : "amber"}`}><i style={{ width: `${pct}%` }} /></span></span> : <span className="k">–</span>}</span>
         <span className="cfg-go"><button className="btn sm" onClick={() => setOpen(r.slug)}>Open</button></span>
