@@ -113,10 +113,13 @@ r.get("/me/attendance", wrap(async (req, res) => {
   const q = z.object({ month: monthStr.optional() }).parse(req.query);
   const month = q.month ?? istDate().slice(0, 7);
   const { from, to } = monthRange(month);
-  const punches = await db.select().from(A.attendancePunches).where(and(eq(A.attendancePunches.employeeId, empId), gte(A.attendancePunches.workDate, from), lte(A.attendancePunches.workDate, to))).orderBy(asc(A.attendancePunches.at));
-  const cal = await getCalendar();
-  const hols = await holidaysBetween(from, to);
-  const leaves = await db.select().from(A.leaveRequests).where(and(eq(A.leaveRequests.employeeId, empId), eq(A.leaveRequests.status, "approved"), lte(A.leaveRequests.fromDate, to), gte(A.leaveRequests.toDate, from)));
+  const [punches, cal, hols, leaves, remote] = await Promise.all([
+    db.select().from(A.attendancePunches).where(and(eq(A.attendancePunches.employeeId, empId), gte(A.attendancePunches.workDate, from), lte(A.attendancePunches.workDate, to))).orderBy(asc(A.attendancePunches.at)),
+    getCalendar(),
+    holidaysBetween(from, to),
+    db.select().from(A.leaveRequests).where(and(eq(A.leaveRequests.employeeId, empId), eq(A.leaveRequests.status, "approved"), lte(A.leaveRequests.fromDate, to), gte(A.leaveRequests.toDate, from))),
+    isRemoteEmployee(empId),
+  ]);
   const days: unknown[] = [];
   for (let d = from; d <= to; d = addDays(d, 1)) {
     const ps = punches.filter((p) => p.workDate === d);
@@ -124,7 +127,7 @@ r.get("/me/attendance", wrap(async (req, res) => {
     const hol = hols.find((h) => h.date === d && !h.optional);
     days.push({ date: d, working: isWorkingDay(d, cal, hols), holiday: hol?.name ?? null, onLeave, wfh: (cal.wfhDays ?? []).includes(dowOf(d)), ...summariseDay(ps), punches: ps.map((p) => ({ kind: p.kind, at: p.at, withinOffice: p.withinOffice })) });
   }
-  res.json({ month, workStart: cal.workStart, workEnd: cal.workEnd, latestStart: cal.latestStart ?? null, latestEnd: cal.latestEnd ?? null, remote: await isRemoteEmployee(empId), wfhToday: (cal.wfhDays ?? []).includes(dowOf(istDate())), days });
+  res.json({ month, workStart: cal.workStart, workEnd: cal.workEnd, latestStart: cal.latestStart ?? null, latestEnd: cal.latestEnd ?? null, remote, wfhToday: (cal.wfhDays ?? []).includes(dowOf(istDate())), days });
 }));
 
 /** True when the employee's work location is marked remote (punches allowed, no geofence). */
@@ -217,17 +220,22 @@ export async function usage(empId: string, year: number, typeId?: string) {
 
 r.get("/me/leave", wrap(async (req, res) => {
   const empId = selfId(req);
-  const [emp] = await db.select().from(A.employees).where(eq(A.employees.id, empId)).limit(1);
-  if (!emp) throw new HttpError(404, "Not found");
   const today = istDate(); const year = Number(today.slice(0, 4));
-  const types = await db.select().from(A.leaveTypes).where(eq(A.leaveTypes.active, true));
+  // One round of parallel reads; usage for every leave type comes from the same year's rows (was one query per type).
+  const [[emp], types, yearRows, requests] = await Promise.all([
+    db.select().from(A.employees).where(eq(A.employees.id, empId)).limit(1),
+    db.select().from(A.leaveTypes).where(eq(A.leaveTypes.active, true)),
+    db.select().from(A.leaveRequests).where(and(eq(A.leaveRequests.employeeId, empId), gte(A.leaveRequests.fromDate, `${year}-01-01`), lte(A.leaveRequests.fromDate, `${year}-12-31`), inArray(A.leaveRequests.status, ["approved", "pending"]))),
+    db.select().from(A.leaveRequests).where(and(eq(A.leaveRequests.employeeId, empId), gte(A.leaveRequests.toDate, `${year}-01-01`))).orderBy(desc(A.leaveRequests.fromDate)),
+  ]);
+  if (!emp) throw new HttpError(404, "Not found");
   const balances = [];
   for (const t of types) {
-    const u = await usage(empId, year, t.id);
+    const f = yearRows.filter((x) => x.leaveTypeId === t.id);
+    const u = { approved: f.filter((x) => x.status === "approved").reduce((a, x) => a + x.days2, 0), pending: f.filter((x) => x.status === "pending").reduce((a, x) => a + x.days2, 0) };
     const entitled = entitlementX2({ annualQuotaHalfDays: t.annualQuotaHalfDays, carryForwardHalfDays: t.carryForwardHalfDays, accrual: t.accrual as "upfront" | "monthly" }, today, emp.joiningDate);
     balances.push({ leaveTypeId: t.id, key: t.key, name: t.name, paid: t.paid, entitledX2: entitled, ...balanceX2(entitled, u.approved, u.pending) });
   }
-  const requests = await db.select().from(A.leaveRequests).where(and(eq(A.leaveRequests.employeeId, empId), gte(A.leaveRequests.toDate, `${year}-01-01`))).orderBy(desc(A.leaveRequests.fromDate));
   res.json({ year, balances, requests });
 }));
 

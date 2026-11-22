@@ -280,11 +280,18 @@ r.post("/letters/:id/share", wrap(async (req, res) => {
 export const PIPELINE_STAGES = ["Offer to prepare", "Offer drafted", "With the CEO", "Ready to issue", "Offer sent", "Accepted", "Joining details", "Ready to join"] as const;
 r.get("/hiring/pipeline", wrap(async (req, res) => {
   need(req, "hiring.manage", "all");
-  const cands = await db.select().from(A.candidates).orderBy(desc(A.candidates.createdAt));
-  const lets = await db.select({ id: A.letters.id, candidateId: A.letters.candidateId, employeeId: A.letters.employeeId, type: A.letters.type, status: A.letters.status }).from(A.letters);
-  const links = await db.select({ candidateId: A.acceptanceLinks.letterId }).from(A.acceptanceLinks);
+  // New joiners: the first 45 days after joining.
+  const since = new Date(Date.now() - 45 * 86400_000).toISOString().slice(0, 10);
+  // Independent reads run together; the per-joiner checks below run together in a second round.
+  const [cands, lets, links, onb, joiners, [{ policies }]] = await Promise.all([
+    db.select().from(A.candidates).orderBy(desc(A.candidates.createdAt)),
+    db.select({ id: A.letters.id, candidateId: A.letters.candidateId, employeeId: A.letters.employeeId, type: A.letters.type, status: A.letters.status }).from(A.letters),
+    db.select({ candidateId: A.acceptanceLinks.letterId }).from(A.acceptanceLinks),
+    db.select({ candidateId: A.onboardingLinks.candidateId, completedAt: A.onboardingLinks.completedAt }).from(A.onboardingLinks),
+    db.select().from(A.employees).where(and(sql`${A.employees.joiningDate} >= ${since}`, inArray(A.employees.status, ["active", "notice"]))),
+    db.select({ policies: sql<number>`count(*)::int` }).from(A.policies),
+  ]);
   const shared = new Set(links.map((l) => l.candidateId));
-  const onb = await db.select({ candidateId: A.onboardingLinks.candidateId, completedAt: A.onboardingLinks.completedAt }).from(A.onboardingLinks);
   const offerOf = (cid: string) => lets.filter((l) => l.candidateId === cid && (l.type === "offer_short" || l.type === "offer_full") && l.status !== "void");
   const stageOf = (c: (typeof cands)[number]): string | null => {
     if (c.status === "joined" || c.status === "declined") return null;
@@ -302,14 +309,13 @@ r.get("/hiring/pipeline", wrap(async (req, res) => {
   const pipeline = cands.map((c) => ({ id: c.id, name: c.fullName, position: c.position, expectedJoining: c.expectedJoining, status: c.status, stage: stageOf(c), createdAt: c.createdAt })).filter((c) => c.stage);
 
   // First 45 days after joining: what is still open for each new joiner.
-  const since = new Date(Date.now() - 45 * 86400_000).toISOString().slice(0, 10);
-  const joiners = await db.select().from(A.employees).where(and(sql`${A.employees.joiningDate} >= ${since}`, inArray(A.employees.status, ["active", "notice"])));
   const ids = joiners.map((e) => e.id);
-  const comp = ids.length ? await db.select({ e: A.compensation.employeeId }).from(A.compensation).where(inArray(A.compensation.employeeId, ids)) : [];
-  const assets = ids.length ? await db.select({ e: A.assetAssignments.employeeId }).from(A.assetAssignments).where(inArray(A.assetAssignments.employeeId, ids)) : [];
-  const acks = ids.length ? await db.select({ e: A.policyAcks.employeeId, n: sql<number>`count(*)::int` }).from(A.policyAcks).where(inArray(A.policyAcks.employeeId, ids)).groupBy(A.policyAcks.employeeId) : [];
-  const [{ policies }] = await db.select({ policies: sql<number>`count(*)::int` }).from(A.policies);
-  const consents = ids.length ? await db.select({ s: A.consentEvents.subjectId }).from(A.consentEvents).where(inArray(A.consentEvents.subjectId, ids.map((x) => "emp_" + x))) : [];
+  const [comp, assets, acks, consents] = ids.length ? await Promise.all([
+    db.select({ e: A.compensation.employeeId }).from(A.compensation).where(inArray(A.compensation.employeeId, ids)),
+    db.select({ e: A.assetAssignments.employeeId }).from(A.assetAssignments).where(inArray(A.assetAssignments.employeeId, ids)),
+    db.select({ e: A.policyAcks.employeeId, n: sql<number>`count(*)::int` }).from(A.policyAcks).where(inArray(A.policyAcks.employeeId, ids)).groupBy(A.policyAcks.employeeId),
+    db.select({ s: A.consentEvents.subjectId }).from(A.consentEvents).where(inArray(A.consentEvents.subjectId, ids.map((x) => "emp_" + x))),
+  ]) : [[], [], [], []];
   const newJoiners = joiners.map((e) => {
     const steps = {
       profile: !!e.profileCompletedAt, manager: !!e.managerId, salary: comp.some((x) => x.e === e.id),
