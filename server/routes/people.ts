@@ -15,6 +15,7 @@ import { nextEmployeeCode, CONSENT_PURPOSES, upcomingEvents } from "../../shared
 import { LOGIN_PURPOSE, onLoginConsent } from "../lib/loginDays";
 import { INDIAN_STATES } from "../../shared/hr/presets";
 import { missingProfileFields } from "../../shared/hr/profile";
+import { workFieldChanges } from "../../shared/hr/employeeAudit";
 import type { Role } from "../../shared/hr/access";
 import type { Actor } from "../middleware/auth";
 
@@ -250,12 +251,29 @@ r.patch("/employees/:id", wrap(async (req, res) => {
   const set: Partial<typeof S.employees.$inferInsert> = { ...rest };
   if (pan !== undefined) set.panEnc = pan ? encryptField(pan) : null;
   if (accountNumber !== undefined) set.accountEnc = accountNumber ? encryptField(accountNumber) : null;
-  const [updated] = await uniq(db.update(S.employees).set(set).where(eq(S.employees.id, id)).returning(), "Work email already in use");
+  const [before] = await db.select().from(S.employees).where(eq(S.employees.id, id)).limit(1);
+  if (!before) throw new HttpError(404, "Not found");
+  const emailChange = b.workEmail !== undefined && b.workEmail !== before.workEmail ? { from: before.workEmail, to: b.workEmail } : null;
+  const updated = await uniq(db.transaction(async (tx) => {
+    const [u] = await tx.update(S.employees).set(set).where(eq(S.employees.id, id)).returning();
+    // Login and roles are keyed by work email: carry the person's roles over so they keep their access.
+    if (u && emailChange) await tx.update(S.userRoles).set({ email: emailChange.to }).where(eq(S.userRoles.email, emailChange.from));
+    return u;
+  }), "Work email already in use");
   if (!updated) throw new HttpError(404, "Not found");
   const row = await markProfileIfComplete(updated);
   const touchesSensitive = pan !== undefined || accountNumber !== undefined || b.ifsc !== undefined || b.bankName !== undefined;
-  await logAudit(a.email, touchesSensitive ? "employee.update_sensitive" : "employee.update", "employee", id, { fields: Object.keys(b), by: admin && !own ? "hr_admin" : "self" });
   const L = await lookups();
+  const changes: Record<string, { from: unknown; to: unknown; fromName?: string | null; toName?: string | null }> = workFieldChanges(before, updated);
+  const names = { departmentId: L.dept, designationId: L.desig, locationId: L.loc } as const;
+  for (const [k, m] of Object.entries(names)) {
+    const c = changes[k];
+    if (c) { c.fromName = c.from ? m.get(String(c.from)) ?? null : null; c.toName = c.to ? m.get(String(c.to)) ?? null : null; }
+  }
+  await logAudit(a.email, touchesSensitive ? "employee.update_sensitive" : "employee.update", "employee", id, {
+    fields: Object.keys(b), by: admin && !own ? "hr_admin" : "self", ...(Object.keys(changes).length ? { changes } : {}),
+    ...(emailChange ? { rolesMovedToNewEmail: true } : {}),
+  });
   res.json({ ...work(row, L), ...personal(row), ...bankView(row) });
 }));
 
