@@ -85,10 +85,18 @@ r.put("/config/posh-committee", wrap(async (req, res) => {
   res.json({ committee: after, checks: checkPoshCommittee(after, istDate()) });
 }));
 
-const contactsSchema = z.object(Object.fromEntries(CONTACT_ROLES.map((c) => [c.key, person.nullable()])) as Record<string, z.ZodNullable<typeof person>>).strict();
+const contactsSchema = z.object(Object.fromEntries(CONTACT_ROLES.map((c) => [c.key, person.nullable().optional()])) as Record<string, z.ZodOptional<z.ZodNullable<typeof person>>>).strict();
 r.put("/config/contacts", wrap(async (req, res) => {
   gate(req);
   const b = parse(contactsSchema, req.body);
+  // Mailboxes need an e-mail address and the anonymous form needs a web link; neither is a person.
+  for (const c of CONTACT_ROLES) {
+    const x = b[c.key];
+    if (!x) continue;
+    if (c.kind === "mailbox" && !x.email) throw new HttpError(400, `${c.label}: add the e-mail address`);
+    if (c.kind === "link" && !/^https:\/\/\S+$/i.test(x.organisation ?? "")) throw new HttpError(400, `${c.label}: add a link starting with https://`);
+    if (c.kind !== "person") x.employeeId = null;
+  }
   const before = await loadContacts();
   const seats = await Promise.all(CONTACT_ROLES.filter((c) => b[c.key]).map(async (c, i) => ({ role: c.key, p: await resolve(b[c.key]!), i })));
   await replace(CONTACT_ROLES.map((c) => c.key), seats, req.actor!.email);

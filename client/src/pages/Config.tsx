@@ -11,9 +11,9 @@ import "./compliance.css";
 import "./config.css";
 
 type Emp = { id: string; name: string; email: string; phone: string | null; gender: string | null; designation: string | null };
-type ContactKey = "grievance_officer" | "dpo" | "hr_contact";
+type ContactKey = string;
 type Resp = {
-  today: string; committee: Committee; checks: Check[]; contacts: Record<ContactKey, Person | null>; contactRoles: { key: ContactKey; label: string; hint: string }[];
+  today: string; committee: Committee; checks: Check[]; contacts: Record<ContactKey, Person | null>; contactRoles: { key: ContactKey; label: string; hint: string; kind: "person" | "mailbox" | "link" }[];
   people: Emp[]; companySet: boolean; canEditCompany: boolean; canViewCompany: boolean;
 };
 type Me = { roles: string[] };
@@ -106,10 +106,18 @@ function Contacts({ d }: { d: Resp }) {
   useEffect(() => setC(d.contacts), [d.contacts]);
   const save = useMutation({ mutationFn: () => api("/config/contacts", { method: "PUT", body: Object.fromEntries(d.contactRoles.map((r) => [r.key, clean(c[r.key])])) }), onSuccess: () => qc.invalidateQueries({ queryKey: ["config"] }) });
   return <Card>
-    <div className="cfg-card-head"><div><h2>Named contacts</h2><p className="k">One person for each role. Pick from People or type in someone outside the company.</p></div></div>
+    <div className="cfg-card-head"><div><h2>Named contacts</h2><p className="k">One person or address for each role. Pick from People or type in someone outside the company. Policies use these through fields such as "Ethics officer" and "Internal Committee email".</p></div></div>
     <div className="cfg-table-wrap"><table className="cfg-table cfg-contacts">
       <thead><tr><th>Role</th><th>Person</th><th>Email</th><th>Phone</th></tr></thead>
-      <tbody>{d.contactRoles.map((r) => { const p = c[r.key]; const set = (x: Person | null) => setC({ ...c, [r.key]: x }); return <tr key={r.key}>
+      <tbody>{d.contactRoles.map((r) => { const p = c[r.key] ?? null; const set = (x: Person | null) => setC({ ...c, [r.key]: x });
+        // A mailbox is just an address and a form is just a link; they are stored without a person.
+        if (r.kind !== "person") return <tr key={r.key}>
+          <td className="cfg-role">{r.label}<span className="k">{r.hint}</span></td>
+          <td colSpan={3}>{r.kind === "mailbox"
+            ? <input type="email" aria-label={`${r.label} address`} placeholder="name@company.com" value={p?.email ?? ""} onChange={(e) => set(e.target.value.trim() ? { ...blank(), ...(p ?? {}), employeeId: null, name: r.label, email: e.target.value } : null)} />
+            : <input type="url" aria-label={`${r.label} link`} placeholder="https://…" value={p?.organisation ?? ""} onChange={(e) => set(e.target.value.trim() ? { ...blank(), ...(p ?? {}), employeeId: null, name: r.label, organisation: e.target.value } : null)} />}</td>
+        </tr>;
+        return <tr key={r.key}>
         <td className="cfg-role">{r.label}<span className="k">{r.hint}</span></td>
         <td><PersonPick label={r.label} value={p} people={d.people} onChange={set} /></td>
         <td>{p && !p.employeeId ? <input aria-label={`${r.label} email`} placeholder="Email" value={p.email ?? ""} onChange={(e) => set({ ...p, email: e.target.value })} /> : <span className="k">{p?.email ?? ""}</span>}</td>

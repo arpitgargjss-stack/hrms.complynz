@@ -12,6 +12,7 @@ import { placeholderValues } from "../lib/policyValues";
 import { PLACEHOLDERS, POLICY_STATUS_LABEL, canPublishRender, changedSince, nextPolicyStatus, placeholdersIn, renderTemplate, type PolicyAction, type PolicyStatus, type Values } from "../../shared/hr/placeholders";
 import { STARTER_TEMPLATES } from "../../shared/hr/policyTemplates";
 import { diffPolicies } from "../../shared/hr/policyDiff";
+import { convertLegacyHtml, legacyBlanks } from "../../shared/hr/legacyPolicy";
 import { emailTemplateDef, fillEmail } from "../../shared/hr/emailTemplates";
 import { textPlaceholderValues } from "../lib/policyValues";
 import { detailUpdates, renderLive, templateOf } from "../lib/policyRender";
@@ -59,7 +60,7 @@ r.get("/config/policies", wrap(async (req, res) => {
       publishedAt: pub ? (pub.publishedAt ?? pub.createdAt) : null, draft: draft ? verOut(draft) : null,
       acks: pub ? { done: emps.filter((e) => acked.has(e.id)).length, total: emps.length } : null,
       // Values are filled in live; this only says which details changed since publishing (no re-publish needed).
-      updatedSince: pub && !pub.fileId ? (pub.values ? changedSince(pub.values as Values, values) : []) : [], missing: pub && !pub.fileId ? renderLive(pub, values).missing : [] };
+      updatedSince: pub && !pub.fileId ? (pub.values ? changedSince(pub.values as Values, values) : []) : [], missing: pub && !pub.fileId ? renderLive(pub, values).missing : [], blanks: pub && !pub.fileId ? legacyBlanks(templateOf(pub)).length : 0 };
   }) });
 }));
 
@@ -75,9 +76,11 @@ r.get("/config/policies/:slug", wrap(async (req, res) => {
   const updates = pub && live ? await detailUpdates(live.used, pub.publishedAt ?? pub.createdAt) : [];
   res.json({ ceo: who(req).ceo, policy: { slug: p.slug, title: p.title, category: p.category, kind: p.kind, version: pub ? p.currentVersion : null },
     draft: draft ? { ...verOut(draft), template: draft.template } : null,
-    published: pub ? { ...verOut(pub), html: live ? live.html : sanitizeHtml(pub.html), template: live ? templateOf(pub) : null, legacy: !!live?.legacy, missing: live?.missing ?? [], unknown: live?.unknown ?? [],
+    published: pub ? { ...verOut(pub), html: live ? live.html : sanitizeHtml(pub.html), template: live ? templateOf(pub) : null, legacy: !!live?.legacy, missing: live?.missing ?? [], unknown: live?.unknown ?? [], blanks: live ? legacyBlanks(templateOf(pub)) : [],
       updatedSince: pub.values ? changedSince(pub.values as Values, values) : [], updates } : null,
-    preview: preview && { html: sanitizeHtml(preview.html), missing: preview.missing, unknown: preview.unknown },
+    preview: preview && base && { html: sanitizeHtml(preview.html), missing: preview.missing, unknown: preview.unknown, blanks: legacyBlanks(templateOf(base)) },
+    // A draft copied from an old policy may still hold [blanks] the converter can link; the editor offers to convert them.
+    convertible: draft?.template ? convertLegacyHtml(draft.template).replaced.length : 0,
     history: vs.map(verOut) });
 }));
 
@@ -94,7 +97,7 @@ r.post("/config/policies/preview", wrap(async (req, res) => {
   gate(req);
   const b = parse(z.object({ template: z.string().max(400_000) }).strict(), req.body);
   const out = renderTemplate(b.template, await placeholderValues());
-  res.json({ html: sanitizeHtml(out.html), missing: out.missing, unknown: out.unknown, used: out.used });
+  res.json({ html: sanitizeHtml(out.html), missing: out.missing, unknown: out.unknown, used: out.used, blanks: legacyBlanks(b.template) });
 }));
 
 const createSchema = z.object({ slug: slugField, title: z.string().trim().min(2).max(200), category: z.string().trim().max(60).nullable().optional(), template: z.string().max(400_000).optional(), starter: z.string().optional() }).strict();
@@ -261,6 +264,9 @@ r.post("/config/policies/:slug/:action", wrap(async (req, res) => {
   const rendered = draft.template ? renderTemplate(draft.template, values) : null;
   if ((action === "submit" || action === "publish") && rendered && !canPublishRender(rendered))
     throw new HttpError(422, `Fill these in Configuration first: ${[...rendered.missing, ...rendered.unknown.map((k) => `${k} (unknown placeholder)`)].join(", ")}`);
+  const left = draft.template ? legacyBlanks(draft.template) : [];
+  if ((action === "submit" || action === "publish") && left.length)
+    throw new HttpError(422, `Link or edit these blanks first: ${left.map((b) => `[${b}]`).join(", ")}`);
   const now = new Date();
   const patch: Partial<Ver> =
     action === "submit" ? { status: next, submittedBy: email, submittedAt: now, reviewNote: null }
