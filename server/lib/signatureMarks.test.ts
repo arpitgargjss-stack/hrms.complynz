@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { defaultStampUri, marksHtml } from "./signatureMarks";
+import { defaultStampUri, marksHtml } from "./signatureMarksHtml";
 
 test("default stamp is the bundled company stamp image", () => {
   const uri = defaultStampUri();

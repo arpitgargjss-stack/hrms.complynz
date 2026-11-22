@@ -1,4 +1,4 @@
-import { MARKS_CSS, marksHtml, type Marks } from "./signatureMarks";
+import { MARKS_CSS, marksHtml, type Marks } from "./signatureMarksHtml";
 import { readFileSync } from "node:fs";
 import { CONSENT_PURPOSES } from "../../shared/hr/misc";
 import { formatINR, amountInWords } from "../../shared/hr/money";

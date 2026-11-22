@@ -1,4 +1,4 @@
-import { marksHtml, type Marks } from "./signatureMarks";
+import { marksHtml, type Marks } from "./signatureMarksHtml";
 import { companyDocument, esc, fillIn as f } from "./letterHtml";
 import type { CompanyProfile } from "../../shared/hr/letters";
 import type { Committee, Person } from "../../shared/hr/orgRoles";

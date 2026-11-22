@@ -1,4 +1,4 @@
-import { CURSIVE_STACK } from "../lib/signatureMarks";
+import { CURSIVE_STACK } from "../lib/signatureMarksHtml";
 import { z } from "zod";
 import { amountInWords, formatINR, type Paise } from "../../shared/hr/money";
 import { leaveDaysX2, type CalendarSettings, type Holiday } from "../../shared/hr/leave";
