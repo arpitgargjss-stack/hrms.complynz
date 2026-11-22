@@ -4,6 +4,7 @@ import { asc, eq, inArray } from "drizzle-orm";
 import { db, schema } from "../db";
 import { wrap, parse, HttpError } from "./util";
 import { logAudit } from "../lib/audit";
+import { digest } from "../lib/auditTrim";
 import { need, istDate, dateStr } from "../lib/routeHelpers";
 import { CONTACT_ROLES, checkPoshCommittee, type Committee, type OrgRole, type Person } from "../../shared/hr/orgRoles";
 
@@ -79,7 +80,8 @@ r.put("/config/posh-committee", wrap(async (req, res) => {
     ...(external ? [{ role: "posh_external" as const, p: external, i: 99, ...t }] : []),
   ], req.actor!.email);
   const after = await loadCommittee();
-  await logAudit(req.actor!.email, "config.posh_committee.update", "org_roles", "posh_committee", { before, after });
+  const shape = (c: Committee) => ({ presiding: !!c.presiding, members: c.members.length, external: !!c.external, termStart: c.termStart, termEnd: c.termEnd, sha256: digest(c) });
+  await logAudit(req.actor!.email, "config.posh_committee.update", "org_roles", "posh_committee", { before: shape(before), after: shape(after) });
   res.json({ committee: after, checks: checkPoshCommittee(after, istDate()) });
 }));
 
@@ -91,7 +93,7 @@ r.put("/config/contacts", wrap(async (req, res) => {
   const seats = await Promise.all(CONTACT_ROLES.filter((c) => b[c.key]).map(async (c, i) => ({ role: c.key, p: await resolve(b[c.key]!), i })));
   await replace(CONTACT_ROLES.map((c) => c.key), seats, req.actor!.email);
   const after = await loadContacts();
-  await logAudit(req.actor!.email, "config.contacts.update", "org_roles", "contacts", { before, after });
+  await logAudit(req.actor!.email, "config.contacts.update", "org_roles", "contacts", { changed: CONTACT_ROLES.map((c) => c.key).filter((k) => digest(before[k]) !== digest(after[k])), set: CONTACT_ROLES.map((c) => c.key).filter((k) => after[k]) });
   res.json(after);
 }));
 

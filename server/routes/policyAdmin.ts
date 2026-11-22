@@ -4,6 +4,7 @@ import { and, asc, desc, eq, ne } from "drizzle-orm";
 import { db, schema } from "../db";
 import { wrap, parse, HttpError } from "./util";
 import { logAudit } from "../lib/audit";
+import { digest } from "../lib/auditTrim";
 import { need } from "../lib/routeHelpers";
 import { sanitizeHtml } from "../lib/sanitizeHtml";
 import { saveFile } from "../lib/files";
@@ -13,6 +14,7 @@ import { STARTER_TEMPLATES } from "../../shared/hr/policyTemplates";
 import { diffPolicies } from "../../shared/hr/policyDiff";
 import { emailTemplateDef, fillEmail } from "../../shared/hr/emailTemplates";
 import { textPlaceholderValues } from "../lib/policyValues";
+import { detailUpdates, renderLive, templateOf } from "../lib/policyRender";
 import { sendEmail } from "../lib/email";
 import { env } from "../env";
 
@@ -41,7 +43,7 @@ const verOut = (v: Ver) => ({ id: v.id, version: v.version, status: v.status, st
   createdAt: v.createdAt, submittedBy: v.submittedBy, submittedAt: v.submittedAt, approvedBy: v.approvedBy, approvedAt: v.approvedAt, reviewNote: v.reviewNote,
   publishedBy: v.status === "published" ? v.publishedBy : null, publishedAt: v.publishedAt ?? (v.status === "published" ? v.createdAt : null), fileId: v.fileId, hasTemplate: !!v.template });
 /** Placeholders a version depends on: from its frozen values when published, else from its template. */
-const usesOf = (v: Ver) => (v.values ? Object.keys(v.values as object) : v.template ? placeholdersIn(v.template) : []);
+const usesOf = (v: Ver) => (v.fileId ? [] : placeholdersIn(templateOf(v)));
 
 r.get("/config/policies", wrap(async (req, res) => {
   gate(req);
@@ -56,7 +58,8 @@ r.get("/config/policies", wrap(async (req, res) => {
     return { slug: p.slug, title: p.title, category: p.category, kind: p.kind, version: pub ? p.currentVersion : null,
       publishedAt: pub ? (pub.publishedAt ?? pub.createdAt) : null, draft: draft ? verOut(draft) : null,
       acks: pub ? { done: emps.filter((e) => acked.has(e.id)).length, total: emps.length } : null,
-      outOfDate: pub?.values ? changedSince(pub.values as Values, values) : [] };
+      // Values are filled in live; this only says which details changed since publishing (no re-publish needed).
+      updatedSince: pub && !pub.fileId ? (pub.values ? changedSince(pub.values as Values, values) : []) : [], missing: pub && !pub.fileId ? renderLive(pub, values).missing : [] };
   }) });
 }));
 
@@ -67,10 +70,13 @@ r.get("/config/policies/:slug", wrap(async (req, res) => {
   const draft = openDraft(vs), pub = published(vs, p.currentVersion);
   const values = await placeholderValues();
   const base = draft ?? pub;
-  const preview = base?.template ? renderTemplate(base.template, values) : null;
+  const preview = base && !base.fileId ? renderTemplate(templateOf(base), values) : null;
+  const live = pub && !pub.fileId ? renderLive(pub, values) : null;
+  const updates = pub && live ? await detailUpdates(live.used, pub.publishedAt ?? pub.createdAt) : [];
   res.json({ ceo: who(req).ceo, policy: { slug: p.slug, title: p.title, category: p.category, kind: p.kind, version: pub ? p.currentVersion : null },
     draft: draft ? { ...verOut(draft), template: draft.template } : null,
-    published: pub ? { ...verOut(pub), html: sanitizeHtml(pub.html), template: pub.template, outOfDate: pub.values ? changedSince(pub.values as Values, values) : [] } : null,
+    published: pub ? { ...verOut(pub), html: live ? live.html : sanitizeHtml(pub.html), template: live ? templateOf(pub) : null, legacy: !!live?.legacy, missing: live?.missing ?? [], unknown: live?.unknown ?? [],
+      updatedSince: pub.values ? changedSince(pub.values as Values, values) : [], updates } : null,
     preview: preview && { html: sanitizeHtml(preview.html), missing: preview.missing, unknown: preview.unknown },
     history: vs.map(verOut) });
 }));
@@ -106,13 +112,13 @@ r.post("/config/policies", wrap(async (req, res) => {
     const vs = await tx.select().from(A.policyVersions).where(eq(A.policyVersions.policyId, p.id)).orderBy(desc(A.policyVersions.version));
     if (openDraft(vs)) throw new HttpError(409, "This policy already has a draft in progress");
     const pub = published(vs, p.currentVersion);
-    const template = b.template ?? starter?.html ?? pub?.template ?? (pub ? pub.html : "<h1>" + b.title + "</h1>\n<p></p>");
+    const template = b.template ?? starter?.html ?? (pub && !pub.fileId ? templateOf(pub) : "<h1>" + b.title + "</h1>\n<p></p>");
     const version = (vs[0]?.version ?? 0) + 1;
     const [v] = await tx.insert(A.policyVersions).values({ policyId: p.id, version, html: "", template, status: "draft", publishedBy: email, createdBy: email }).returning();
     if (p.kind !== "html") await tx.update(A.policies).set({ kind: "html" }).where(eq(A.policies.id, p.id));
     return { p, v };
   });
-  await logAudit(email, "policy.draft.create", "policy", out.p.id, { slug: b.slug, version: out.v.version, starter: b.starter ?? null, after: { title: b.title, template: out.v.template } });
+  await logAudit(email, "policy.draft.create", "policy", out.p.id, { slug: b.slug, version: out.v.version, starter: b.starter ?? null, title: b.title, templateSha256: digest(out.v.template) });
   res.status(201).json({ slug: b.slug, version: out.v.version });
 }));
 
@@ -150,7 +156,9 @@ r.put("/config/policies/:slug/draft", wrap(async (req, res) => {
   await db.update(A.policyVersions).set({ template: b.template, summary: b.summary, status: next, submittedBy: null, submittedAt: null, approvedBy: null, approvedAt: null }).where(eq(A.policyVersions.id, draft.id));
   await db.update(A.policies).set({ title: b.title, category: b.category }).where(eq(A.policies.id, p.id));
   await logAudit(req.actor!.email, "policy.draft.update", "policy", p.id, { slug: p.slug, version: draft.version, statusBefore: draft.status,
-    before: { title: p.title, category: p.category, summary: draft.summary, template: draft.template }, after: { title: b.title, category: b.category, summary: b.summary, template: b.template } });
+    // Names of changed fields and a hash of the text; the policy text itself is never logged.
+    changed: [p.title !== b.title && "title", p.category !== b.category && "category", draft.summary !== b.summary && "summary", draft.template !== b.template && "text"].filter(Boolean),
+    before: { title: p.title, category: p.category, templateSha256: digest(draft.template) }, after: { title: b.title, category: b.category, templateSha256: digest(b.template) } });
   res.json({ ok: true, status: next });
 }));
 
@@ -199,7 +207,7 @@ r.post("/config/policies/:slug/remind", wrap(async (req, res) => {
     }
   }
   await db.insert(A.policyReminders).values(targets.map((e) => ({ policyId: p.id, version: p.currentVersion, employeeId: e.id, sentBy: req.actor!.email, emailed: canEmail })));
-  await logAudit(req.actor!.email, "policy.remind", "policy", p.id, { slug: p.slug, version: p.currentVersion, reminded: targets.length, emailed, employeeIds: targets.map((e) => e.id) });
+  await logAudit(req.actor!.email, "policy.remind", "policy", p.id, { slug: p.slug, version: p.currentVersion, reminded: targets.length, emailed, perPerson: !!b.employeeIds });
   res.json({ reminded: targets.length, emailed, emailAvailable: canEmail });
 }));
 /** The current person's reminders for policies they still have to acknowledge, for the Home page. */
@@ -223,7 +231,7 @@ r.get("/config/policies/:slug/compare", wrap(async (req, res) => {
   const vs = await versionsOf(p.id);
   const values = await placeholderValues();
   const text = (n: number) => { const v = vs.find((x) => x.version === n); if (!v) throw new HttpError(404, `No version ${n}`);
-    if (v.fileId) throw new HttpError(400, "PDF versions cannot be compared"); return v.status === "published" ? v.html : renderTemplate(v.template ?? "", values).html; };
+    if (v.fileId) throw new HttpError(400, "PDF versions cannot be compared"); return renderTemplate(templateOf(v), values).html; }; // same values on both sides, so only wording differences show
   const ops = diffPolicies(text(q.from), text(q.to));
   res.json({ from: q.from, to: q.to, ops, added: ops.filter((o) => o.op === "add").length, removed: ops.filter((o) => o.op === "del").length });
 }));
@@ -242,7 +250,7 @@ r.post("/config/policies/:slug/:action", wrap(async (req, res) => {
   if (action === "discard") {
     if (!who(req).editor && !who(req).ceo) throw new HttpError(403, "Not allowed");
     await db.delete(A.policyVersions).where(eq(A.policyVersions.id, draft.id));
-    await logAudit(email, "policy.draft.discard", "policy", p.id, { slug: p.slug, version: draft.version, before: { status: draft.status, template: draft.template } });
+    await logAudit(email, "policy.draft.discard", "policy", p.id, { slug: p.slug, version: draft.version, before: { status: draft.status, templateSha256: digest(draft.template) } });
     return res.json({ ok: true });
   }
   const next = nextPolicyStatus(draft.status as PolicyStatus, action, who(req));
@@ -264,7 +272,7 @@ r.post("/config/policies/:slug/:action", wrap(async (req, res) => {
     if (action === "publish") await tx.update(A.policies).set({ currentVersion: draft.version }).where(eq(A.policies.id, p.id));
   });
   await logAudit(email, `policy.${action}`, "policy", p.id, { slug: p.slug, version: draft.version, before: { status: draft.status, currentVersion: p.currentVersion },
-    after: { status: next, currentVersion: action === "publish" ? draft.version : p.currentVersion }, note: b.note ?? null, values: action === "publish" ? rendered?.snapshot ?? null : undefined });
+    after: { status: next, currentVersion: action === "publish" ? draft.version : p.currentVersion }, note: b.note ?? null, ...(action === "publish" ? { templateSha256: digest(draft.template), valuesSha256: digest(rendered?.snapshot ?? null) } : {}) });
   res.json({ ok: true, status: next });
 }));
 
