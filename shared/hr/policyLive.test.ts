@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { convertLegacyHtml, keyForBlank, legacyBlanks, replaceBlank } from "./legacyPolicy";
+import { convertLegacyHtml, keyForBlank, legacyBlanks, replaceBlank, suggestFor } from "./legacyPolicy";
 import { chipHtml, fromEditorHtml, toEditorHtml } from "./policyEditor";
 import { PLACEHOLDERS, renderTemplate, type Values } from "./placeholders";
 
@@ -72,10 +72,43 @@ test("the acknowledgement snapshot records exactly the values shown", () => {
 test("editor chips round-trip to the exact {{key}} template", () => {
   const tpl = "<h2>3. Committee</h2><p>Presiding officer: {{posh.ic.presiding_officer.name}}. Ask {{ contacts.hr_contact.name }}.</p>{{posh.ic.members}}<p>{{made.up}}</p>";
   const ed = toEditorHtml(tpl, label);
-  assert.match(ed, /contenteditable="false" data-ph="posh.ic.presiding_officer.name"[^>]*>Presiding officer</);
+  assert.match(ed, /contenteditable="false" data-ph="posh.ic.presiding_officer.name"[^>]*>POSH presiding officer: name</);
   assert.match(ed, /ph-chip ph-chip-bad[^>]*data-ph="made.up"/);
   assert.equal(fromEditorHtml(ed), tpl.replace("{{ contacts.hr_contact.name }}", "{{contacts.hr_contact.name}}"));
   // what a browser hands back after typing around a chip
   const typed = `<h2>3. Committee</h2><div>Hello ${chipHtml("company.legal_name", "Legal name")}&nbsp;team<br></div><p><br></p>`;
   assert.equal(fromEditorHtml(typed), "<h2>3. Committee</h2><p>Hello {{company.legal_name}} team</p>");
+});
+
+test("real POSH policy (fixture from the published policy files): v1 and a browser-edited v2 draft both link fully", async () => {
+  const { readFileSync } = await import("node:fs");
+  const html = readFileSync(new URL("./fixtures/posh-legacy.html", import.meta.url), "utf8");
+  const v1 = convertLegacyHtml(html);
+  assert.deepEqual(v1.replaced.map((x) => x.key), ["posh.ic.members", "posh.ic.email"]);
+  assert.deepEqual(legacyBlanks(v1.template), []);
+  // what a browser's contentEditable hands back: <tbody> added, &nbsp; around spans
+  const edited = html.replace(/<table class="g"><tr>/g, '<table class="g"><tbody><tr>').replace(/<\/tr><\/table>/g, "</tr></tbody></table>").replace(/at <span class="ph">/, "at&nbsp;<span class=\"ph\">");
+  const v2 = convertLegacyHtml(edited);
+  assert.ok(v2.template.includes("{{posh.ic.members}}"));
+  assert.ok(v2.template.includes("{{posh.ic.email}}"));
+  assert.deepEqual(legacyBlanks(v2.template), []);
+});
+
+test("suggested field for a blank left in a committee table follows the row, counting member rows", () => {
+  const t = `<table><tr><td>Presiding Officer</td><td>[Name]</td></tr><tr><td>Member (employee)</td><td>[Nm]</td></tr><tr><td>Member (employee)</td><td>[Nme]</td></tr><tr><td>External member</td><td>[N]</td></tr></table><p>Write to [hr@x.com]</p>`;
+  assert.equal(suggestFor(t, "Name"), "posh.ic.presiding_officer.name");
+  assert.equal(suggestFor(t, "Nm"), "posh.ic.members.1.name");
+  assert.equal(suggestFor(t, "Nme"), "posh.ic.members.2.name");
+  assert.equal(suggestFor(t, "N"), "posh.ic.external_member.name");
+  assert.equal(suggestFor(t, "hr@x.com"), "contacts.hr_contact.email");
+  for (const k of ["posh.ic.members.1.name", "posh.ic.members.2.name", "posh.ic.external_member.email", "contacts.dpo.name", "contacts.ethics_officer.phone"]) assert.ok(PLACEHOLDERS.some((p) => p.key === k && p.group === "People"), k);
+});
+
+test("a whole-document policy keeps its <style> and <title> outside the editor and gets them back on save", async () => {
+  const { splitHead } = await import("./policyEditor");
+  const doc = `<!doctype html><html><head><meta charset="utf-8"><title>POSH</title><style>.g{border:1px}</style></head><body><h1>POSH</h1><p>{{company.legal_name}}</p></body></html>`;
+  const { head, body } = splitHead(doc);
+  assert.equal(body, "<h1>POSH</h1><p>{{company.legal_name}}</p>");
+  assert.equal(head, `<!doctype html><title>POSH</title><style>.g{border:1px}</style><meta charset="utf-8">`);
+  assert.equal(head + fromEditorHtml(toEditorHtml(body, label)), head + body);
 });

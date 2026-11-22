@@ -5,7 +5,7 @@ import { openAuthed } from "../lib/openHtml";
 import { RichEditor } from "../lib/RichEditor";
 import { Card, ErrorNote, Field } from "../lib/ui";
 import { PLACEHOLDERS, type PlaceholderDef } from "../../../shared/hr/placeholders";
-import { convertLegacyHtml, replaceBlank } from "../../../shared/hr/legacyPolicy";
+import { replaceBlank, suggestFor } from "../../../shared/hr/legacyPolicy";
 
 type Ver = { id: string; version: number; status: string; statusLabel: string; summary: string | null; createdBy: string | null; createdAt: string; submittedBy: string | null; submittedAt: string | null;
   approvedBy: string | null; approvedAt: string | null; reviewNote: string | null; publishedBy: string | null; publishedAt: string | null; fileId: string | null; hasTemplate: boolean };
@@ -25,7 +25,7 @@ const DOC_CSS = "<style>body{font-family:Inter,system-ui,sans-serif;color:#10182
 function Doc({ html, title }: { html: string; title: string }) {
   return <iframe className="cfg-doc" title={title} sandbox="" srcDoc={DOC_CSS + html} />;
 }
-function Missing({ p, goConfig, onReplace }: { p: Preview; goConfig: (tab: string) => void; onReplace?: (blank: string, key: string) => void }) {
+function Missing({ p, goConfig, onReplace, template }: { p: Preview; goConfig: (tab: string) => void; onReplace?: (blank: string, key: string) => void; template?: string }) {
   const blanks = p.blanks ?? [];
   if (!p.missing.length && !p.unknown.length && !blanks.length) return <p className="cfg-ok-line">All fields are linked and have values. Ready to submit.</p>;
   return <div className="cfg-missing" role="status">
@@ -33,6 +33,7 @@ function Missing({ p, goConfig, onReplace }: { p: Preview; goConfig: (tab: strin
     {blanks.length > 0 && <ul>{blanks.map((b) => <li key={b}><code>[{b}]</code> is old text, not linked to Configuration.
       {onReplace && <select className="cfg-replace" aria-label={`Replace [${b}] with a field`} value="" onChange={(e) => e.target.value && onReplace(b, e.target.value)}>
         <option value="">Replace with field…</option>
+        {(() => { const k = template ? suggestFor(template, b) : null; const def = k ? PLACEHOLDERS.find((x) => x.key === k) : null; return def ? <optgroup label="Suggested"><option value={def.key}>{def.label}</option></optgroup> : null; })()}
         {[...new Set(PLACEHOLDERS.map((x) => x.group))].map((g) => <optgroup key={g} label={g}>{PLACEHOLDERS.filter((x) => x.group === g).map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}</optgroup>)}
       </select>} <span className="k">or edit the text.</span></li>)}</ul>}
     <ul>{p.missing.map((k) => { const d = PLACEHOLDERS.find((x) => x.key === k)!; const tab = d.source.includes("Company") ? "company" : d.source.includes("People") ? "people" : null;
@@ -101,8 +102,7 @@ function Editor({ slug, onBack, goConfig }: { slug: string; onBack: () => void; 
   const [f, setF] = useState({ title: "", category: "", summary: "", template: "" });
   const [note, setNote] = useState("");
   const [preview, setPreview] = useState<Preview | null>(null);
-  const [converted, setConverted] = useState<number | null>(null);
-  useEffect(() => { if (d) { setF({ title: d.policy.title, category: d.policy.category ?? "", summary: d.draft?.summary ?? "", template: d.draft?.template ?? "" }); setPreview(d.preview); setConverted(null); } }, [d]);
+  useEffect(() => { if (d) { setF({ title: d.policy.title, category: d.policy.category ?? "", summary: d.draft?.summary ?? "", template: d.draft?.template ?? "" }); setPreview(d.preview); } }, [d]);
   const dirty = !!d?.draft && (f.template !== (d.draft.template ?? "") || f.title !== d.policy.title || (f.category || null) !== d.policy.category || (f.summary || null) !== (d.draft.summary ?? null));
   // Live preview with real values, a moment after typing stops.
   useEffect(() => {
@@ -118,7 +118,6 @@ function Editor({ slug, onBack, goConfig }: { slug: string; onBack: () => void; 
   if (!d) return <Card><p className="k">Loading…</p></Card>;
   const dr = d.draft, pub = d.published, ready = !!preview && !preview.missing.length && !preview.unknown.length && !(preview.blanks ?? []).length;
   const unlinked = dr ? (preview?.blanks ?? []).length : pub?.blanks.length ?? 0;
-  const convert = () => { const r = convertLegacyHtml(f.template); setF((x) => ({ ...x, template: r.template })); setConverted(r.replaced.length); };
   const err = save.error ?? act.error ?? newVersion.error;
   return <>
     <div className="cfg-crumb"><button type="button" className="cp-link" onClick={onBack}>← All policies</button></div>
@@ -130,8 +129,7 @@ function Editor({ slug, onBack, goConfig }: { slug: string; onBack: () => void; 
     {pub && pub.updates.length > 0 && <div className="cfg-banner slate">Details updated since version {pub.version} was published: {pub.updates.map((u) => `${u.group} on ${dt(u.at)}`).join(", ")}. Employees already see the new details; no re-publish or new acknowledgement is needed.</div>}
     {pub?.legacy && <div className="cfg-banner slate">This version was published before fields existed. Its blanks have been matched to Configuration where the context was clear and fill in live.</div>}
     {!dr && pub && pub.blanks.length > 0 && <div className="cfg-banner amber"><b>{pub.blanks.length} blank{pub.blanks.length === 1 ? "" : "s"} not linked:</b> {pub.blanks.map((b) => `[${b}]`).join(", ")}. Start a new version to link them to a field or edit the text.</div>}
-    {dr && d.convertible > 0 && converted === null && <div className="cfg-banner amber"><b>This draft still has old [blanks] that can be linked to Configuration ({d.convertible}).</b> <button type="button" className="btn sm p" onClick={convert}>Convert blanks to fields</button></div>}
-    {converted !== null && <div className="cfg-banner slate">Linked {converted} blank{converted === 1 ? "" : "s"} to fields. Check the text, then Save draft.</div>}
+    {dr && d.convertible > 0 && <div className="cfg-banner slate">{d.convertible} old blank{d.convertible === 1 ? " was" : "s were"} linked to Configuration automatically (for example the committee table). They are kept when you save, submit or publish.</div>}
     {dr?.reviewNote && <div className="cfg-banner slate"><b>CEO note:</b> {dr.reviewNote}</div>}
     {err && <ErrorNote error={err} />}
 
@@ -149,7 +147,7 @@ function Editor({ slug, onBack, goConfig }: { slug: string; onBack: () => void; 
         <div className="cfg-pane">
           <div className="cfg-pane-bar"><b>Preview with current values</b></div>
           {preview && <Doc html={preview.html} title="Preview" />}
-          {preview && <Missing p={preview} goConfig={goConfig} onReplace={(b, k) => setF((x) => ({ ...x, template: replaceBlank(x.template, b, k) }))} />}
+          {preview && <Missing p={preview} template={f.template} goConfig={goConfig} onReplace={(b, k) => setF((x) => ({ ...x, template: replaceBlank(x.template, b, k) }))} />}
         </div>
       </div>
     </Card>}

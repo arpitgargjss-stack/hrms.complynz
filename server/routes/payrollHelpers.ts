@@ -1,3 +1,4 @@
+import { CURSIVE_STACK } from "../lib/signatureMarks";
 import { z } from "zod";
 import { amountInWords, formatINR, type Paise } from "../../shared/hr/money";
 import { leaveDaysX2, type CalendarSettings, type Holiday } from "../../shared/hr/leave";
@@ -189,7 +190,7 @@ export function renderAdviceHtml(v: AdviceView): string {
 <tr class="tot"><td colspan="5">Total (${esc(v.rows.length)} payments)</td><td class="n">${money(v.totalPaise)}</td></tr></table>
 <p><b>Total in words:</b> ${esc(amountInWords(v.totalPaise))}</p>
 <p>Thanking you,<br>For ${esc(v.company)}</p>
-<div style="display:flex;gap:40px;align-items:flex-end;margin-top:12px;min-height:90px">${v.signed ? `<div>${img(v.signed.signatureUri, "Signature")}</div><div>${img(v.signed.stampUri, "Company stamp")}</div>` : `<div class="muted">Not yet signed. Signature and stamp are added when the authorised signatory signs this advice.</div>`}</div>
+<div style="display:flex;gap:40px;align-items:flex-end;margin-top:12px;min-height:90px">${v.signed ? `<div>${v.signed.signatureUri ? img(v.signed.signatureUri, "Signature") : `<span style="font-family:${CURSIVE_STACK.replace(/"/g, "&quot;")};font-size:30px;color:#1d2a5b;line-height:1.1">${esc(v.signed.name)}</span>`}</div><div>${img(v.signed.stampUri, "Company stamp")}</div>` : `<div class="muted">Not yet signed. Signature and stamp are added when the authorised signatory signs this advice.</div>`}</div>
 ${v.signed ? `<p>${esc(v.signed.name)}<br>${esc(v.signed.designation)}<br><span class="muted">Signed electronically on ${esc(v.signed.at)}</span></p>` : `<p>Authorised signatory</p>`}
 <p class="muted">Contains full bank account numbers. Handle as confidential.</p>
 <p class="noprint"><button onclick="window.print()">Print / Save as PDF</button></p>

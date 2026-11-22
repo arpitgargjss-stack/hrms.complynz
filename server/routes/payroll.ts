@@ -1,3 +1,4 @@
+import { defaultStampUri } from "../lib/signatureMarks";
 import { Router, type Request } from "express";
 import { z } from "zod";
 import { and, asc, desc, eq, gte, inArray, lt, lte, sql } from "drizzle-orm";
@@ -91,7 +92,7 @@ r.get("/payroll/overview", wrap(async (req, res) => {
       { key: "rules", label: "Statutory rule set covering this month", ok: !!rule, detail: rule ? `Effective from ${rule.effectiveFrom}` : "None yet. Add PF, ESI, TDS and professional tax values under Statutory rules.", tab: "rules" },
       { key: "templates", label: "Salary templates", ok: templates > 0, detail: templates ? `${templates} template${templates > 1 ? "s" : ""}` : "No salary structure yet.", tab: "templates" },
       { key: "comp", label: "Compensation for every active employee", ok: missingComp.length === 0, detail: missingComp.length ? `${missingComp.length} missing: ${missingComp.slice(0, 4).map((e) => e.fullName).join(", ")}${missingComp.length > 4 ? "…" : ""}` : `${active.length} of ${active.length} set`, tab: "comp" },
-      { key: "sign", label: "Signatory with signature and stamp", ok: sigs.some((x) => x.signatureFileId && x.stampFileId), detail: sigs.length ? `${sigs.length} signator${sigs.length > 1 ? "ies" : "y"}` : "No signatory yet.", tab: "sign" },
+      { key: "sign", label: "Signatory with signature and stamp", ok: sigs.length > 0, detail: sigs.length ? `${sigs.length} signator${sigs.length > 1 ? "ies" : "y"}${sigs.some((x) => !x.signatureFileId || !x.stampFileId) ? "; default handwritten signature or company stamp in use until uploaded" : ""}` : "No signatory yet.", tab: "sign" },
     ],
     strip: months.map((m) => {
       const run = runs.find((x) => x.month === m);
@@ -626,7 +627,7 @@ r.get("/bank-advices/:id/html", wrap(async (req, res) => {
   let signed: Parameters<typeof renderAdviceHtml>[0]["signed"] = null;
   if (adv.signedBy && adv.signedAt) {
     const [sg] = await db.select().from(schema.signatories).where(eq(schema.signatories.email, adv.signedBy)).limit(1);
-    signed = { name: sg?.displayName ?? adv.signedBy, designation: sg?.designation ?? "", at: adv.signedAt.toISOString(), signatureUri: await dataUri(sg?.signatureFileId ?? null), stampUri: await dataUri(sg?.stampFileId ?? null) };
+    signed = { name: sg?.displayName ?? adv.signedBy, designation: sg?.designation ?? "", at: adv.signedAt.toISOString(), signatureUri: await dataUri(sg?.signatureFileId ?? null), stampUri: (await dataUri(sg?.stampFileId ?? null)) ?? defaultStampUri() }; // no stamp uploaded: the company stamp
   }
   await logAudit(actorOf(req).email, "bank_advice.view_full", "bank_advice", adv.id);
   res.setHeader("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; img-src data:; script-src 'unsafe-inline'");
@@ -653,7 +654,7 @@ r.post("/bank-advices/:id/sign", wrap(async (req, res) => {
   if (run.status === "draft") throw new HttpError(409, "Payroll run is not locked");
   const [me] = await db.select().from(schema.signatories).where(eq(schema.signatories.email, a.email)).limit(1);
   if (!me) throw new HttpError(403, "You are not a registered signatory");
-  if (!me.signatureFileId) throw new HttpError(400, "Upload your signature before signing");
+  // No signature image is fine: the advice then shows the signatory's name in handwriting-style script.
   const rows = await verifiedRows(adv, run);
   if (!rows) throw new HttpError(409, CHANGED);
   const upd = await db.update(schema.bankAdvices).set({ signedBy: a.email, signedAt: new Date() }).where(and(eq(schema.bankAdvices.id, adv.id), sql`${schema.bankAdvices.signedAt} is null`)).returning();

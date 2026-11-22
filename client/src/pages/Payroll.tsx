@@ -627,9 +627,13 @@ function Compensation() {
 }
 
 // ------------------------------------------------------------------ Signatories
+/** Same handwriting-style font stack the server uses for the default signature on letters. */
+const CURSIVE = `"Snell Roundhand","Apple Chancery","Segoe Script","Brush Script MT","Lucida Handwriting","URW Chancery L",cursive`;
 export function Signatories({ isHr, isFin }: { isHr: boolean; isFin: boolean }) {
   const qc = useQueryClient();
   const list = useQuery({ queryKey: ["signatories"], queryFn: () => api<Signatory[]>("/signatories") });
+  const who = useQuery({ queryKey: ["me"], queryFn: () => api<{ email: string }>("/me") });
+  const mine = list.data?.find((x) => x.email.toLowerCase() === (who.data?.email ?? "").toLowerCase()) ?? null;
   const [f, setF] = useState({ email: "", displayName: "", designation: "" });
   const save = useMutation({
     mutationFn: () => api("/signatories", { method: "PUT", body: { ...(isHr && f.email ? { email: f.email } : {}), displayName: f.displayName, designation: f.designation } }),
@@ -652,7 +656,7 @@ export function Signatories({ isHr, isFin }: { isHr: boolean; isFin: boolean }) 
         <ErrorNote error={list.error} />
         {list.isLoading ? <p>Loading…</p> : !list.data?.length ? <p className="k">No signatory records.</p> : (
           <div style={tableWrap}><table className="t"><thead><tr><th>Name</th><th>Designation</th><th>Email</th><th>Signature</th><th>Stamp</th></tr></thead><tbody>
-            {list.data.map((s) => <tr key={s.id}><td>{s.displayName}</td><td>{s.designation}</td><td>{s.email}</td><td>{s.hasSignature ? <Chip tone="ok">Uploaded</Chip> : <Chip tone="warn">Missing</Chip>}</td><td>{s.hasStamp ? <Chip tone="ok">Uploaded</Chip> : <Chip tone="mute">None</Chip>}</td></tr>)}
+            {list.data.map((s) => <tr key={s.id}><td>{s.displayName}</td><td>{s.designation}</td><td>{s.email}</td><td>{s.hasSignature ? <Chip tone="ok">Uploaded</Chip> : <span title="Used on letters until a signature image is uploaded"><span style={{ fontFamily: CURSIVE, fontSize: 24, color: "#1d2a5b", lineHeight: 1.1, display: "block" }}>{s.displayName}</span><span className="k">Handwritten-style name (default)</span></span>}</td><td>{s.hasStamp ? <Chip tone="ok">Uploaded</Chip> : <span style={{ display: "flex", alignItems: "center", gap: 8 }}><img src="/brand/company-stamp.png" alt="Default company stamp" width={44} height={44} /><span className="k">Default stamp (in use)</span></span>}</td></tr>)}
           </tbody></table></div>
         )}
       </Card>
@@ -669,10 +673,16 @@ export function Signatories({ isHr, isFin }: { isHr: boolean; isFin: boolean }) 
       {isFin && (
         <Card>
           <h2>My signature and stamp</h2>
-          <p className="k">PNG or JPEG. These appear on bank advice letters you sign. A signature is required before you can sign.</p>
+          <p className="k">PNG or JPEG. These appear on bank advice, offer, appointment and other letters, and the NDA, that you sign. Until you upload them, your name is written in a handwriting-style script and the company stamp is used.</p>
           <div className="grid">
-            <Field label="Signature image"><input type="file" accept="image/png,image/jpeg" onChange={(e) => { upload("signature", e.target.files?.[0]); e.target.value = ""; }} /></Field>
-            <Field label="Company stamp image"><input type="file" accept="image/png,image/jpeg" onChange={(e) => { upload("stamp", e.target.files?.[0]); e.target.value = ""; }} /></Field>
+            <div>
+              <Field label="Signature image"><input type="file" accept="image/png,image/jpeg" onChange={(e) => { upload("signature", e.target.files?.[0]); e.target.value = ""; }} /></Field>
+              {mine && !mine.hasSignature && <div className="k" style={{ marginTop: 6 }}><span style={{ fontFamily: CURSIVE, fontSize: 26, color: "#1d2a5b", display: "block", lineHeight: 1.2 }}>{mine.displayName}</span>Default signature: upload to replace</div>}
+            </div>
+            <div>
+              <Field label="Company stamp image"><input type="file" accept="image/png,image/jpeg" onChange={(e) => { upload("stamp", e.target.files?.[0]); e.target.value = ""; }} /></Field>
+              {(!mine || !mine.hasStamp) && <div className="k" style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 10 }}><img src="/brand/company-stamp.png" alt="Default company stamp" width={64} height={64} />Default stamp: upload to replace</div>}
+            </div>
           </div>
           {msg && <div className="note info" style={{ marginTop: 12 }} role="status">{msg}</div>}
         </Card>

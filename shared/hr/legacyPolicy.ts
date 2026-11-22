@@ -109,3 +109,26 @@ export function replaceBlank(template: string, blank: string, key: string): stri
 }
 /** Kept for callers that only need one blank's key from its wording. */
 export const keyForBlank = (blank: string) => BY_WORDING.find((r) => r.test.test(blank.trim()))?.key ?? null;
+
+/**
+ * Best field for a blank the converter left alone, from the row it sits in (for the "Suggested" entry in the picker).
+ * Member rows are counted so the second "Member (employee)" row suggests member 2.
+ */
+export function suggestFor(template: string, blank: string): string | null {
+  const esc = blank.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const m = new RegExp(`<span class="ph">\\s*\\[${esc}\\]\\s*</span>|\\[${esc}\\]`).exec(template);
+  if (!m) return null;
+  const at = m.index, rowStart = template.lastIndexOf("<tr", at);
+  const inRow = rowStart >= 0 && rowStart > template.lastIndexOf("</tr>", at);
+  const label = inRow ? text(template.slice(rowStart, at)) : text(template.slice(Math.max(0, at - 160), at));
+  if (isEmail(blank)) return BY_MAILBOX.find((x) => x.test.test(blank))?.key ?? (/internal committee|\bic\b/i.test(label) ? "posh.ic.email" : null);
+  if (/presiding/i.test(label)) return "posh.ic.presiding_officer.name";
+  if (/external member/i.test(label)) return "posh.ic.external_member.name";
+  if (/\bmember\b/i.test(label) && inRow) {
+    const tableStart = template.lastIndexOf("<table", at);
+    const before = template.slice(tableStart, rowStart);
+    const n = (before.match(/<tr[^>]*>\s*<td[^>]*>[^<]*\bmember\b/gi) ?? []).filter((r) => !/external|presiding/i.test(r)).length + 1;
+    return `posh.ic.members.${Math.min(n, 6)}.name`;
+  }
+  return BY_CONTEXT.find((r) => r.blank.test(blank) && r.context.test(label))?.key ?? BY_WORDING.find((r) => r.test.test(blank))?.key ?? null;
+}
