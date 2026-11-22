@@ -5,8 +5,7 @@ import { clerkHandler, requireStaff } from "./middleware/auth";
 import { HttpError } from "./routes/util";
 import { eq } from "drizzle-orm";
 import { db, schema } from "./db";
-import people, { markProfileIfComplete } from "./routes/people";
-import { missingProfileFields } from "../shared/hr/profile";
+import people, { profileStatus } from "./routes/people";
 import payroll from "./routes/payroll";
 import reimbursements from "./routes/reimbursements";
 import letters from "./routes/letters";
@@ -49,8 +48,8 @@ app.get("/api/me", async (req, res, next) => {
     if (a.employeeId) {
       const [e] = await db.select().from(schema.employees).where(eq(schema.employees.id, a.employeeId)).limit(1);
       if (e) {
-        const row = await markProfileIfComplete(e);
-        profile = { fullName: row.fullName, photoFileId: row.photoFileId, complete: !!row.profileCompletedAt, missing: missingProfileFields(row) };
+        const { row, complete, missing } = await profileStatus(e);
+        profile = { fullName: row.fullName, photoFileId: row.photoFileId, complete, missing };
       }
     }
     res.json({ email: a.email, employeeId: a.employeeId, roles: [...a.roles], profile });

@@ -16,7 +16,7 @@ import { scopeFor, canAccess, type Capability, type Scope } from "../../shared/h
 import { nextEmployeeCode, CONSENT_PURPOSES, upcomingEvents } from "../../shared/hr/misc";
 import { LOGIN_PURPOSE, onLoginConsent } from "../lib/loginDays";
 import { INDIAN_STATES } from "../../shared/hr/presets";
-import { missingProfileFields } from "../../shared/hr/profile";
+import { missingProfileFields, missingAcknowledgements, PROFILE_ACKNOWLEDGEMENTS, PROFILE_NOTICE_VERSION } from "../../shared/hr/profile";
 import { workFieldChanges } from "../../shared/hr/employeeAudit";
 import type { Role } from "../../shared/hr/access";
 import type { Actor } from "../middleware/auth";
@@ -127,8 +127,15 @@ const personal = (e: EmpRow) => ({
 /** Stamp the first-login profile as complete once every required field is filled. Returns the (possibly updated) row. */
 export async function markProfileIfComplete(row: EmpRow): Promise<EmpRow> {
   if (row.profileCompletedAt || missingProfileFields(row).length) return row;
+  if (missingAcknowledgements(await latestStatus(row.id)).length) return row; // the must-tick acknowledgements come too
   const [u] = await db.update(S.employees).set({ profileCompletedAt: new Date() }).where(eq(S.employees.id, row.id)).returning();
   return u ?? row;
+}
+/** First-login gate: complete only when every required field and every acknowledgement is in. Missing lists both. */
+export async function profileStatus(e: EmpRow): Promise<{ row: EmpRow; complete: boolean; missing: string[] }> {
+  const row = await markProfileIfComplete(e);
+  const acks = missingAcknowledgements(await latestStatus(row.id));
+  return { row, complete: !!row.profileCompletedAt && !acks.length, missing: [...missingProfileFields(row), ...acks] };
 }
 function safeMask(enc: string | null): string | null {
   if (!enc) return null;
@@ -651,6 +658,45 @@ async function latestConsent(subjectId: string) {
   for (const e of rows) if (!m.has(e.purposeKey)) m.set(e.purposeKey, e);
   return m;
 }
+async function latestStatus(employeeId: string): Promise<Map<string, string>> {
+  return new Map([...(await latestConsent(subjectOf(employeeId)))].map(([k, e]) => [k, e.status]));
+}
+const SOURCE_LABEL: Record<string, string> = { carried_from_offer: "offer acceptance", hr_app: "the HR app", profile_onboarding: "first sign-in" };
+/** What the first-login screen asks: must-tick acknowledgements plus every optional purpose, with anything already recorded. */
+r.get("/me/onboarding-consents", wrap(async (req, res) => {
+  const m = await latestConsent(subjectOf(needEmployee(req)));
+  res.json({
+    noticeVersion: PROFILE_NOTICE_VERSION,
+    acknowledgements: PROFILE_ACKNOWLEDGEMENTS.map((a) => { const e = m.get(a.key); return { key: a.key, label: a.label, done: e?.status === "granted", at: e?.at ?? null }; }),
+    optional: CONSENT_PURPOSES.filter((p) => !p.required).map((p) => {
+      const e = m.get(p.key);
+      return { key: p.key, label: p.label, retention: p.retention, status: e?.status ?? "not_set", at: e?.at ?? null, via: e ? SOURCE_LABEL[e.source] ?? null : null };
+    }),
+  });
+}));
+r.post("/me/onboarding-consents", wrap(async (req, res) => {
+  const empId = needEmployee(req);
+  const b = parse(z.object({ acknowledged: z.array(z.string().max(60)).max(20), granted: z.array(z.string().max(60)).max(20) }).strict(), req.body);
+  const subjectId = subjectOf(empId);
+  const m = await latestConsent(subjectId);
+  const ackKeys = PROFILE_ACKNOWLEDGEMENTS.map((a) => a.key as string);
+  const missing = ackKeys.filter((k) => m.get(k)?.status !== "granted" && !b.acknowledged.includes(k));
+  if (missing.length) throw new HttpError(400, "Tick every required box to continue");
+  const optional = new Set<string>(CONSENT_PURPOSES.filter((p) => !p.required).map((p) => p.key));
+  if (b.granted.some((k) => !optional.has(k))) throw new HttpError(400, "Unknown consent purpose");
+  // Nothing already on record is overwritten here: changes to earlier choices go through My privacy.
+  const rows = [
+    ...ackKeys.filter((k) => m.get(k)?.status !== "granted"),
+    ...[...new Set(b.granted)].filter((k) => !m.has(k)),
+  ].map((purposeKey) => ({ subjectId, purposeKey, status: "granted", noticeVersion: PROFILE_NOTICE_VERSION, source: "profile_onboarding", detail: { via: "first sign-in profile screen" } }));
+  if (rows.length) await db.insert(S.consentEvents).values(rows);
+  for (const r0 of rows) if (optional.has(r0.purposeKey)) sendConsentEvent({ subjectId, purposeKey: r0.purposeKey, status: "granted", noticeVersion: PROFILE_NOTICE_VERSION });
+  if (rows.some((r0) => r0.purposeKey === LOGIN_PURPOSE)) await onLoginConsent(empId, true);
+  await logAudit(actorOf(req).email, "profile.onboarding_consents", "employee", empId, { recorded: rows.map((r0) => r0.purposeKey) });
+  const [e] = await db.select().from(S.employees).where(eq(S.employees.id, empId)).limit(1);
+  const st = e ? await profileStatus(e) : null;
+  res.json({ recorded: rows.length, complete: st?.complete ?? false, missing: st?.missing ?? [] });
+}));
 r.get("/me/consents", wrap(async (req, res) => {
   const m = await latestConsent(subjectOf(needEmployee(req)));
   res.json(CONSENT_PURPOSES.map((p) => {

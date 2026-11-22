@@ -12,6 +12,7 @@ import {
   FEED_PURPOSE, FEED_KIND_LABEL, REACTIONS, feedPostInput, linkHost, type Audience, type VibeSectionKey, type FeedKind,
 } from "../../shared/hr/vibe";
 import { CONSENT_PURPOSES } from "../../shared/hr/misc";
+import { PROFILE_ACKNOWLEDGEMENTS } from "../../shared/hr/profile";
 import { toXlsx } from "../lib/xlsx";
 
 const r = Router();
@@ -284,7 +285,7 @@ r.delete("/feed/:id", wrap(async (req, res) => {
 // My privacy: consents, receipts, policies and agreements in one place
 // =====================================================================
 const purposeLabel = (key: string) =>
-  key === VIBE_PURPOSE ? "Sharing my vibe page" : sectionLabel(key) ? `Vibe page: ${sectionLabel(key)}` : key === FEED_PURPOSE ? "Team feed post" : key === "kudos_post" ? "Kudos posted under my name" : CONSENT_PURPOSES.find((p) => p.key === key)?.label ?? key;
+  key === VIBE_PURPOSE ? "Sharing my vibe page" : sectionLabel(key) ? `Vibe page: ${sectionLabel(key)}` : key === FEED_PURPOSE ? "Team feed post" : key === "kudos_post" ? "Kudos posted under my name" : CONSENT_PURPOSES.find((p) => p.key === key)?.label ?? PROFILE_ACKNOWLEDGEMENTS.find((a) => a.key === key)?.short ?? key;
 
 r.get("/me/privacy", wrap(async (req, res) => {
   const me = selfId(req);

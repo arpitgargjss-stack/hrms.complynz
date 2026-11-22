@@ -174,14 +174,13 @@ function Shell() {
   useBindAuth();
   const [loc] = useLocation();
   const me = useQuery({ queryKey: ["me"], queryFn: () => api<Me>("/me") });
-  // "Skip for now" lasts for this browser session; the prompt comes back on the next login until the profile is complete.
-  const [skipped, setSkipped] = useState(() => { try { return sessionStorage.getItem(SKIP_KEY) === "1"; } catch { return false; } });
+  const signOut = useSignOut();
   if (me.isLoading) return <p style={{ padding: 24 }}>Loading…</p>;
   if (me.error) return <p style={{ padding: 24 }} role="alert">{(me.error as Error).message}</p>;
   const roles = new Set(me.data!.roles);
-  if (me.data!.employeeId && me.data!.profile && !me.data!.profile.complete && !skipped) {
-    const skip = () => { try { sessionStorage.setItem(SKIP_KEY, "1"); } catch { /* private mode */ } setSkipped(true); };
-    return <Suspense fallback={<p style={{ padding: 24 }}>Loading…</p>}><P.CompleteProfile id={me.data!.employeeId} onSkip={skip} /></Suspense>;
+  // Mandatory: no skip. Nothing else in the app opens until the profile and the required acknowledgements are in.
+  if (me.data!.employeeId && me.data!.profile && !me.data!.profile.complete) {
+    return <Suspense fallback={<p style={{ padding: 24 }}>Loading…</p>}><P.CompleteProfile id={me.data!.employeeId} onSignOut={signOut} /></Suspense>;
   }
   return (
     <div className="shell">
