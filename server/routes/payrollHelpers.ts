@@ -173,7 +173,7 @@ ${empl.length ? `<h2>Employer contributions (not paid to employee)</h2><table>${
 
 export interface AdviceView {
   company: string; refNo: string; month: string; date: string;
-  to: { bank: string; branch: string; city: string; debitAccount: string };
+  to: { bank: string; branch: string; city: string; debitAccount: string; ifsc?: string };
   rows: AdviceRow[]; totalPaise: Paise;
   signed: { name: string; designation: string; at: string; signatureUri: string | null; stampUri: string | null } | null;
 }
@@ -182,7 +182,7 @@ export function renderAdviceHtml(v: AdviceView): string {
   const img = (uri: string | null, alt: string) => (uri && /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(uri) ? `<img alt="${esc(alt)}" src="${uri}" style="max-height:80px;max-width:200px">` : "");
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bank advice ${esc(v.refNo)}</title><style>${BASE_CSS}</style></head><body><div class="sheet">
 <div class="head"><div><h1>${esc(v.company)}</h1></div><div style="text-align:right"><div>Ref: <b>${esc(v.refNo)}</b></div><div>Date: ${esc(v.date)}</div></div></div>
-<p>To,<br>The Manager<br>${esc(v.to.bank)}<br>${esc(v.to.branch)}<br>${esc(v.to.city)}</p>
+<p>To,<br>The Manager<br>${esc(v.to.bank)}<br>${esc(v.to.branch)}<br>${esc(v.to.city)}${v.to.ifsc ? `<br>IFSC: ${esc(v.to.ifsc)}` : ""}</p>
 <p><b>Subject: Salary payment for ${esc(monthLabel(v.month))}</b></p>
 <p>Dear Sir or Madam,</p>
 <p>Please debit our account number ${esc(v.to.debitAccount)} maintained with you for the total amount of INR ${money(v.totalPaise)} and credit the salaries of the employees listed below to their respective bank accounts.</p>

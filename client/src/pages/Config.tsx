@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { Card, ErrorNote, Field, Page } from "../lib/ui";
 import { Company } from "./Letters";
-import { Signatories } from "./Payroll";
+import { CompanyBank, Signatories } from "./Payroll";
 import { PlaceholdersTab, PoliciesTab } from "./ConfigPolicies";
 import { OnboardingTab, PayTab, TemplatesTab, TimeTab } from "./ConfigMore";
 import type { Check, Committee, Gender, Person } from "../../../shared/hr/orgRoles";
@@ -180,6 +180,7 @@ export default function Config() {
         {tab === "company" && <>
           {q.data.canViewCompany ? <Company ceo={q.data.canEditCompany} /> : <Card><h2>Company details</h2><p className="k">Only HR admin and the CEO can view the company details printed on letters.</p></Card>}
           <Signatories isHr={roles.has("hr_admin")} isFin={roles.has("finance_signatory")} />
+          <CompanyBank />
         </>}
         {tab === "people" && <><PoshCommittee d={q.data} /><Contacts d={q.data} /></>}
         {tab === "policies" && <PoliciesTab goConfig={setTab} />}

@@ -97,6 +97,11 @@ export const bankAdvices = pgTable("hr_bank_advices", {
   signedBy: text("signed_by"), signedAt: timestamp("signed_at", { withTimezone: true }), pdfFileId: uuid("pdf_file_id"),
   rows: jsonb("rows").notNull(), createdBy: text("created_by").notNull(), createdAt: created(),
 });
+/** The company's own salary (debit) account, printed on bank advices. A new row per change; the latest row is current. The account number is encrypted. */
+export const companyBank = pgTable("hr_company_bank", {
+  id: serial("id").primaryKey(), bankName: text("bank_name").notNull(), branch: text("branch").notNull().default(""), city: text("city").notNull().default(""),
+  ifsc: text("ifsc").notNull().default(""), accountEnc: text("account_enc"), updatedBy: text("updated_by").notNull(), updatedAt: created(),
+});
 
 // ---------- letters, hiring, onboarding ----------
 export const candidates = pgTable("hr_candidates", {

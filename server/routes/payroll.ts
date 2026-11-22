@@ -7,7 +7,7 @@ import { scopeFor, canAccess } from "../../shared/hr/access";
 import { computeSalary, resolveComponents, type ComponentDef, type SalaryResult, type StatutoryRules } from "../../shared/hr/payroll";
 import { buildAdvice, toCsv, type AdviceRow } from "../../shared/hr/bankAdvice";
 import { paidDaysX2 } from "../../shared/hr/leave";
-import { decryptField, safeEqualHex } from "../lib/crypto";
+import { decryptField, encryptField, safeEqualHex } from "../lib/crypto";
 import { logAudit } from "../lib/audit";
 import { saveFile, readFileBytes } from "../lib/files";
 import { toXlsx } from "../lib/xlsx";
@@ -534,6 +534,40 @@ r.post("/signatories/me/assets", wrap(async (req, res) => {
 }));
 
 // ============================================================ bank advice
+/** The company's saved debit account (Configuration → Company → Company bank account). */
+async function companyBankRow() {
+  const [row] = await db.select().from(schema.companyBank).orderBy(desc(schema.companyBank.id)).limit(1);
+  return row ?? null;
+}
+const savedAccount = (row: typeof schema.companyBank.$inferSelect | null): string | null => {
+  if (!row?.accountEnc) return null;
+  try { return decryptField(row.accountEnc); } catch { return null; }
+};
+const companyBankOut = (row: typeof schema.companyBank.$inferSelect | null) => {
+  const acc = savedAccount(row);
+  return { bankName: row?.bankName ?? "", branch: row?.branch ?? "", city: row?.city ?? "", ifsc: row?.ifsc ?? "", accountMasked: acc ? maskAccount(acc) : null, updatedBy: row?.updatedBy ?? null, updatedAt: row?.updatedAt ?? null };
+};
+
+r.get("/payroll/company-bank", wrap(async (req, res) => {
+  if (!canViewPayroll(req)) deny();
+  res.json(companyBankOut(await companyBankRow()));
+}));
+
+r.put("/payroll/company-bank", wrap(async (req, res) => {
+  if (!canViewPayroll(req)) deny();
+  const b = parse(z.object({
+    bankName: z.string().trim().min(2).max(120), branch: z.string().trim().max(160).default(""), city: z.string().trim().max(120).default(""),
+    ifsc: z.string().trim().toUpperCase().refine((v) => v === "" || /^[A-Z]{4}0[A-Z0-9]{6}$/.test(v), "IFSC should look like HDFC0001234").default(""),
+    accountNo: z.string().trim().transform((v) => v.replace(/\s+/g, "")).refine((v) => v === "" || /^\d{9,18}$/.test(v), "Account number should be 9 to 18 digits").optional(),
+  }), req.body);
+  const prev = await companyBankRow();
+  const accountEnc = b.accountNo ? encryptField(b.accountNo) : prev?.accountEnc ?? null; // left blank: keep the saved number
+  const [row] = await db.insert(schema.companyBank).values({ bankName: b.bankName, branch: b.branch, city: b.city, ifsc: b.ifsc, accountEnc, updatedBy: actorOf(req).email }).returning();
+  const out = companyBankOut(row);
+  await logAudit(actorOf(req).email, "company_bank.update", "company_bank", String(row.id), { bankName: out.bankName, branch: out.branch, city: out.city, ifsc: out.ifsc, account: out.accountMasked, accountChanged: !!b.accountNo });
+  res.json(out);
+}));
+
 type RunRow = typeof schema.payrollRuns.$inferSelect;
 
 /** Rebuild the advice from live payslip + employee data. Full account numbers exist only in memory here. */
@@ -622,8 +656,9 @@ r.get("/bank-advices/:id/html", wrap(async (req, res) => {
   if (!rows) throw new HttpError(409, CHANGED);
   const q = parse(z.object({
     bank: z.string().max(120).optional(), branch: z.string().max(160).optional(), city: z.string().max(120).optional(),
-    debitAccount: z.string().max(40).optional(), date: isoDate.optional(),
+    debitAccount: z.string().max(40).optional(), ifsc: z.string().max(20).optional(), date: isoDate.optional(),
   }), req.query);
+  const cb = await companyBankRow(); // saved in Configuration → Company; anything typed on the advice wins
   let signed: Parameters<typeof renderAdviceHtml>[0]["signed"] = null;
   if (adv.signedBy && adv.signedAt) {
     const [sg] = await db.select().from(schema.signatories).where(eq(schema.signatories.email, adv.signedBy)).limit(1);
@@ -633,7 +668,8 @@ r.get("/bank-advices/:id/html", wrap(async (req, res) => {
   res.setHeader("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; img-src data:; script-src 'unsafe-inline'");
   res.type("html").send(renderAdviceHtml({
     company: COMPANY, refNo: adv.refNo, month: run.month, date: q.date ?? todayIst(),
-    to: { bank: q.bank ?? "[Bank name]", branch: q.branch ?? "[Branch]", city: q.city ?? "[City]", debitAccount: q.debitAccount ?? "[Company account number]" }, rows, totalPaise: adv.totalPaise, signed,
+    to: { bank: q.bank ?? cb?.bankName ?? "[Bank name]", branch: q.branch ?? (cb?.branch || "[Branch]"), city: q.city ?? (cb?.city || "[City]"),
+      debitAccount: q.debitAccount ?? savedAccount(cb) ?? "[Company account number]", ifsc: q.ifsc ?? (cb?.ifsc || undefined) }, rows, totalPaise: adv.totalPaise, signed,
   }));
 }));
 

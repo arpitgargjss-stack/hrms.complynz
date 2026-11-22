@@ -18,6 +18,7 @@ type RunDetail = {
 type Advice = { id: string; runId: string; refNo: string; totalPaise: number; rowCount: number; contentHash: string; signedBy: string | null; signedAt: string | null; createdAt: string };
 type AdviceDetail = Advice & { month: string; integrity: "ok" | "changed"; rows: { srNo: number; name: string; bankName: string; accountNo: string; ifsc: string; amountPaise: number }[] };
 type Template = { id: string; name: string; components: Component[] };
+type CompanyBankInfo = { bankName: string; branch: string; city: string; ifsc: string; accountMasked: string | null; updatedBy: string | null; updatedAt: string | null };
 type Component = { code: string; name: string; calc: { type: "fixed"; amount: number } | { type: "percent"; of: string; bps: number } | { type: "balance" }; pfWage?: boolean; taxable?: boolean };
 type Employee = { id: string; code: string; fullName: string };
 type Signatory = { id: string; email: string; displayName: string; designation: string; hasSignature: boolean; hasStamp: boolean };
@@ -319,7 +320,8 @@ function BankAdvice({ canSign }: { canSign: boolean }) {
 function AdviceView({ id, canSign }: { id: string; canSign: boolean }) {
   const qc = useQueryClient();
   const d = useQuery({ queryKey: ["bank-advice", id], queryFn: () => api<AdviceDetail>(`/bank-advices/${id}`) });
-  const [f, setF] = useState({ bank: "", branch: "", city: "", debitAccount: "", date: today() });
+  const [f, setF] = useState({ bank: "", branch: "", city: "", ifsc: "", debitAccount: "", date: today() });
+  const cb = useQuery({ queryKey: ["company-bank"], queryFn: () => api<CompanyBankInfo>("/payroll/company-bank") }).data;
   const [err, setErr] = useState<string | null>(null);
   const sign = useMutation({ mutationFn: () => api(`/bank-advices/${id}/sign`, { method: "POST", body: {} }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["bank-advice", id] }); qc.invalidateQueries({ queryKey: ["bank-advices"] }); } });
   if (d.isLoading) return <Card><p>Loading…</p></Card>;
@@ -350,11 +352,13 @@ function AdviceView({ id, canSign }: { id: string; canSign: boolean }) {
         {a.rows.map((r) => <tr key={r.srNo}><td>{r.srNo}</td><td>{r.name}</td><td>{r.bankName}</td><td>{r.accountNo}</td><td>{r.ifsc}</td><td>{inr(r.amountPaise)}</td></tr>)}
       </tbody></table></div>
       <h2 style={{ marginTop: 16 }}>Letter details</h2>
+      <p className="k">{cb?.bankName ? "Blank fields use the company bank account saved in Configuration → Company. Type here to use different details on this advice only." : "Tip: save the company bank account in Configuration → Company so these fill in on every advice."}</p>
       <div className="grid">
-        <Field label="Bank"><input value={f.bank} onChange={set("bank")} /></Field>
-        <Field label="Branch"><input value={f.branch} onChange={set("branch")} /></Field>
-        <Field label="City"><input value={f.city} onChange={set("city")} /></Field>
-        <Field label="Debit account number"><input value={f.debitAccount} onChange={set("debitAccount")} inputMode="numeric" /></Field>
+        <Field label="Bank"><input value={f.bank} onChange={set("bank")} placeholder={cb?.bankName || ""} /></Field>
+        <Field label="Branch"><input value={f.branch} onChange={set("branch")} placeholder={cb?.branch || ""} /></Field>
+        <Field label="City"><input value={f.city} onChange={set("city")} placeholder={cb?.city || ""} /></Field>
+        <Field label="IFSC"><input value={f.ifsc} onChange={set("ifsc")} placeholder={cb?.ifsc || ""} /></Field>
+        <Field label="Debit account number"><input value={f.debitAccount} onChange={set("debitAccount")} inputMode="numeric" placeholder={cb?.accountMasked ? `Saved ${cb.accountMasked}` : ""} /></Field>
         <Field label="Date"><input type="date" value={f.date} onChange={set("date")} /></Field>
       </div>
       <div className="row-gap" style={{ marginTop: 16 }}>
@@ -629,6 +633,38 @@ function Compensation() {
 // ------------------------------------------------------------------ Signatories
 /** Same handwriting-style font stack the server uses for the default signature on letters. */
 const CURSIVE = `"Snell Roundhand","Apple Chancery","Segoe Script","Brush Script MT","Lucida Handwriting","URW Chancery L",cursive`;
+/** The company's salary (debit) account, used on every bank advice. Hidden for people who cannot generate advices. */
+export function CompanyBank() {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ["company-bank"], queryFn: () => api<CompanyBankInfo>("/payroll/company-bank"), retry: false });
+  const [f, setF] = useState<{ bankName: string; branch: string; city: string; ifsc: string; accountNo: string } | null>(null);
+  const save = useMutation({
+    mutationFn: (b: NonNullable<typeof f>) => api<CompanyBankInfo>("/payroll/company-bank", { method: "PUT", body: b }),
+    onSuccess: () => { setF(null); qc.invalidateQueries({ queryKey: ["company-bank"] }); },
+  });
+  if (q.error || !q.data) return null;
+  const d = q.data, v = f ?? { bankName: d.bankName, branch: d.branch, city: d.city, ifsc: d.ifsc, accountNo: "" };
+  const set = (k: keyof typeof v) => (e: { target: { value: string } }) => setF({ ...v, [k]: e.target.value });
+  return <Card>
+    <h2>Company bank account</h2>
+    <p className="k">The account salaries are paid from. Every bank advice is addressed to this bank and asks it to debit this account; you can still change the details on a single advice. The account number is stored encrypted and shown masked.</p>
+    <div className="grid">
+      <Field label="Bank name"><input value={v.bankName} onChange={set("bankName")} placeholder="HDFC Bank" /></Field>
+      <Field label="Branch"><input value={v.branch} onChange={set("branch")} /></Field>
+      <Field label="City"><input value={v.city} onChange={set("city")} /></Field>
+      <Field label="IFSC"><input value={v.ifsc} onChange={set("ifsc")} placeholder="HDFC0001234" /></Field>
+      <Field label={d.accountMasked ? `Account number (saved ${d.accountMasked})` : "Account number"}>
+        <input value={v.accountNo} onChange={set("accountNo")} inputMode="numeric" autoComplete="off" placeholder={d.accountMasked ? "Blank keeps the saved number" : ""} /></Field>
+    </div>
+    <div className="row-gap" style={{ marginTop: 12 }}>
+      <button className="btn p" disabled={!f || save.isPending || !v.bankName.trim()} onClick={() => save.mutate(v)}>{save.isPending ? "Saving…" : "Save bank account"}</button>
+      {f && <button className="btn" onClick={() => setF(null)}>Discard changes</button>}
+      {d.updatedAt && <span className="k">Last changed by {d.updatedBy} on {new Date(d.updatedAt).toLocaleDateString("en-IN")}</span>}
+    </div>
+    <ErrorNote error={save.error} />
+  </Card>;
+}
+
 export function Signatories({ isHr, isFin }: { isHr: boolean; isFin: boolean }) {
   const qc = useQueryClient();
   const list = useQuery({ queryKey: ["signatories"], queryFn: () => api<Signatory[]>("/signatories") });
