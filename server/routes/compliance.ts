@@ -10,6 +10,7 @@ import { COMPANY_DEFAULTS, type CompanyProfile } from "../../shared/hr/letters";
 import { INDIAN_STATES } from "../../shared/hr/presets";
 import { renderComplianceTemplate } from "../lib/complianceTemplates";
 import { loadCommittee } from "./config";
+import { signatoryMarks } from "../lib/signatureMarks";
 import { checkPoshCommittee } from "../../shared/hr/orgRoles";
 
 /**
@@ -135,7 +136,7 @@ r.get("/compliance/templates/:key", wrap(async (req, res) => {
   const co = { ...COMPANY_DEFAULTS, ...((row?.settings ?? {}) as Partial<CompanyProfile>) };
   const c = await counts();
   const committee = String(req.params.key) === "posh_ic" ? await loadCommittee() : null; // members come from Admin configuration
-  const html = renderComplianceTemplate(String(req.params.key), co, { year: String(Number(istDate().slice(0, 4)) - (istDate().slice(5, 7) === "01" ? 1 : 0)), ...c, committee });
+  const html = renderComplianceTemplate(String(req.params.key), co, { year: String(Number(istDate().slice(0, 4)) - (istDate().slice(5, 7) === "01" ? 1 : 0)), ...c, committee, marks: await signatoryMarks(co.signatoryName) });
   if (!html) throw new HttpError(404, "No template for this item");
   res.type("html").send(html);
 }));

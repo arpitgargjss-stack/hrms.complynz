@@ -10,7 +10,8 @@ import { sanitizeHtml } from "./sanitizeHtml";
  * templates existed (no `template`) is read through the legacy converter, so its [blanks] fill in too.
  */
 type Ver = { template: string | null; html: string; fileId?: string | null };
-export const templateOf = (v: Ver) => v.template ?? convertLegacyHtml(v.html).template;
+/** The text to render: a template, or old HTML. Either way, old [blanks] the converter can link are linked (idempotent). */
+export const templateOf = (v: Ver) => convertLegacyHtml(v.template ?? v.html).template;
 export function renderLive(v: Ver, values: Values) {
   const r = renderTemplate(templateOf(v), values);
   const html = sanitizeHtml(r.html);
@@ -25,7 +26,8 @@ export async function valueUpdatedAt(): Promise<Record<string, Date | null>> {
     db.select({ at: schema.reimbursementPolicy.updatedAt }).from(schema.reimbursementPolicy).orderBy(desc(schema.reimbursementPolicy.id)).limit(1),
   ]);
   const latest = (pred: (r: string) => boolean) => roles.filter((r) => pred(r.role)).reduce<Date | null>((m, r) => (!m || r.at > m ? r.at : m), null);
-  return { "POSH committee": latest((r) => r.startsWith("posh_")), Contacts: latest((r) => !r.startsWith("posh_")), Company: co?.at ?? null, Reimbursement: reimb?.at ?? null, Leave: null };
+  return { "POSH committee": latest((r) => r.startsWith("posh_") || r === "ic_mailbox"), People: latest(() => true), "Mailboxes and links": latest((r) => !r.startsWith("posh_")),
+    Company: co?.at ?? null, Reimbursement: reimb?.at ?? null, Leave: null };
 }
 /** Groups of values a policy uses that changed after `since`, e.g. "POSH committee changed on 22 Nov 2026". */
 export async function detailUpdates(keys: string[], since: Date | null) {

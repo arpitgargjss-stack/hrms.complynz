@@ -1,3 +1,4 @@
+import { CURSIVE_STACK } from "../lib/signatureMarksHtml";
 import { z } from "zod";
 import { amountInWords, formatINR, type Paise } from "../../shared/hr/money";
 import { leaveDaysX2, type CalendarSettings, type Holiday } from "../../shared/hr/leave";
@@ -172,7 +173,7 @@ ${empl.length ? `<h2>Employer contributions (not paid to employee)</h2><table>${
 
 export interface AdviceView {
   company: string; refNo: string; month: string; date: string;
-  to: { bank: string; branch: string; city: string; debitAccount: string };
+  to: { bank: string; branch: string; city: string; debitAccount: string; ifsc?: string };
   rows: AdviceRow[]; totalPaise: Paise;
   signed: { name: string; designation: string; at: string; signatureUri: string | null; stampUri: string | null } | null;
 }
@@ -181,7 +182,7 @@ export function renderAdviceHtml(v: AdviceView): string {
   const img = (uri: string | null, alt: string) => (uri && /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(uri) ? `<img alt="${esc(alt)}" src="${uri}" style="max-height:80px;max-width:200px">` : "");
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bank advice ${esc(v.refNo)}</title><style>${BASE_CSS}</style></head><body><div class="sheet">
 <div class="head"><div><h1>${esc(v.company)}</h1></div><div style="text-align:right"><div>Ref: <b>${esc(v.refNo)}</b></div><div>Date: ${esc(v.date)}</div></div></div>
-<p>To,<br>The Manager<br>${esc(v.to.bank)}<br>${esc(v.to.branch)}<br>${esc(v.to.city)}</p>
+<p>To,<br>The Manager<br>${esc(v.to.bank)}<br>${esc(v.to.branch)}<br>${esc(v.to.city)}${v.to.ifsc ? `<br>IFSC: ${esc(v.to.ifsc)}` : ""}</p>
 <p><b>Subject: Salary payment for ${esc(monthLabel(v.month))}</b></p>
 <p>Dear Sir or Madam,</p>
 <p>Please debit our account number ${esc(v.to.debitAccount)} maintained with you for the total amount of INR ${money(v.totalPaise)} and credit the salaries of the employees listed below to their respective bank accounts.</p>
@@ -189,7 +190,7 @@ export function renderAdviceHtml(v: AdviceView): string {
 <tr class="tot"><td colspan="5">Total (${esc(v.rows.length)} payments)</td><td class="n">${money(v.totalPaise)}</td></tr></table>
 <p><b>Total in words:</b> ${esc(amountInWords(v.totalPaise))}</p>
 <p>Thanking you,<br>For ${esc(v.company)}</p>
-<div style="display:flex;gap:40px;align-items:flex-end;margin-top:12px;min-height:90px">${v.signed ? `<div>${img(v.signed.signatureUri, "Signature")}</div><div>${img(v.signed.stampUri, "Company stamp")}</div>` : `<div class="muted">Not yet signed. Signature and stamp are added when the authorised signatory signs this advice.</div>`}</div>
+<div style="display:flex;gap:40px;align-items:flex-end;margin-top:12px;min-height:90px">${v.signed ? `<div>${v.signed.signatureUri ? img(v.signed.signatureUri, "Signature") : `<span style="font-family:${CURSIVE_STACK.replace(/"/g, "&quot;")};font-size:30px;color:#1d2a5b;line-height:1.1">${esc(v.signed.name)}</span>`}</div><div>${img(v.signed.stampUri, "Company stamp")}</div>` : `<div class="muted">Not yet signed. Signature and stamp are added when the authorised signatory signs this advice.</div>`}</div>
 ${v.signed ? `<p>${esc(v.signed.name)}<br>${esc(v.signed.designation)}<br><span class="muted">Signed electronically on ${esc(v.signed.at)}</span></p>` : `<p>Authorised signatory</p>`}
 <p class="muted">Contains full bank account numbers. Handle as confidential.</p>
 <p class="noprint"><button onclick="window.print()">Print / Save as PDF</button></p>

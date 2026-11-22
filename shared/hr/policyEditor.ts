@@ -24,3 +24,18 @@ export function fromEditorHtml(html: string): string {
     .replace(/&nbsp;/g, " ")
     .trim();
 }
+
+/**
+ * Policies uploaded as whole HTML documents carry a <style>, <title> and <meta> block. The editor edits only the
+ * readable body (a <style> inside the editor would restyle the whole app); the head part is kept and put back on save.
+ */
+export function splitHead(template: string): { head: string; body: string } {
+  const parts: string[] = [];
+  const body = template
+    .replace(/<!doctype[^>]*>/gi, (m) => { parts.push(m); return ""; })
+    .replace(/<(style|title)\b[^>]*>[\s\S]*?<\/\1>/gi, (m) => { parts.push(m); return ""; })
+    .replace(/<(meta|link)\b[^>]*>/gi, (m) => { parts.push(m); return ""; })
+    .replace(/<\/?(html|head|body)\b[^>]*>/gi, "")
+    .trim();
+  return { head: parts.join(""), body };
+}

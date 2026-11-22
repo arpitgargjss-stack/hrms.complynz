@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { PLACEHOLDERS } from "../../../shared/hr/placeholders";
-import { chipHtml, fromEditorHtml, toEditorHtml } from "../../../shared/hr/policyEditor";
+import { chipHtml, fromEditorHtml, splitHead, toEditorHtml } from "../../../shared/hr/policyEditor";
 
 /**
  * A plain visual editor for policy text: headings, bold, italic, lists, links and tables, with "Insert field" adding
@@ -16,15 +16,18 @@ export function RichEditor({ value, onChange, disabled, label }: { value: string
   const range = useRef<Range | null>(null);
   const [source, setSource] = useState(false);
   const [block, setBlock] = useState("p");
+  const head = useRef("");
 
   // Load text from outside (opening a draft, discarding changes) without fighting the caret while typing.
   useEffect(() => {
     if (source || !ref.current || value === last.current) return;
-    ref.current.innerHTML = toEditorHtml(value, labelOf);
+    const parts = splitHead(value);
+    head.current = parts.head; // the policy's own <style>/<title>, kept out of the editor and put back on save
+    ref.current.innerHTML = toEditorHtml(parts.body, labelOf);
     last.current = value;
   }, [value, source]);
 
-  const emit = () => { if (!ref.current) return; const t = fromEditorHtml(ref.current.innerHTML); last.current = t; onChange(t); };
+  const emit = () => { if (!ref.current) return; const t = head.current + fromEditorHtml(ref.current.innerHTML); last.current = t; onChange(t); };
   const keep = () => { const s = window.getSelection(); if (s && s.rangeCount && ref.current?.contains(s.anchorNode)) range.current = s.getRangeAt(0).cloneRange(); };
   const restore = () => { ref.current?.focus(); const s = window.getSelection(); if (range.current && s) { s.removeAllRanges(); s.addRange(range.current); } };
   const run = (cmd: string, arg?: string) => { restore(); exec(cmd, arg); emit(); keep(); };

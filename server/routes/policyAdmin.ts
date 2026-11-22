@@ -75,7 +75,8 @@ r.get("/config/policies/:slug", wrap(async (req, res) => {
   const live = pub && !pub.fileId ? renderLive(pub, values) : null;
   const updates = pub && live ? await detailUpdates(live.used, pub.publishedAt ?? pub.createdAt) : [];
   res.json({ ceo: who(req).ceo, policy: { slug: p.slug, title: p.title, category: p.category, kind: p.kind, version: pub ? p.currentVersion : null },
-    draft: draft ? { ...verOut(draft), template: draft.template } : null,
+    // Drafts copied from old text open with their blanks already linked; saving keeps that, submit and publish use it too.
+    draft: draft ? { ...verOut(draft), template: draft.fileId ? null : templateOf(draft) } : null,
     published: pub ? { ...verOut(pub), html: live ? live.html : sanitizeHtml(pub.html), template: live ? templateOf(pub) : null, legacy: !!live?.legacy, missing: live?.missing ?? [], unknown: live?.unknown ?? [], blanks: live ? legacyBlanks(templateOf(pub)) : [],
       updatedSince: pub.values ? changedSince(pub.values as Values, values) : [], updates } : null,
     preview: preview && base && { html: sanitizeHtml(preview.html), missing: preview.missing, unknown: preview.unknown, blanks: legacyBlanks(templateOf(base)) },
@@ -261,10 +262,11 @@ r.post("/config/policies/:slug/:action", wrap(async (req, res) => {
     action === "approve" || action === "return" ? "Only the CEO (super admin) can approve or send back a policy" : `Cannot ${action} a policy that is ${POLICY_STATUS_LABEL[draft.status as PolicyStatus]?.toLowerCase() ?? draft.status}`);
   if (action === "return" && !b.note) throw new HttpError(400, "Add a note saying what to change");
   const values = await placeholderValues();
-  const rendered = draft.template ? renderTemplate(draft.template, values) : null;
+  const tpl = draft.template ? templateOf(draft) : null;
+  const rendered = tpl ? renderTemplate(tpl, values) : null;
   if ((action === "submit" || action === "publish") && rendered && !canPublishRender(rendered))
     throw new HttpError(422, `Fill these in Configuration first: ${[...rendered.missing, ...rendered.unknown.map((k) => `${k} (unknown placeholder)`)].join(", ")}`);
-  const left = draft.template ? legacyBlanks(draft.template) : [];
+  const left = tpl ? legacyBlanks(tpl) : [];
   if ((action === "submit" || action === "publish") && left.length)
     throw new HttpError(422, `Link or edit these blanks first: ${left.map((b) => `[${b}]`).join(", ")}`);
   const now = new Date();
@@ -273,6 +275,7 @@ r.post("/config/policies/:slug/:action", wrap(async (req, res) => {
     : action === "approve" ? { status: next, approvedBy: email, approvedAt: now, reviewNote: b.note ?? null }
     : action === "return" ? { status: next, reviewNote: b.note!, approvedBy: null, approvedAt: null }
     : { status: next, html: rendered ? rendered.html : "", values: rendered ? rendered.snapshot : null, publishedBy: email, publishedAt: now };
+  if (tpl && (action === "submit" || action === "publish")) patch.template = tpl; // keep the linked text, not the old blanks
   await db.transaction(async (tx) => {
     await tx.update(A.policyVersions).set(patch).where(and(eq(A.policyVersions.id, draft.id), eq(A.policyVersions.status, draft.status)));
     if (action === "publish") await tx.update(A.policies).set({ currentVersion: draft.version }).where(eq(A.policies.id, p.id));

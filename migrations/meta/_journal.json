@@ -113,6 +113,13 @@
       "when": 1795342817695,
       "tag": "0015_policy_ack_snapshot",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1795346582229,
+      "tag": "0016_company_bank",
+      "breakpoints": true
     }
   ]
 }

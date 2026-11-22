@@ -1,3 +1,4 @@
+import { MARKS_CSS, marksHtml, type Marks } from "./signatureMarksHtml";
 import { readFileSync } from "node:fs";
 import { CONSENT_PURPOSES } from "../../shared/hr/misc";
 import { formatINR, amountInWords } from "../../shared/hr/money";
@@ -16,6 +17,8 @@ export interface LetterCtx {
   consentRecord?: Record<string, { granted: boolean; at: string }> | null;
   /** When the candidate accepted online (email code plus typed name), for the acceptance and execution blocks. */
   acceptedAt?: Date | null;
+  /** Signature and stamp of the authorised signatory (uploaded images, or the default stamp and a handwritten-style name). */
+  marks?: Marks | null;
 }
 
 export function esc(v: unknown): string {
@@ -82,13 +85,13 @@ type Co = CompanyProfile;
 const coOf = (ctx: LetterCtx): Co => ({ ...COMPANY_DEFAULTS, ...Object.fromEntries(Object.entries(ctx.company ?? {}).filter(([, v]) => !blank(v))) } as Co);
 
 function doc(ctx: LetterCtx, title: string, pages: string): string {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)} ${esc(ctx.refNo)}</title><style>${CSS}</style></head><body>
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)} ${esc(ctx.refNo)}</title><style>${CSS}${MARKS_CSS}</style></head><body>
 ${ctx.status === "draft" || ctx.status === "pending_approval" ? `<div class="draft">DRAFT</div>` : ""}${pages}</body></html>`;
 }
 const issuedDay = (ctx: LetterCtx) => (ctx.issuedAt ?? ctx.approvedAt ?? null);
 function signature(ctx: LetterCtx, co: Co, forLabel = true): string {
   const when = ctx.approvedAt && ["approved", "issued", "accepted"].includes(ctx.status) ? `<div class="e">Approved and signed electronically on ${esc(longDate(ctx.approvedAt.toISOString().slice(0, 10)))}</div>` : "";
-  return `<div class="sign">${forLabel ? `For ${esc(co.legalName)}<br>` : "Warm regards,<br>"}<b>${co.signatoryName ? esc(co.signatoryName) : ph("signatory name")}</b><br>${esc(co.signatoryDesignation)}${forLabel ? "" : `<br>${esc(co.brandName)}`}${when}</div>`;
+  return `<div class="sign">${forLabel ? `For ${esc(co.legalName)}<br>` : "Warm regards,<br>"}${marksHtml(ctx.marks, co.signatoryName)}<b>${co.signatoryName ? esc(co.signatoryName) : ph("signatory name")}</b><br>${esc(co.signatoryDesignation)}${forLabel ? "" : `<br>${esc(co.brandName)}`}${when}</div>`;
 }
 
 /** Letterhead page in the one-page offer style: corner stripes, centred logo, title. */
@@ -169,7 +172,7 @@ function ndaHtml(ctx: LetterCtx, co: Co): string {
   if (inList) out += "</ul>";
   const line = "__________________________";
   out += `<h3>EXECUTION</h3><p>IN WITNESS WHEREOF, the Parties hereto have executed this Agreement on the day, month and year first hereinabove written.</p>
-<table><tr><th>Details of employer</th><th>Details of employee</th></tr><tr><td>Name: ${co.signatoryName ? esc(co.signatoryName) : line}<br>Designation: ${esc(co.signatoryDesignation)}<br>Date: ${line}<br>Place: ${line}<br>Signature: ${line}</td>
+<table><tr><th>Details of employer</th><th>Details of employee</th></tr><tr><td>Name: ${co.signatoryName ? esc(co.signatoryName) : line}<br>Designation: ${esc(co.signatoryDesignation)}<br>Date: ${line}<br>Place: ${line}<br>Signature: ${marksHtml(ctx.marks, co.signatoryName) || line}</td>
 <td>Name: ${vars.name}<br>Employee Code: ${vars.employeeCode}<br>${eSign(ctx)}</td></tr></table>`;
   return `<div class="nda">${out}</div>`;
 }
@@ -325,7 +328,7 @@ const name = (ctx: LetterCtx) => esc(ctx.name) || ph("employee name");
 /** A branded working document (not a letter to a person), used for compliance templates. Yellow marks show what to fill in. */
 export function companyDocument(company: Partial<CompanyProfile> | undefined, title: string, body: string): string {
   const co = { ...COMPANY_DEFAULTS, ...Object.fromEntries(Object.entries(company ?? {}).filter(([, v]) => !blank(v))) } as Co;
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title><style>${CSS}</style></head><body>
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title><style>${CSS}${MARKS_CSS}</style></head><body>
 <div class="page"><div class="hdr">${logo(34)}<span class="c">${esc(co.legalName.toUpperCase())}</span></div><h1 class="title" style="font-size:22px">${esc(title)}</h1>${body}
 <div class="legal">${esc(co.legalName)} · ${esc(co.registeredAddress)} · ${esc(co.email)} · ${esc(co.website)}</div></div></body></html>`;
 }

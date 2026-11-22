@@ -4,7 +4,11 @@
  * configuration and the existing settings (company profile, POSH committee, named contacts, leave types, reimbursement policy).
  * Rendering escapes every value. A table value (such as posh.ic.members) renders as an HTML table.
  */
-export type PlaceholderGroup = "Company" | "POSH committee" | "Contacts" | "Leave" | "Reimbursement";
+export type PlaceholderGroup = "Company" | "People" | "POSH committee" | "Mailboxes and links" | "Leave" | "Reimbursement";
+const PC = "Configuration → People and committees";
+/** Employee member seats offered as separate fields; the committee table shows every member however many there are. */
+export const MEMBER_SEATS = 6;
+const CONTACT_PEOPLE: [string, string][] = [["grievance_officer", "Grievance officer"], ["dpo", "Data protection officer"], ["hr_contact", "HR contact"], ["ethics_officer", "Ethics officer"], ["ombudsperson", "Independent ombudsperson"]];
 export type PlaceholderDef = { key: string; label: string; group: PlaceholderGroup; kind: "text" | "table"; source: string };
 export type Table = { headers: string[]; rows: string[][] };
 export type Value = string | Table | null;
@@ -21,26 +25,32 @@ export const PLACEHOLDERS: PlaceholderDef[] = [
   t("company.website", "Website", "Company", "Configuration → Company"),
   t("company.signatory_name", "Signatory name", "Company", "Configuration → Company"),
   t("company.signatory_designation", "Signatory designation", "Company", "Configuration → Company"),
-  t("posh.ic.presiding_officer.name", "Presiding officer", "POSH committee", "Configuration → People and committees"),
-  t("posh.ic.presiding_officer.email", "Presiding officer email", "POSH committee", "Configuration → People and committees"),
-  t("posh.ic.external_member.name", "External member", "POSH committee", "Configuration → People and committees"),
-  t("posh.ic.external_member.organisation", "External member organisation", "POSH committee", "Configuration → People and committees"),
-  tbl("posh.ic.members", "All committee members (table)", "POSH committee", "Configuration → People and committees"),
-  t("posh.ic.term_start", "Term starts", "POSH committee", "Configuration → People and committees"),
-  t("posh.ic.term_end", "Term ends", "POSH committee", "Configuration → People and committees"),
-  t("posh.ic.email", "Internal Committee email", "POSH committee", "Configuration → People and committees"),
-  t("contacts.grievance_officer.name", "Grievance officer", "Contacts", "Configuration → People and committees"),
-  t("contacts.grievance_officer.email", "Grievance officer email", "Contacts", "Configuration → People and committees"),
-  t("contacts.dpo.name", "Data protection officer", "Contacts", "Configuration → People and committees"),
-  t("contacts.dpo.email", "Data protection officer email", "Contacts", "Configuration → People and committees"),
-  t("contacts.hr_contact.name", "HR contact", "Contacts", "Configuration → People and committees"),
-  t("contacts.hr_contact.email", "HR contact email", "Contacts", "Configuration → People and committees"),
-  t("contacts.ethics_officer.name", "Ethics officer", "Contacts", "Configuration → People and committees"),
-  t("contacts.ethics_officer.email", "Ethics officer email", "Contacts", "Configuration → People and committees"),
-  t("contacts.ombudsperson.name", "Independent ombudsperson", "Contacts", "Configuration → People and committees"),
-  t("contacts.ombudsperson.email", "Ombudsperson email", "Contacts", "Configuration → People and committees"),
-  t("contacts.security.email", "Security incident email", "Contacts", "Configuration → People and committees"),
-  t("whistleblower.form_link", "Anonymous reporting form link", "Contacts", "Configuration → People and committees"),
+  // People: every named seat and contact, so any name, e-mail or designation in a policy can be linked.
+  t("posh.ic.presiding_officer.name", "POSH presiding officer: name", "People", PC),
+  t("posh.ic.presiding_officer.email", "POSH presiding officer: email", "People", PC),
+  t("posh.ic.presiding_officer.designation", "POSH presiding officer: designation", "People", PC),
+  t("posh.ic.presiding_officer.phone", "POSH presiding officer: phone", "People", PC),
+  ...Array.from({ length: MEMBER_SEATS }, (_, i) => [
+    t(`posh.ic.members.${i + 1}.name`, `POSH committee member ${i + 1}: name`, "People", PC),
+    t(`posh.ic.members.${i + 1}.email`, `POSH committee member ${i + 1}: email`, "People", PC),
+    t(`posh.ic.members.${i + 1}.designation`, `POSH committee member ${i + 1}: designation`, "People", PC),
+  ]).flat(),
+  t("posh.ic.external_member.name", "POSH external member: name", "People", PC),
+  t("posh.ic.external_member.email", "POSH external member: email", "People", PC),
+  t("posh.ic.external_member.organisation", "POSH external member: organisation", "People", PC),
+  ...CONTACT_PEOPLE.flatMap(([k, l]) => [
+    t(`contacts.${k}.name`, `${l}: name`, "People", PC),
+    t(`contacts.${k}.email`, `${l}: email`, "People", PC),
+    t(`contacts.${k}.designation`, `${l}: designation`, "People", PC),
+    t(`contacts.${k}.phone`, `${l}: phone`, "People", PC),
+  ]),
+  // The POSH committee as a whole.
+  tbl("posh.ic.members", "Committee table: all members", "POSH committee", PC),
+  t("posh.ic.email", "Internal Committee email", "POSH committee", PC),
+  t("posh.ic.term_start", "Committee term starts", "POSH committee", PC),
+  t("posh.ic.term_end", "Committee term ends", "POSH committee", PC),
+  t("contacts.security.email", "Security incident email", "Mailboxes and links", PC),
+  t("whistleblower.form_link", "Anonymous reporting form link", "Mailboxes and links", PC),
   tbl("leave.types", "All leave types with yearly quota (table)", "Leave", "Leave types"),
   t("leave.casual.days", "Casual leave days a year", "Leave", "Leave types"),
   t("leave.sick.days", "Sick leave days a year", "Leave", "Leave types"),

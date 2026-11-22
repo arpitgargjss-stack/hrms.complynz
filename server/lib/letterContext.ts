@@ -1,3 +1,4 @@
+import { signatoryMarks, type Marks } from "./signatureMarks";
 import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { offerConsentRecord } from "./offerConsents";
 import { db, schema } from "../db";
@@ -6,7 +7,7 @@ import { TEMPLATE_PRESETS } from "../../shared/hr/presets";
 import type { ComponentDef } from "../../shared/hr/payroll";
 
 /** What a letter needs besides its own payload: company details and, for offers, the salary structure. */
-export async function letterContext(l: { type: string; payload: Record<string, unknown>; candidateId?: string | null; status?: string }): Promise<{ company: CompanyProfile; components: ComponentDef[] | null; consentRecord?: Record<string, { granted: boolean; at: string }> | null; acceptedAt?: Date | null }> {
+export async function letterContext(l: { type: string; payload: Record<string, unknown>; candidateId?: string | null; status?: string }): Promise<{ company: CompanyProfile; components: ComponentDef[] | null; consentRecord?: Record<string, { granted: boolean; at: string }> | null; acceptedAt?: Date | null; marks?: Marks }> {
   const [row] = await db.select().from(schema.companyProfile).orderBy(desc(schema.companyProfile.id)).limit(1);
   const company = { ...COMPANY_DEFAULTS, ...((row?.settings ?? {}) as Partial<CompanyProfile>) };
   let components: ComponentDef[] | null = null;
@@ -19,7 +20,7 @@ export async function letterContext(l: { type: string; payload: Record<string, u
   if (l.candidateId && l.status === "accepted" && (l.type === "offer_full" || l.type === "offer_short")) {
     const ls = await db.select({ id: schema.letters.id }).from(schema.letters).where(eq(schema.letters.candidateId, l.candidateId));
     const [link] = ls.length ? await db.select({ at: schema.acceptanceLinks.acceptedAt }).from(schema.acceptanceLinks).where(and(inArray(schema.acceptanceLinks.letterId, ls.map((x) => x.id)), isNotNull(schema.acceptanceLinks.acceptedAt))).orderBy(desc(schema.acceptanceLinks.acceptedAt)).limit(1) : [];
-    return { company, components, consentRecord: await offerConsentRecord(l.candidateId), acceptedAt: link?.at ?? null };
+    return { company, components, consentRecord: await offerConsentRecord(l.candidateId), acceptedAt: link?.at ?? null, marks: await signatoryMarks(company.signatoryName) };
   }
-  return { company, components };
+  return { company, components, marks: await signatoryMarks(company.signatoryName) };
 }

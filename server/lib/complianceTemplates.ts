@@ -1,8 +1,9 @@
+import { marksHtml, type Marks } from "./signatureMarksHtml";
 import { companyDocument, esc, fillIn as f } from "./letterHtml";
 import type { CompanyProfile } from "../../shared/hr/letters";
 import type { Committee, Person } from "../../shared/hr/orgRoles";
 
-type Extra = { year: string; headcount: number; interns: number; committee?: Committee | null };
+type Extra = { year: string; headcount: number; interns: number; committee?: Committee | null; marks?: Marks | null };
 /** Committee table rows from Admin configuration; blank yellow fields when a seat is not set yet. */
 function committeeRows(c: Committee | null | undefined): string {
   const row = (role: string, p: Person | null | undefined, third: "designation" | "organisation") =>
@@ -69,5 +70,8 @@ ${committeeRows(x.committee)}</table>
 
 export function renderComplianceTemplate(key: string, co: Partial<CompanyProfile> | undefined, extra: Extra): string | null {
   const t = COMPLIANCE_TEMPLATES[key];
-  return t ? companyDocument(co, t.title, t.body(co ?? {}, extra)) : null;
+  if (!t) return null;
+  // Every "For <company>" sign-off gets the signatory's signature (or handwritten-style name) and the company stamp.
+  const body = t.body(co ?? {}, extra).replace(/(<div class="sign">For [^<]*<br>)/g, `$1${marksHtml(extra.marks, co?.signatoryName)}`);
+  return companyDocument(co, t.title, body);
 }

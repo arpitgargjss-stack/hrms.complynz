@@ -2,7 +2,7 @@ import { asc, desc, eq, inArray } from "drizzle-orm";
 import { db, schema } from "../db";
 import { COMPANY_DEFAULTS, type CompanyProfile } from "../../shared/hr/letters";
 import { formatINR } from "../../shared/hr/money";
-import type { Values } from "../../shared/hr/placeholders";
+import { MEMBER_SEATS, type Values } from "../../shared/hr/placeholders";
 import { CONTACT_ROLES, type Person } from "../../shared/hr/orgRoles";
 import { loadCommittee } from "../routes/config";
 
@@ -36,6 +36,11 @@ export async function placeholderValues(): Promise<Values> {
     "company.cin": v(c.cin), "company.email": v(c.email), "company.website": v(c.website),
     "company.signatory_name": v(c.signatoryName), "company.signatory_designation": v(c.signatoryDesignation),
     "posh.ic.presiding_officer.name": v(committee.presiding?.name), "posh.ic.presiding_officer.email": v(committee.presiding?.email),
+    "posh.ic.presiding_officer.designation": v(committee.presiding?.designation), "posh.ic.presiding_officer.phone": v(committee.presiding?.phone),
+    "posh.ic.external_member.email": v(committee.external?.email),
+    ...Object.fromEntries(Array.from({ length: MEMBER_SEATS }, (_, i) => { const m = committee.members[i];
+      return [[`posh.ic.members.${i + 1}.name`, v(m?.name)], [`posh.ic.members.${i + 1}.email`, v(m?.email)], [`posh.ic.members.${i + 1}.designation`, v(m?.designation)]]; }).flat()),
+    ...Object.fromEntries(["grievance_officer", "dpo", "hr_contact", "ethics_officer", "ombudsperson"].flatMap((k) => [[`contacts.${k}.designation`, v(contact(k)?.designation)], [`contacts.${k}.phone`, v(contact(k)?.phone)]])),
     "posh.ic.external_member.name": v(committee.external?.name), "posh.ic.external_member.organisation": v(committee.external?.organisation),
     "posh.ic.members": members.length ? { headers: ["Role", "Name", "Designation or organisation", "Contact"], rows: members } : null,
     "posh.ic.term_start": dateText(committee.termStart), "posh.ic.term_end": dateText(committee.termEnd),
