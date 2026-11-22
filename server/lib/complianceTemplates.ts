@@ -1,19 +1,27 @@
 import { companyDocument, esc, fillIn as f } from "./letterHtml";
 import type { CompanyProfile } from "../../shared/hr/letters";
+import type { Committee, Person } from "../../shared/hr/orgRoles";
+
+type Extra = { year: string; headcount: number; interns: number; committee?: Committee | null };
+/** Committee table rows from Admin configuration; blank yellow fields when a seat is not set yet. */
+function committeeRows(c: Committee | null | undefined): string {
+  const row = (role: string, p: Person | null | undefined, third: "designation" | "organisation") =>
+    `<tr><td>${role}</td><td>${p ? esc(p.name) : f("name")}</td><td>${p?.[third] ? esc(p[third]!) : f(third)}</td><td>${p && (p.email || p.phone) ? esc([p.email, p.phone].filter(Boolean).join(", ")) : f("email and phone")}</td></tr>`;
+  const members = c?.members.length ? c.members : [null, null];
+  return [row("Presiding Officer (a senior woman employee)", c?.presiding, "designation"), ...members.map((m) => row("Member (employee)", m, "designation")),
+    row("External member (NGO or person familiar with the issues)", c?.external, "organisation")].join("\n");
+}
 
 /**
  * Standard working templates for the compliance centre. Yellow marks are for HR to fill in before printing or signing.
  * They follow the usual format; they are not legal advice and should be adapted to the company's facts.
  */
-export const COMPLIANCE_TEMPLATES: Record<string, { title: string; body: (co: Partial<CompanyProfile>, extra: { year: string; headcount: number; interns: number }) => string }> = {
+export const COMPLIANCE_TEMPLATES: Record<string, { title: string; body: (co: Partial<CompanyProfile>, extra: Extra) => string }> = {
   posh_ic: {
     title: "Order constituting the Internal Committee",
-    body: (co, x) => `<p>Under section 4 of the Sexual Harassment of Women at Workplace (Prevention, Prohibition and Redressal) Act, 2013, ${esc(co.legalName ?? "the Company")} constitutes an Internal Committee for all its offices, with effect from ${f("date")}.</p>
+    body: (co, x) => `<p>Under section 4 of the Sexual Harassment of Women at Workplace (Prevention, Prohibition and Redressal) Act, 2013, ${esc(co.legalName ?? "the Company")} constitutes an Internal Committee for all its offices, with effect from ${x.committee?.termStart ? esc(x.committee.termStart) : f("date")}.</p>
 <table><tr><th>Role</th><th>Name</th><th>Designation</th><th>Contact</th></tr>
-<tr><td>Presiding Officer (a senior woman employee)</td><td>${f("name")}</td><td>${f("designation")}</td><td>${f("email and phone")}</td></tr>
-<tr><td>Member (employee)</td><td>${f("name")}</td><td>${f("designation")}</td><td>${f("email")}</td></tr>
-<tr><td>Member (employee)</td><td>${f("name")}</td><td>${f("designation")}</td><td>${f("email")}</td></tr>
-<tr><td>External member (NGO or person familiar with the issues)</td><td>${f("name")}</td><td>${f("organisation")}</td><td>${f("email")}</td></tr></table>
+${committeeRows(x.committee)}</table>
 <p>At least half of the members are women. Members hold office for up to 3 years from the date of this order.</p>
 <p>The Committee will receive and inquire into complaints within 90 days, recommend action, and prepare the annual report under section 21. Any woman, including an intern, contractor or visitor, may approach any member. Complaints should be made within 3 months of the incident, extendable by a further 3 months for sufficient reason.</p>
 <p>This order will be displayed at each office and on the HRMS. The company currently has ${x.headcount} employees and ${x.interns} interns.</p>
@@ -59,7 +67,7 @@ export const COMPLIANCE_TEMPLATES: Record<string, { title: string; body: (co: Pa
   },
 };
 
-export function renderComplianceTemplate(key: string, co: Partial<CompanyProfile> | undefined, extra: { year: string; headcount: number; interns: number }): string | null {
+export function renderComplianceTemplate(key: string, co: Partial<CompanyProfile> | undefined, extra: Extra): string | null {
   const t = COMPLIANCE_TEMPLATES[key];
   return t ? companyDocument(co, t.title, t.body(co ?? {}, extra)) : null;
 }

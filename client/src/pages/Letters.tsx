@@ -117,7 +117,7 @@ function Write({ onSaved }: { onSaved: () => void }) {
 const PROFILE_FIELDS: [keyof CompanyProfile, string][] = [["legalName", "Legal name"], ["brandName", "Name used in letters"], ["registeredAddress", "Registered office"], ["cin", "CIN"], ["website", "Website"], ["email", "Contact email"],
   ["signatoryName", "Signatory name"], ["signatoryDesignation", "Signatory designation"], ["grievanceOfficerName", "Grievance officer / DPO name"], ["grievanceOfficerEmail", "Grievance officer email"],
   ["courts", "Courts with jurisdiction (offer letter)"], ["arbitrationSeat", "Seat of arbitration (NDA)"], ["ndaDamages", "Liquidated damages per breach (NDA), e.g. 25,00,000 (Indian Rupees Twenty-Five Lakh only)"]];
-function Company({ ceo }: { ceo: boolean }) {
+export function Company({ ceo }: { ceo: boolean }) {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["letters-company"], queryFn: () => api<CompanyProfile>("/letters/company") });
   const [f, setF] = useState<CompanyProfile | null>(null);

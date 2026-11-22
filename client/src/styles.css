@@ -5,6 +5,8 @@ a{color:var(--brand)}h1{font-size:28px;font-weight:700;letter-spacing:-.02em;lin
 .side .brand{font-weight:600;font-size:20px;color:var(--brand);line-height:0}.side .brand img{display:block;height:auto;max-width:100%}.side .sub{font-size:12px;color:var(--mute);margin:2px 0 20px}
 .side a{display:flex;align-items:center;padding:7px 12px;border-radius:8px;color:#3a4260;text-decoration:none;font-size:14px;min-height:36px}.side a:hover{background:#f0f5ff}.side a.on{background:#e6eeff;color:#0039b8;font-weight:600}
 .side .nav-group{margin-top:10px}.side .nav-group>button{all:unset;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;width:100%;padding:6px 12px;min-height:30px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);cursor:pointer;border-radius:6px}.side .nav-group>button:hover{color:var(--ink)}.side .nav-group>button:focus-visible{outline:2px solid var(--brand)}.side .nav-group>button i{font-style:normal;transition:transform .15s}.side .nav-group.closed>button i{transform:rotate(-90deg)}.side .nav-group.closed>div{display:none}
+.side .nav-sub{margin:2px 0 4px}.side .nav-sub>button{all:unset;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;width:100%;padding:5px 12px;min-height:30px;font-size:12px;font-weight:600;color:var(--mute);cursor:pointer;border-radius:6px}.side .nav-sub>button:hover{color:var(--ink);background:#f5f8ff}.side .nav-sub>button:focus-visible{outline:2px solid var(--brand)}.side .nav-sub>button i{font-style:normal;font-size:10px;transition:transform .15s}.side .nav-sub.closed>button i{transform:rotate(-90deg)}.side .nav-sub.closed>div{display:none}.side .nav-sub>div{margin-left:10px;padding-left:6px;border-left:1px solid var(--line)}
+[data-theme=dark] .side .nav-sub>button:hover{background:#1b2540}
 .main{flex:999 1 560px;min-width:0;padding:28px 32px}.pagehead{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center;margin-bottom:16px}
 .row-gap{display:flex;gap:8px;flex-wrap:wrap}.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:16px}
 .chip{display:inline-block;font-size:12px;font-weight:500;padding:3px 10px;border-radius:999px}.ok{background:#e3f5ea;color:#11663a}.warn{background:#fff1cc;color:#6e4a00}.info{background:#e6eeff;color:#0039b8}.mute{background:#eceef4;color:#444c63}.bad{background:#fde4e4;color:#8a1c1c}
@@ -114,3 +116,23 @@ input[type=checkbox],input[type=radio]{accent-color:var(--brand);box-shadow:none
 .dash-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:16px}
 .dash-range{display:flex;flex-wrap:wrap;gap:6px;align-items:flex-end;margin:0 0 14px}.dash-range .btn.on{background:var(--brand);color:#fff;border-color:var(--brand)}
 .dash-date{display:flex;flex-direction:column;font-size:12px;gap:2px}.dash-date span{color:var(--mute)}.dash-date input{width:auto}
+
+/* Form controls and spacing (guardrail: docs/engineering/ui-guardrails.md). One control height and radius for
+   inputs, selects and buttons; selects draw their own chevron 14px from the right; fixed gaps between label, field and actions. */
+:root{--ctl-h:40px;--ctl-h-sm:36px;--ctl-r:10px;--ctl-px:12px;--gap-label:6px;--gap-field:12px;--gap-actions:16px;
+  --chevron:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%235b6478' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")}
+[data-theme=dark]{--chevron:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%2394a3b8' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")}
+@media(max-width:700px){:root{--ctl-h:44px}}
+.btn,.in,input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),select:not([multiple]){height:var(--ctl-h);min-height:var(--ctl-h);border-radius:var(--ctl-r)}
+.in,input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),select:not([multiple]){padding-top:0;padding-bottom:0;padding-left:var(--ctl-px);line-height:normal}
+textarea,select[multiple]{border-radius:var(--ctl-r);padding:10px var(--ctl-px)}
+input[type=file]{border-radius:var(--ctl-r);padding:7px var(--ctl-px)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 16px;white-space:nowrap;text-decoration:none}
+.btn.sm{height:var(--ctl-h-sm);min-height:var(--ctl-h-sm);padding:0 12px;font-size:13px}
+select:not([multiple]){appearance:none;-webkit-appearance:none;padding-right:40px;background-image:var(--chevron);background-repeat:no-repeat;background-position:right 14px center;background-size:12px 8px;cursor:pointer;text-overflow:ellipsis}
+.fld>span{margin-bottom:var(--gap-label)}
+.form-row{display:flex;flex-wrap:wrap;gap:var(--gap-field);align-items:flex-end}.form-row>.fld{margin:0;flex:1 1 200px;min-width:0}
+.form-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:var(--gap-actions)}
+/* Never let an action row touch the fields above it, even on pages that do not use .form-actions yet. */
+.fld+.row-gap,.row-gap:has(>.fld)+.row-gap,.row-gap:has(>.fld)+.form-actions{margin-top:var(--gap-actions)}
+.row-gap>.fld{margin-top:0}.row-gap:has(>.fld){gap:var(--gap-field);align-items:flex-end}

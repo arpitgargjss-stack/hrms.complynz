@@ -15,6 +15,7 @@ import { nextEmployeeCode, CONSENT_PURPOSES, upcomingEvents } from "../../shared
 import { LOGIN_PURPOSE, onLoginConsent } from "../lib/loginDays";
 import { INDIAN_STATES } from "../../shared/hr/presets";
 import { missingProfileFields } from "../../shared/hr/profile";
+import { workFieldChanges } from "../../shared/hr/employeeAudit";
 import type { Role } from "../../shared/hr/access";
 import type { Actor } from "../middleware/auth";
 
@@ -250,12 +251,29 @@ r.patch("/employees/:id", wrap(async (req, res) => {
   const set: Partial<typeof S.employees.$inferInsert> = { ...rest };
   if (pan !== undefined) set.panEnc = pan ? encryptField(pan) : null;
   if (accountNumber !== undefined) set.accountEnc = accountNumber ? encryptField(accountNumber) : null;
-  const [updated] = await uniq(db.update(S.employees).set(set).where(eq(S.employees.id, id)).returning(), "Work email already in use");
+  const [before] = await db.select().from(S.employees).where(eq(S.employees.id, id)).limit(1);
+  if (!before) throw new HttpError(404, "Not found");
+  const emailChange = b.workEmail !== undefined && b.workEmail !== before.workEmail ? { from: before.workEmail, to: b.workEmail } : null;
+  const updated = await uniq(db.transaction(async (tx) => {
+    const [u] = await tx.update(S.employees).set(set).where(eq(S.employees.id, id)).returning();
+    // Login and roles are keyed by work email: carry the person's roles over so they keep their access.
+    if (u && emailChange) await tx.update(S.userRoles).set({ email: emailChange.to }).where(eq(S.userRoles.email, emailChange.from));
+    return u;
+  }), "Work email already in use");
   if (!updated) throw new HttpError(404, "Not found");
   const row = await markProfileIfComplete(updated);
   const touchesSensitive = pan !== undefined || accountNumber !== undefined || b.ifsc !== undefined || b.bankName !== undefined;
-  await logAudit(a.email, touchesSensitive ? "employee.update_sensitive" : "employee.update", "employee", id, { fields: Object.keys(b), by: admin && !own ? "hr_admin" : "self" });
   const L = await lookups();
+  const changes: Record<string, { from: unknown; to: unknown; fromName?: string | null; toName?: string | null }> = workFieldChanges(before, updated);
+  const names = { departmentId: L.dept, designationId: L.desig, locationId: L.loc } as const;
+  for (const [k, m] of Object.entries(names)) {
+    const c = changes[k];
+    if (c) { c.fromName = c.from ? m.get(String(c.from)) ?? null : null; c.toName = c.to ? m.get(String(c.to)) ?? null : null; }
+  }
+  await logAudit(a.email, touchesSensitive ? "employee.update_sensitive" : "employee.update", "employee", id, {
+    fields: Object.keys(b), by: admin && !own ? "hr_admin" : "self", ...(Object.keys(changes).length ? { changes } : {}),
+    ...(emailChange ? { rolesMovedToNewEmail: true } : {}),
+  });
   res.json({ ...work(row, L), ...personal(row), ...bankView(row) });
 }));
 
@@ -504,7 +522,8 @@ const slugField = z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9-]{1,78
 
 r.get("/policies", wrap(async (req, res) => {
   const empId = actorOf(req).employeeId;
-  const pols = await db.select().from(S.policies).orderBy(asc(S.policies.title));
+  // Only published policies are listed; a policy still in its first draft has current_version 0.
+  const pols = (await db.select().from(S.policies).orderBy(asc(S.policies.title))).filter((p) => p.currentVersion > 0);
   const acks = empId ? await db.select().from(S.policyAcks).where(eq(S.policyAcks.employeeId, empId)) : [];
   res.json(pols.map((p) => ({ slug: p.slug, title: p.title, version: p.currentVersion, acknowledged: acks.some((x) => x.policyId === p.id && x.version === p.currentVersion), updatedAt: p.createdAt })));
 }));
@@ -512,7 +531,7 @@ r.get("/policies", wrap(async (req, res) => {
 // registered before /policies/:slug so "acks" is not read as a slug
 r.get("/policies/acks/summary", wrap(async (req, res) => {
   need(req, "policies.manage");
-  const pols = await db.select().from(S.policies).orderBy(asc(S.policies.title));
+  const pols = (await db.select().from(S.policies).orderBy(asc(S.policies.title))).filter((p) => p.currentVersion > 0);
   const emps = await db.select({ id: S.employees.id, name: S.employees.fullName, code: S.employees.code }).from(S.employees).where(ne(S.employees.status, "exited"));
   const acks = await db.select().from(S.policyAcks);
   res.json(pols.map((p) => {
@@ -525,15 +544,31 @@ r.get("/policies/acks/summary", wrap(async (req, res) => {
 r.get("/policies/:slug", wrap(async (req, res) => {
   const slug = parse(slugField, req.params.slug);
   const [p] = await db.select().from(S.policies).where(eq(S.policies.slug, slug)).limit(1);
-  if (!p) throw new HttpError(404, "Not found");
+  if (!p || p.currentVersion < 1) throw new HttpError(404, "Not found");
   const [v] = await db.select().from(S.policyVersions).where(and(eq(S.policyVersions.policyId, p.id), eq(S.policyVersions.version, p.currentVersion))).limit(1);
   const empId = actorOf(req).employeeId;
   const [ack] = empId ? await db.select().from(S.policyAcks).where(and(eq(S.policyAcks.policyId, p.id), eq(S.policyAcks.version, p.currentVersion), eq(S.policyAcks.employeeId, empId))).limit(1) : [];
-  res.json({ slug: p.slug, title: p.title, version: p.currentVersion, html: v ? sanitizeHtml(v.html) : "", publishedAt: v?.createdAt ?? null, acknowledged: !!ack, acknowledgedAt: ack?.at ?? null });
+  res.json({ slug: p.slug, title: p.title, version: p.currentVersion, html: v ? sanitizeHtml(v.html) : "", publishedAt: v?.publishedAt ?? v?.createdAt ?? null, acknowledged: !!ack, acknowledgedAt: ack?.at ?? null,
+    kind: p.kind, fileUrl: v?.fileId ? `/api/policies/${p.slug}/file` : null });
+}));
+
+/** The PDF of the published version, for any staff member (PDF policies are view and acknowledge only). */
+r.get("/policies/:slug/file", wrap(async (req, res) => {
+  const slug = parse(slugField, req.params.slug);
+  const [p] = await db.select().from(S.policies).where(eq(S.policies.slug, slug)).limit(1);
+  if (!p || p.currentVersion < 1) throw new HttpError(404, "Not found");
+  const [v] = await db.select().from(S.policyVersions).where(and(eq(S.policyVersions.policyId, p.id), eq(S.policyVersions.version, p.currentVersion))).limit(1);
+  if (!v?.fileId) throw new HttpError(404, "This policy has no file");
+  const [f] = await db.select().from(S.files).where(eq(S.files.id, v.fileId)).limit(1);
+  if (!f) throw new HttpError(404, "Not found");
+  res.type("application/pdf").setHeader("Content-Disposition", `inline; filename="${slug}-v${p.currentVersion}.pdf"`);
+  res.send(await readFileBytes(f.storageKey));
 }));
 
 r.post("/policies", wrap(async (req, res) => {
   need(req, "policies.manage");
+  // Direct publishing skips approval, so only the CEO can use it; everyone else drafts in Configuration → Policies.
+  if (!actorOf(req).roles.has("super_admin")) throw new HttpError(403, "Policies now need CEO approval. Draft them in Configuration → Policies.");
   const b = parse(z.object({ slug: slugField, title: z.string().trim().min(1).max(200), html: z.string().min(1).max(400_000) }).strict(), req.body);
   const html = sanitizeHtml(b.html);
   const email = actorOf(req).email;
@@ -559,7 +594,7 @@ r.post("/policies/:slug/ack", wrap(async (req, res) => {
   const empId = needEmployee(req);
   const slug = parse(slugField, req.params.slug);
   const [p] = await db.select().from(S.policies).where(eq(S.policies.slug, slug)).limit(1);
-  if (!p) throw new HttpError(404, "Not found");
+  if (!p || p.currentVersion < 1) throw new HttpError(404, "Not found");
   await db.insert(S.policyAcks).values({ policyId: p.id, version: p.currentVersion, employeeId: empId }).onConflictDoNothing();
   await logAudit(actorOf(req).email, "policy.ack", "policy", p.id, { slug, version: p.currentVersion });
   res.json({ ok: true, slug, version: p.currentVersion });
@@ -650,7 +685,7 @@ r.get("/home", wrap(async (req, res) => {
   if (a.employeeId) {
     const pols = await db.select().from(S.policies);
     const acks = await db.select().from(S.policyAcks).where(eq(S.policyAcks.employeeId, a.employeeId));
-    policiesToAck = pols.filter((p) => !acks.some((x) => x.policyId === p.id && x.version === p.currentVersion)).length;
+    policiesToAck = pols.filter((p) => p.currentVersion > 0 && !acks.some((x) => x.policyId === p.id && x.version === p.currentVersion)).length; // 0 = still in its first draft
   }
   res.json({
     today,

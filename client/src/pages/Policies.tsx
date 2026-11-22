@@ -2,11 +2,12 @@ import { useState } from "react";
 import { Link, useLocation, useParams } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
+import { openAuthed } from "../lib/openHtml";
 import { Card, Chip, ErrorNote, Field, Page } from "../lib/ui";
 import { celebrate } from "../lib/gz";
 
 type PolicyRow = { slug: string; title: string; version: number; acknowledged: boolean };
-type Policy = PolicyRow & { html: string; publishedAt: string | null; acknowledgedAt: string | null };
+type Policy = PolicyRow & { html: string; publishedAt: string | null; acknowledgedAt: string | null; kind?: string; fileUrl?: string | null };
 type Summary = { slug: string; total: number; acknowledged: number; pending: { id: string; name: string; code: string }[] };
 const DOC_CSS = "<style>body{font-family:system-ui,sans-serif;color:#2b3350;line-height:1.7;font-size:15px;margin:16px}h1,h2,h3{color:#1a2036}</style>";
 
@@ -29,7 +30,7 @@ export default function Policies() {
   const sum = (s: string) => sums.data?.find((x) => x.slug === s);
 
   return (
-    <Page title="Policies" actions={admin && <button className="btn p" onClick={() => setShow(!show)} aria-expanded={show}>Upload policy</button>}>
+    <Page title="Policies" actions={admin && <Link className="btn p" href="/admin/config?tab=policies">Manage policies</Link>}>
       {show && (
         <Card>
           <form onSubmit={(e) => { e.preventDefault(); pub.mutate(); }}>
@@ -70,7 +71,9 @@ export default function Policies() {
                 <>
                   <h2 style={{ fontSize: 20 }}>{one.data.title}</h2>
                   <p className="k">Version {one.data.version}{one.data.publishedAt ? ` · published ${new Date(one.data.publishedAt).toLocaleDateString("en-IN")}` : ""}</p>
-                  <iframe title={`${one.data.title} policy text`} sandbox="" srcDoc={DOC_CSS + one.data.html} style={{ width: "100%", height: 480, border: "1px solid var(--line)", borderRadius: 8, background: "#fff" }} />
+                  {one.data.fileUrl
+                    ? <p><button className="btn" onClick={() => openAuthed(`/policies/${one.data!.slug}/file`, "application/pdf")}>Open the policy (PDF)</button></p>
+                    : <iframe title={`${one.data.title} policy text`} sandbox="" srcDoc={DOC_CSS + one.data.html} style={{ width: "100%", height: 480, border: "1px solid var(--line)", borderRadius: 8, background: "#fff" }} />}
                   <div style={{ marginTop: 12 }}>
                     {one.data.acknowledged
                       ? <Chip tone="ok">Acknowledged{one.data.acknowledgedAt ? ` on ${new Date(one.data.acknowledgedAt).toLocaleDateString("en-IN")}` : ""}</Chip>

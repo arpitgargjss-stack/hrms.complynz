@@ -62,3 +62,36 @@ export function longWeekendTips(today: string, cal: CalendarSettings, holidays: 
   }
   return tips.sort((a, b) => b.daysOff / b.take.length - a.daysOff / a.take.length || a.from.localeCompare(b.from)).slice(0, 2);
 }
+
+/**
+ * The Home check-in, "How are you feeling today?": three indexes, each 1 to 5 where 5 is always the good end.
+ * Stressometer is stored that way too (5 = calm), so "low" means the same thing on every scale.
+ * `key` is the column in hr_pulse_responses (the Happy Index keeps the original `mood` column so its history carries on).
+ */
+export const WELLBEING_INDEXES = [
+  { key: "stress", name: "Stressometer", icon: "🌡️", emoji: ["🤯", "😫", "😬", "🙂", "😌"], q: "How stressed do you feel?", scale: ["Maxed out", "Very stressed", "Some stress", "A little", "Calm"] },
+  { key: "mood", name: "Happy Index", icon: "😊", emoji: ["😞", "😕", "😐", "😄", "🤩"], q: "How happy are you at work?", scale: ["Not at all", "A little", "Okay", "Happy", "Very happy"] },
+  { key: "motivation", name: "Motivation Index", icon: "⚡", emoji: ["🪫", "😴", "🙂", "💪", "🚀"], q: "How motivated do you feel?", scale: ["Running on empty", "Low", "Okay", "Motivated", "Fired up"] },
+] as const;
+export type WellbeingKey = (typeof WELLBEING_INDEXES)[number]["key"];
+export const pulseInput = z.object({ stress: z.number().int().min(1).max(5), mood: z.number().int().min(1).max(5), motivation: z.number().int().min(1).max(5) }).strict();
+
+/** An answer of 1 or 2 is "low": the person is offered an anonymous survey or a private conversation. Worked out in the browser only; never stored. */
+export const isLowAnswer = (v: number | null | undefined) => typeof v === "number" && v <= 2;
+
+/** A 1 to 5 average shown as an index out of 100 (1 = 0, 3 = 50, 5 = 100). */
+export function toIndex(avg: number | null | undefined): number | null {
+  if (typeof avg !== "number" || Number.isNaN(avg)) return null;
+  return Math.round(((Math.max(1, Math.min(5, avg)) - 1) / 4) * 100);
+}
+
+/** Private 1:1 conversation ("counselling session") with the person's manager or the CEO. */
+export const CARE_WITH = ["manager", "ceo"] as const;
+export const CARE_MODES = ["in_person", "call", "video"] as const;
+export const CARE_WHEN = ["Today", "In the next 2 days", "This week", "Any time"] as const;
+export const careInput = z.object({
+  with: z.enum(CARE_WITH), mode: z.enum(CARE_MODES), when: z.enum(CARE_WHEN),
+  note: z.string().trim().max(500).optional(),
+}).strict();
+/** Closed or cancelled conversations are erased this many days after they close. */
+export const CARE_RETENTION_DAYS = 90;

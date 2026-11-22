@@ -128,6 +128,7 @@ export const acceptanceLinks = pgTable("hr_acceptance_links", {
 export const onboardingLinks = pgTable("hr_onboarding_links", {
   id: id(), candidateId: uuid("candidate_id").notNull(), tokenHash: text("token_hash").notNull().unique(),
   steps: jsonb("steps").notNull(), submitted: jsonb("submitted"), expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  checklist: jsonb("checklist"), // copy of the default onboarding checklist at the time the link was created (version, items, done flags)
   completedAt: timestamp("completed_at", { withTimezone: true }), createdAt: created(),
 });
 export const emailTemplates = pgTable("hr_email_templates", {
@@ -141,10 +142,20 @@ export const announcements = pgTable("hr_announcements", {
 // ---------- policies and consent ----------
 export const policies = pgTable("hr_policies", {
   id: id(), slug: text("slug").notNull().unique(), title: text("title").notNull(), currentVersion: integer("current_version").notNull().default(1), createdAt: created(),
+  // Admin configuration phase 2. current_version is the published version employees see and acknowledge (0 = never published).
+  category: text("category"), kind: text("kind").notNull().default("html"), // html (template with placeholders) | pdf (view and acknowledge only)
 });
+/**
+ * One row per version. Drafts move draft → pending_approval → approved → published (CEO approval, as for letters).
+ * A published row is frozen: `template` and `values` record exactly what was filled in, `html` is the rendered result.
+ */
 export const policyVersions = pgTable("hr_policy_versions", {
   id: id(), policyId: uuid("policy_id").notNull(), version: integer("version").notNull(), html: text("html").notNull(),
   publishedBy: text("published_by").notNull(), createdAt: created(),
+  status: text("status").notNull().default("published"), template: text("template"), values: jsonb("values"), fileId: uuid("file_id"), summary: text("summary"),
+  createdBy: text("created_by"), submittedBy: text("submitted_by"), submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  approvedBy: text("approved_by"), approvedAt: timestamp("approved_at", { withTimezone: true }), reviewNote: text("review_note"),
+  publishedAt: timestamp("published_at", { withTimezone: true }),
 }, (t) => [uniqueIndex("hr_policy_ver_uq").on(t.policyId, t.version)]);
 export const policyAcks = pgTable("hr_policy_acks", {
   id: id(), policyId: uuid("policy_id").notNull(), version: integer("version").notNull(), employeeId: uuid("employee_id").notNull(), at: created(),
@@ -277,11 +288,27 @@ export const kudosReactions = pgTable("hr_kudos_reactions", {
 /** Weekly 1-tap mood. Anonymous like the satisfaction survey: no identity columns, day-bucketed, results only at 5+ answers. */
 export const pulseResponses = pgTable("hr_pulse_responses", {
   id: id(), week: text("week").notNull(), departmentId: uuid("department_id"), mood: integer("mood").notNull(), submittedDay: date("submitted_day").notNull(),
-  enjoy: integer("enjoy"), belief: integer("belief"), // "Are you enjoying your work?" and "Do you believe in where we're going?", 1 to 5, optional
+  enjoy: integer("enjoy"), belief: integer("belief"), // earlier questions, kept for history; no longer asked
+  stress: integer("stress"), motivation: integer("motivation"), // Stressometer (5 = calm) and Motivation Index, 1 to 5. `mood` is the Happy Index.
 }, (t) => [index("hr_pulse_week").on(t.week, t.departmentId)]);
 export const pulseParticipation = pgTable("hr_pulse_participation", {
   id: id(), week: text("week").notNull(), markerHash: text("marker_hash").notNull(),
 }, (t) => [uniqueIndex("hr_pulse_part_uq").on(t.week, t.markerHash)]);
+
+/**
+ * A private 1:1 conversation ("counselling session") someone asked for with their manager or the CEO.
+ * Seen only by the person who asked and the person they asked: not HR, not dashboards, not the audit log.
+ * Holds no check-in answers. The asker can withdraw and erase it at any time; closed ones are erased after 90 days.
+ */
+export const careRequests = pgTable("hr_care_requests", {
+  id: id(), requesterId: uuid("requester_id").notNull(), counsellorId: uuid("counsellor_id").notNull(),
+  withWhom: text("with_whom").notNull(), // manager | ceo
+  mode: text("mode").notNull(), // in_person | call | video
+  preferredWhen: text("preferred_when").notNull(), note: text("note"),
+  status: text("status").notNull().default("requested"), // requested | scheduled | done | cancelled
+  scheduledFor: timestamp("scheduled_for", { withTimezone: true }), reply: text("reply"),
+  createdAt: created(), closedAt: timestamp("closed_at", { withTimezone: true }),
+}, (t) => [index("hr_care_requester").on(t.requesterId), index("hr_care_counsellor").on(t.counsellorId)]);
 
 // ---------- login activity (only for people who opted in to login_activity) ----------
 /** One row per person per day they used the app. Kept only while consent stands; deleted on withdrawal. No times, IPs or devices. */
@@ -303,3 +330,28 @@ export const complianceTasks = pgTable("hr_compliance_tasks", {
   id: id(), itemKey: text("item_key").notNull(), period: text("period").notNull(), status: text("status").notNull(), // done | na
   doneOn: date("done_on"), note: text("note"), by: text("by_email").notNull(), createdAt: created(),
 }, (t) => [uniqueIndex("hr_compliance_task_uq").on(t.itemKey, t.period)]);
+/**
+ * Admin configuration: named roles and committee seats (POSH Internal Committee, grievance officer, DPO, HR contact).
+ * A seat holds either an employee or a typed-in person (such as the external member). The current set is replaced as a whole on save.
+ */
+export const orgRoles = pgTable("hr_org_roles", {
+  id: id(), role: text("role").notNull(), // posh_presiding | posh_member | posh_external | grievance_officer | dpo | hr_contact
+  employeeId: uuid("employee_id"), name: text("name").notNull(), email: text("email"), phone: text("phone"),
+  designation: text("designation"), organisation: text("organisation"), gender: text("gender").notNull().default("undisclosed"),
+  termStart: date("term_start"), termEnd: date("term_end"), position: integer("position").notNull().default(0),
+  createdBy: text("created_by").notNull(), createdAt: created(),
+}, (t) => [index("hr_org_roles_role").on(t.role)]);
+/** Default onboarding checklist, versioned. One row per saved version; the latest row is current. */
+export const onboardingChecklist = pgTable("hr_onboarding_checklist", {
+  id: serial("id").primaryKey(), version: integer("version").notNull(), items: jsonb("items").notNull(), updatedBy: text("updated_by").notNull(), createdAt: created(),
+});
+/** Reminders sent to people who have not acknowledged the current version of a policy (shown on their Home page). */
+export const policyReminders = pgTable("hr_policy_reminders", {
+  id: id(), policyId: uuid("policy_id").notNull(), version: integer("version").notNull(), employeeId: uuid("employee_id").notNull(),
+  sentBy: text("sent_by").notNull(), emailed: boolean("emailed").notNull().default(false), createdAt: created(),
+}, (t) => [index("hr_policy_rem_emp").on(t.employeeId)]);
+/** Priority HR has set by hand for a compliance item; items without a row use the computed default. */
+export const compliancePriority = pgTable("hr_compliance_priority", {
+  itemKey: text("item_key").primaryKey(), priority: text("priority").notNull(), // High | Medium | Low
+  by: text("by_email").notNull(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});

@@ -5,10 +5,12 @@ import { db, schema } from "../db";
 import { wrap, parse, HttpError } from "./util";
 import { logAudit } from "../lib/audit";
 import { need, istDate } from "../lib/routeHelpers";
-import { DEFAULT_FACTS, INDUSTRIES, ITEMS, TURNOVER_BANDS, nextDue, prevDue, periodOf, type CompanyFacts } from "../../shared/hr/compliance";
+import { DEFAULT_FACTS, INDUSTRIES, ITEMS, PRIORITIES, TURNOVER_BANDS, defaultPriority, segmentOf, nextDue, prevDue, periodOf, type CompanyFacts, type Priority, type Trigger } from "../../shared/hr/compliance";
 import { COMPANY_DEFAULTS, type CompanyProfile } from "../../shared/hr/letters";
 import { INDIAN_STATES } from "../../shared/hr/presets";
 import { renderComplianceTemplate } from "../lib/complianceTemplates";
+import { loadCommittee } from "./config";
+import { checkPoshCommittee } from "../../shared/hr/orgRoles";
 
 /**
  * Compliance centre. What applies is worked out from live headcount, interns and office states, plus the company facts HR sets.
@@ -43,11 +45,22 @@ r.get("/compliance", wrap(async (req, res) => {
   gate(req);
   const f = await facts();
   const today = istDate();
-  const tasks = await db.select().from(A.complianceTasks);
+  const [tasks, manual] = await Promise.all([db.select().from(A.complianceTasks), db.select().from(A.compliancePriority)]);
   const done = new Map(tasks.map((t) => [`${t.itemKey}|${t.period}`, t]));
-  const items = ITEMS.map((it) => {
+  const set = new Map(manual.map((p) => [p.itemKey, p]));
+  // Adds the priority: HR's own choice when set, otherwise the default from need, status and due date.
+  const withPriority = <T extends { key: string; need: string; status: string; due: string | null }>(x: T, trigger: Trigger | null) => {
+    const auto = defaultPriority({ ...x, trigger }, today), m = set.get(x.key);
+    return { ...x, trigger, priorityAuto: auto, priority: (m?.priority as Priority | undefined) ?? auto, priorityManual: m ? { by: m.by, at: m.updatedAt } : null };
+  };
+  // The POSH committee is set up in Admin configuration; its checks show on the POSH items here.
+  const committee = await loadCommittee(), poshChecks = checkPoshCommittee(committee, today), poshFailing = poshChecks.filter((x) => !x.ok);
+  const poshNote = { text: poshFailing.length ? `Committee in Configuration: ${poshFailing.map((x) => x.label.toLowerCase()).join(", ")} still needed` : `Committee set up in Configuration (${[committee.presiding, ...committee.members, committee.external].filter(Boolean).length} members, term to ${committee.termEnd})`, ok: !poshFailing.length, href: "/admin/config" };
+  const items = ITEMS.map((it) => ({ ...withPriority(itemState(it), it.trigger ?? null), configNote: it.key === "posh_ic" || it.key === "posh_report" ? poshNote : null }));
+  res.json({ today, facts: f, items, options: { industries: INDUSTRIES, turnoverBands: TURNOVER_BANDS, states: INDIAN_STATES } });
+  function itemState(it: (typeof ITEMS)[number]) {
     const a = it.applies(f);
-    const base = { key: it.key, title: it.title, category: it.category, law: it.law, frequency: it.frequency, dueText: it.dueText, form: it.form ?? null, portal: it.portal ?? null, template: it.template ?? null, need: a.need, why: a.why };
+    const base = { key: it.key, title: it.title, category: it.category, segment: segmentOf(it), law: it.law, frequency: it.frequency, dueText: it.dueText, form: it.form ?? null, portal: it.portal ?? null, template: it.template ?? null, need: a.need, why: a.why };
     if (a.need === "Not applicable") return { ...base, status: "Not applicable", due: null, period: null, last: null };
     const last = tasks.filter((t) => t.itemKey === it.key).sort((x, y) => (x.createdAt < y.createdAt ? 1 : -1))[0] ?? null;
     const lastInfo = last ? { period: last.period, status: last.status, doneOn: last.doneOn, note: last.note, by: last.by } : null;
@@ -62,9 +75,20 @@ r.get("/compliance", wrap(async (req, res) => {
     if (!due) return { ...base, status: done.has(`${it.key}|${periodOf(it, null)}`) ? "Done" : "To do", due: null, period: periodOf(it, null), last: lastInfo };
     const inDays = days(today, due);
     return { ...base, status: inDays < 0 ? "Overdue" : inDays <= 30 ? "Due in 30 days" : "Upcoming", due, period: periodOf(it, due), last: lastInfo };
-  });
-  await logAudit(req.actor!.email, "compliance.view");
-  res.json({ today, facts: f, items, options: { industries: INDUSTRIES, turnoverBands: TURNOVER_BANDS, states: INDIAN_STATES } });
+  }
+}));
+
+/** Sets HR's priority for one item, or clears it (null) so the computed default applies again. */
+r.put("/compliance/:key/priority", wrap(async (req, res) => {
+  gate(req);
+  const key = String(req.params.key);
+  if (!ITEMS.some((i) => i.key === key)) throw new HttpError(404, "Unknown compliance item");
+  const b = parse(z.object({ priority: z.enum(PRIORITIES as [Priority, ...Priority[]]).nullable() }).strict(), req.body);
+  if (b.priority === null) await db.delete(A.compliancePriority).where(eq(A.compliancePriority.itemKey, key));
+  else await db.insert(A.compliancePriority).values({ itemKey: key, priority: b.priority, by: req.actor!.email })
+    .onConflictDoUpdate({ target: A.compliancePriority.itemKey, set: { priority: b.priority, by: req.actor!.email, updatedAt: new Date() } });
+  await logAudit(req.actor!.email, b.priority === null ? "compliance.priority.reset" : "compliance.priority.set", "compliance", key, { priority: b.priority });
+  res.json({ ok: true });
 }));
 
 const profileSchema = z.object({
@@ -110,7 +134,8 @@ r.get("/compliance/templates/:key", wrap(async (req, res) => {
   const [row] = await db.select().from(A.companyProfile).orderBy(desc(A.companyProfile.id)).limit(1);
   const co = { ...COMPANY_DEFAULTS, ...((row?.settings ?? {}) as Partial<CompanyProfile>) };
   const c = await counts();
-  const html = renderComplianceTemplate(String(req.params.key), co, { year: String(Number(istDate().slice(0, 4)) - (istDate().slice(5, 7) === "01" ? 1 : 0)), ...c });
+  const committee = String(req.params.key) === "posh_ic" ? await loadCommittee() : null; // members come from Admin configuration
+  const html = renderComplianceTemplate(String(req.params.key), co, { year: String(Number(istDate().slice(0, 4)) - (istDate().slice(5, 7) === "01" ? 1 : 0)), ...c, committee });
   if (!html) throw new HttpError(404, "No template for this item");
   res.type("html").send(html);
 }));

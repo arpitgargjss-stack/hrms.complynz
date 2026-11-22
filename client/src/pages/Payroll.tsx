@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, fileToBase64, getAuthToken } from "../lib/api";
+import { ConfigHint } from "../lib/ConfigHint";
 import { openHtml } from "../lib/openHtml";
 import { Card, Chip, ErrorNote, Field, Page, inr } from "../lib/ui";
 import { RULE_PRESETS, TEMPLATE_PRESETS } from "../../../shared/hr/presets";
@@ -50,8 +51,8 @@ export default function Payroll() {
       {tab === "overview" && <Overview go={setTab} canRun={canRun} />}
       {tab === "runs" && <Runs canRun={canRun} />}
       {tab === "advice" && <BankAdvice canSign={isFin} />}
-      {tab === "rules" && <RulesTab />}
-      {tab === "templates" && canRun && <Templates />}
+      {tab === "rules" && <><ConfigHint tab="pay" label="Pay and money" /><RulesTab /></>}
+      {tab === "templates" && canRun && <><ConfigHint tab="pay" label="Pay and money" /><Templates /></>}
       {tab === "comp" && canRun && <Compensation />}
       {tab === "sign" && <Signatories isHr={isHr} isFin={isFin} />}
     </Page>
@@ -369,7 +370,7 @@ function AdviceView({ id, canSign }: { id: string; canSign: boolean }) {
 }
 
 // ------------------------------------------------------------------ Statutory rules
-function RulesTab() {
+export function RulesTab() {
   const qc = useQueryClient();
   const rules = useQuery({ queryKey: ["payroll-rules"], queryFn: () => api<{ current: RuleRow | null; history: RuleRow[] }>("/payroll/rules") });
   const blank = { effectiveFrom: "", source: "", pfOn: false, pfEmp: "", pfEr: "", pfCeil: "", tdsOn: false, slabs: "", stdDed: "", cess: "", rebThr: "", rebMax: "", ptOn: false, ptMonthly: "" };
@@ -508,7 +509,7 @@ function TemplatePresets({ have, onCustomise }: { have: Set<string>; onCustomise
   );
 }
 
-function Templates() {
+export function Templates() {
   const qc = useQueryClient();
   const list = useQuery({ queryKey: ["payroll-templates"], queryFn: () => api<Template[]>("/payroll/templates") });
   const [editId, setEditId] = useState<string | null>(null);
@@ -626,7 +627,7 @@ function Compensation() {
 }
 
 // ------------------------------------------------------------------ Signatories
-function Signatories({ isHr, isFin }: { isHr: boolean; isFin: boolean }) {
+export function Signatories({ isHr, isFin }: { isHr: boolean; isFin: boolean }) {
   const qc = useQueryClient();
   const list = useQuery({ queryKey: ["signatories"], queryFn: () => api<Signatory[]>("/signatories") });
   const [f, setF] = useState({ email: "", displayName: "", designation: "" });

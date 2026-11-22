@@ -71,6 +71,41 @@
       "when": 1795261070291,
       "tag": "0009_compliance",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1795330456902,
+      "tag": "0010_wellbeing_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1795331854630,
+      "tag": "0011_compliance_priority",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1795333224281,
+      "tag": "0012_org_roles",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1795333831136,
+      "tag": "0013_policy_workflow",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1795340989905,
+      "tag": "0014_onboarding_checklist_reminders",
+      "breakpoints": true
     }
   ]
 }

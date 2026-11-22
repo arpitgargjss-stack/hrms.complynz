@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { scopeFor, canAccess } from "./access";
+import { scopeFor, canAccess, SUPER_ADMIN_IMPLIES } from "./access";
 
 test("team member sees only own comp; finance sees all", () => {
   assert.equal(scopeFor(["team_member"], "comp.read"), "own");
@@ -20,4 +20,12 @@ test("canAccess enforces scope", () => {
   const a = { employeeId: "m", directReportIds: ["r1"] };
   assert.ok(canAccess("reports", a, "r1")); assert.ok(!canAccess("reports", a, "x"));
   assert.ok(canAccess("own", a, "m")); assert.ok(!canAccess("own", a, "r1"));
+});
+
+test("admin configuration: HR admin, finance admin and super admin edit; others do not", () => {
+  assert.equal(scopeFor(["hr_admin"], "settings.manage"), "all");
+  assert.equal(scopeFor(["finance_signatory"], "settings.manage"), "all");
+  assert.equal(scopeFor(["super_admin", ...SUPER_ADMIN_IMPLIES], "settings.manage"), "all"); // super admin holds both roles
+  assert.equal(scopeFor(["manager"], "settings.manage"), "none");
+  assert.equal(scopeFor(["team_member"], "settings.manage"), "none");
 });

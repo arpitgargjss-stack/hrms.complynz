@@ -8,7 +8,7 @@ import { Card, Chip, ErrorNote, Field, Page, inr } from "../lib/ui";
 type Me = { email: string; employeeId: string | null; roles: string[] };
 type Dir = { id: string; code: string; fullName: string; designation: string | null; department: string | null; workEmail: string; status?: string; managerId: string | null };
 type Detail = Dir & {
-  access: string; location?: string | null; joiningDate?: string; employmentType?: string; lastWorkingDay?: string | null;
+  access: string; departmentId?: string | null; designationId?: string | null; locationId?: string | null; location?: string | null; joiningDate?: string; employmentType?: string; lastWorkingDay?: string | null;
   phone?: string | null; personalEmail?: string | null; dob?: string | null; gender?: string | null;
   panMasked?: string | null; accountMasked?: string | null; bankName?: string | null; ifsc?: string | null;
 };
@@ -135,6 +135,57 @@ function Documents({ id, canUpload }: { id: string; canUpload: boolean }) {
   );
 }
 
+const EMP_TYPES: Named[] = [{ id: "full_time", name: "Full-time" }, { id: "part_time", name: "Part-time" }, { id: "contract", name: "Contract" }, { id: "intern", name: "Intern" }];
+
+function EditDetails({ d, own }: { d: Detail; own: boolean }) {
+  const qc = useQueryClient();
+  const refs = useRefs();
+  const initial = {
+    fullName: d.fullName, workEmail: d.workEmail, joiningDate: d.joiningDate ?? "", employmentType: d.employmentType ?? "full_time",
+    designationId: d.designationId ?? "", departmentId: d.departmentId ?? "", locationId: d.locationId ?? "",
+  };
+  const [open, setOpen] = useState(false);
+  const [f, setF] = useState(initial);
+  const changed = (Object.keys(initial) as (keyof typeof initial)[]).filter((k) => f[k] !== initial[k]);
+  const emailChanging = changed.includes("workEmail");
+  const m = useMutation({
+    mutationFn: () => {
+      const body: Record<string, string | null> = {};
+      for (const k of changed) body[k] = (k === "designationId" || k === "departmentId" || k === "locationId") ? f[k] || null : f[k];
+      return api(`/employees/${d.id}`, { method: "PATCH", body });
+    },
+    onSuccess: () => { setOpen(false); for (const k of ["employee", "employees", "org-chart", "audit"]) qc.invalidateQueries({ queryKey: [k] }); },
+  });
+  const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
+  return (
+    <Card>
+      <div className="row-gap" style={{ justifyContent: "space-between", alignItems: "center" }}>
+        <h2 style={{ margin: 0 }}>Edit details</h2>
+        {!open && <button className="btn" onClick={() => { setF(initial); setOpen(true); }}>Edit</button>}
+      </div>
+      <p className="k">Name, designation, department, location, work email, employment type and date of joining. Every change is recorded in the audit log with its old and new value.</p>
+      {open && (
+        <form onSubmit={(e) => { e.preventDefault(); if (changed.length) m.mutate(); }}>
+          <div className="grid">
+            <Field label="Full name"><input required maxLength={160} value={f.fullName} onChange={set("fullName")} /></Field>
+            <Sel label="Designation" value={f.designationId} onChange={(v) => setF({ ...f, designationId: v })} opts={refs.g} />
+            <Sel label="Department" value={f.departmentId} onChange={(v) => setF({ ...f, departmentId: v })} opts={refs.d} />
+            <Sel label="Location" value={f.locationId} onChange={(v) => setF({ ...f, locationId: v })} opts={refs.l} />
+            <Field label="Work email"><input type="email" required value={f.workEmail} onChange={set("workEmail")} /></Field>
+            <Field label="Employment type"><select value={f.employmentType} onChange={set("employmentType")}>{EMP_TYPES.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</select></Field>
+            <Field label="Date of joining"><input type="date" required value={f.joiningDate} onChange={set("joiningDate")} /></Field>
+          </div>
+          {emailChanging && <div className="note warn">Sign-in uses the work email. After saving, {own ? "you" : "this person"} must sign in with the new address, and any admin roles move to it.</div>}
+          <ErrorNote error={m.error} />
+          <p className="row-gap">
+            <button className="btn p" disabled={!changed.length || m.isPending}>{m.isPending ? "Saving…" : "Save changes"}</button>
+            <button type="button" className="btn" onClick={() => { setOpen(false); m.reset(); }}>Cancel</button>
+          </p>
+        </form>)}
+    </Card>
+  );
+}
+
 function ManagerCard({ id, current, names }: { id: string; current: string | null; names: Map<string, string> }) {
   const qc = useQueryClient();
   const all = useQuery({ queryKey: ["employees"], queryFn: () => api<{ employees: Dir[] }>("/employees") });
@@ -191,6 +242,7 @@ function Detail({ id, admin, myId }: { id: string; admin: boolean; myId: string 
               {rows.filter(([, v]) => v).map(([k, v]) => <div key={k}><dt className="k">{k}</dt><dd style={{ margin: 0 }}>{v}</dd></div>)}
             </dl>
           </Card>
+          {admin && <EditDetails key={`${d.id}:${d.designationId}:${d.departmentId}:${d.locationId}:${d.workEmail}:${d.joiningDate}:${d.employmentType}:${d.fullName}`} d={d} own={own} />}
           {(d.panMasked || d.accountMasked || d.ifsc) && (
             <Card><h2>ID and bank</h2>
               <dl style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 12, margin: 0 }}>

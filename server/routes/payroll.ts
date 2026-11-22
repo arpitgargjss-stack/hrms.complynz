@@ -403,7 +403,6 @@ r.get("/payroll/runs", wrap(async (req, res) => {
 r.get("/payroll/runs/:id", wrap(async (req, res) => {
   if (!canViewPayroll(req)) deny();
   const { run, slips } = await runDetail(idParam(req));
-  await logAudit(actorOf(req).email, "payroll.run.read", "payroll_run", run.id);
   const snap = snapshotOf(run);
   res.json({
     id: run.id, month: run.month, status: run.status, lockedBy: run.lockedBy, lockedAt: run.lockedAt, createdBy: run.createdBy, createdAt: run.createdAt,

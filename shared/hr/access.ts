@@ -9,7 +9,7 @@ export type Capability =
   | "people.read_work" | "people.write" | "id_docs.read" | "comp.read" | "payroll.run" | "bank_advice.generate" | "sign.documents"
   | "attendance.read" | "leave.approve" | "calendar.configure" | "claims.read" | "claims.verify" | "claims.approve" | "policy.reimb.edit"
   | "resign.read" | "resign.accept" | "pip.manage" | "hiring.manage" | "letters.generate" | "policies.manage" | "org.configure" | "audit.read"
-  | "dashboard.people" | "dashboard.finance" | "compliance.manage";
+  | "dashboard.people" | "dashboard.finance" | "compliance.manage" | "settings.manage";
 
 const M: Record<Capability, Partial<Record<Role, Scope>>> = {
   "people.read_work": { hr_admin: "all", manager: "reports" },
@@ -37,6 +37,7 @@ const M: Record<Capability, Partial<Record<Role, Scope>>> = {
   "dashboard.people": { hr_admin: "all" },
   "dashboard.finance": { hr_admin: "all", finance_signatory: "all" },
   "compliance.manage": { hr_admin: "all", finance_signatory: "all" },
+  "settings.manage": { hr_admin: "all", finance_signatory: "all" }, // Admin configuration: company, committees, named contacts
 };
 
 const RANK: Record<Scope, number> = { none: 0, own: 1, reports: 2, all: 3 };

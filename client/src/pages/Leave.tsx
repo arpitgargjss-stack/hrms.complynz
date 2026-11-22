@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
+import { ConfigHint } from "../lib/ConfigHint";
 import { Card, Chip, ErrorNote, Field, Page } from "../lib/ui";
 import { celebrate } from "../lib/gz";
 
@@ -84,7 +85,7 @@ function Requests() {
 }
 
 const blank = { id: "", key: "", name: "", annualQuotaDays: "12", carryForwardDays: "0", paid: true, accrual: "monthly" as "monthly" | "upfront", requiresNote: false, active: true };
-function Types() {
+export function Types() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["leaveTypesAll"], queryFn: () => api<LType[]>("/leave/types/all") });
   const [f, setF] = useState(blank);
@@ -129,7 +130,7 @@ export default function Leave() {
   return (
     <Page title="Leave">
       <div className="tabs" role="tablist">{tabs.map((t) => <button key={t.k} role="tab" aria-selected={tab === t.k} className={tab === t.k ? "on" : ""} onClick={() => setTab(t.k)}>{t.l}</button>)}</div>
-      {tab === "mine" && <Mine />}{tab === "requests" && <Requests />}{tab === "types" && <Types />}
+      {tab === "mine" && <Mine />}{tab === "requests" && <Requests />}{tab === "types" && <><ConfigHint tab="time" label="Time off" /><Types /></>}
       {(tab === "cal" || tab === "hol") && <Card><p>The work calendar and holidays are managed on the Attendance page, under the {tab === "cal" ? "Work calendar" : "Holidays"} tab.</p><Link href="/attendance" className="btn p" style={{ display: "inline-block", textDecoration: "none", lineHeight: "24px" }}>Open Attendance</Link></Card>}
     </Page>
   );

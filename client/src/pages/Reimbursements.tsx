@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, fileToBase64, getAuthToken } from "../lib/api";
+import { ConfigHint } from "../lib/ConfigHint";
 import { Card, Chip, ErrorNote, Field, Page, inr } from "../lib/ui";
 import { celebrate } from "../lib/gz";
 
@@ -51,7 +52,7 @@ export default function Reimbursements() {
       {tab === "mine" && <Mine />}
       {tab === "queue" && reviewer && <Queue />}
       {tab === "analytics" && admin && <AnalyticsTab />}
-      {tab === "policy" && admin && <PolicyTab canEdit={isHr || isFin} />}
+      {tab === "policy" && admin && <><ConfigHint tab="pay" label="Pay and money" /><PolicyTab canEdit={isHr || isFin} /></>}
     </Page>
   );
 }
@@ -255,7 +256,7 @@ function AnalyticsTab() {
 }
 
 // ------------------------------------------------------------------ Policy
-function PolicyTab({ canEdit }: { canEdit: boolean }) {
+export function PolicyTab({ canEdit }: { canEdit: boolean }) {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["reimb-policy"], queryFn: () => api<{ configured: boolean; settings: Policy | null; updatedBy?: string }>("/reimbursement/policy") });
   const [f, setF] = useState<{ rates: string; caps: string; bill: string; mgr: string; ceo: string; days: string } | null>(null);

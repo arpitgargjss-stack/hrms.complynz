@@ -89,7 +89,7 @@ for (const [title, mm, avg] of [["Q1 check-in", months[2], 3.6], ["Q2 check-in",
 }
 for (let w = 0; w < 20; w++) {
   const d = addDays(today, -7 * (19 - w)); const week = isoWeek(d);
-  for (let k = 0; k < 6 + Math.floor(rnd() * 8); k++) { const m = (b: number) => Math.max(1, Math.min(5, Math.round(b + w * 0.03 + rnd() * 2 - 1))); await db.insert(s.pulseResponses).values({ week, mood: m(3.4), enjoy: m(3.6), belief: m(3.9), submittedDay: d }); }
+  for (let k = 0; k < 6 + Math.floor(rnd() * 8); k++) { const m = (b: number) => Math.max(1, Math.min(5, Math.round(b + w * 0.03 + rnd() * 2 - 1))); await db.insert(s.pulseResponses).values({ week, mood: m(3.4), stress: m(3.0), motivation: m(3.6), submittedDay: d }); }
 }
 const consenting = people.filter((e) => e.status !== "exited" && rnd() < 0.8);
 await db.insert(s.consentEvents).values(consenting.map((e) => ({ subjectId: "emp_" + e.id, purposeKey: "login_activity", status: "granted", noticeVersion: "login-v1", source: "demo-seed" })));

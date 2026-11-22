@@ -2,11 +2,11 @@ import { Router } from "express";
 import { and, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { db, schema } from "../db";
 import { wrap } from "./util";
-import { logAudit } from "../lib/audit";
 import { need, istDate, monthRange, addDays } from "../lib/routeHelpers";
 import { MIN_ANONYMOUS_RESPONSES, RESIGNATION_REASONS, shouldShowResults } from "../../shared/hr/misc";
 import { attritionOver, bucketOf, daysBetween, median, monthsIn, rangeBuckets, resolveRange, suppressSmall } from "../../shared/hr/dashboard";
 import type { SalaryResult } from "../../shared/hr/payroll";
+import { toIndex } from "../../shared/hr/buzz";
 
 /**
  * Admin dashboards. People and culture need dashboard.people (HR admin); finance needs dashboard.finance (HR admin or finance).
@@ -85,7 +85,6 @@ r.get("/dashboard/people", wrap(async (req, res) => {
   const hiring = buckets.map(({ key }) => ({ key, candidates: cands.filter((c) => bucketOf(buckets, dayOf(c.createdAt)) === key).length, offers: offers.filter((o) => bucketOf(buckets, dayOf(o.createdAt)) === key).length }));
 
   const avgHc = trend.length ? trend.reduce((a, t) => a + t.headcount, 0) / trend.length : 0;
-  await logAudit(req.actor!.email, "dashboard.people");
   res.json({
     asOf: today, range: W.range,
     kpis: {
@@ -142,7 +141,6 @@ r.get("/dashboard/finance", wrap(async (req, res) => {
   const [pending] = await db.select({ n: sql<number>`count(*)::int`, amt: sql<number>`coalesce(sum(${S.reimbClaims.amountPaise}),0)::bigint` }).from(S.reimbClaims).where(inArray(S.reimbClaims.status, ["submitted", "verified", "manager_approved"]));
   const [toPay] = await db.select({ n: sql<number>`count(*)::int`, amt: sql<number>`coalesce(sum(${S.reimbClaims.amountPaise}),0)::bigint` }).from(S.reimbClaims).where(eq(S.reimbClaims.status, "approved"));
 
-  await logAudit(req.actor!.email, "dashboard.finance");
   res.json({
     asOf: today, range: { ...W.range, grain: "month" },
     kpis: {
@@ -190,18 +188,18 @@ r.get("/dashboard/culture", wrap(async (req, res) => {
     const show = shouldShowResults(rows.length);
     esat.push({ title: c.title, createdAt: istDate(c.createdAt), responses: rows.length, average: show && nums.length ? Math.round((nums.reduce((a, b) => a + b, 0) / nums.length) * 10) / 10 : null, participationPct: show && staff ? Math.round((rows.length / staff) * 100) : null });
   }
-  // Pulse: company-wide weekly mood, weeks with 5+ answers only.
-  const pulse = await db.select({ week: S.pulseResponses.week, n: sql<number>`count(*)::int`, avg: sql<number>`round(avg(${S.pulseResponses.mood})::numeric, 1)::float`,
-    enjoy: sql<number | null>`round(avg(${S.pulseResponses.enjoy})::numeric, 1)::float`, belief: sql<number | null>`round(avg(${S.pulseResponses.belief})::numeric, 1)::float`,
-    nEnjoy: sql<number>`count(${S.pulseResponses.enjoy})::int`, nBelief: sql<number>`count(${S.pulseResponses.belief})::int` }).from(S.pulseResponses).where(and(gte(S.pulseResponses.submittedDay, first), lte(S.pulseResponses.submittedDay, end))).groupBy(S.pulseResponses.week).orderBy(S.pulseResponses.week);
+  // Check-in indexes: company-wide, by week. Each index shows only when 5 or more people answered it that week.
+  const P = S.pulseResponses;
+  const pulse = await db.select({ week: P.week, n: sql<number>`count(*)::int`,
+    mood: sql<number | null>`avg(${P.mood})::float`, stress: sql<number | null>`avg(${P.stress})::float`, motivation: sql<number | null>`avg(${P.motivation})::float`,
+    nStress: sql<number>`count(${P.stress})::int`, nMotivation: sql<number>`count(${P.motivation})::int` }).from(P).where(and(gte(P.submittedDay, first), lte(P.submittedDay, end))).groupBy(P.week).orderBy(P.week);
 
-  await logAudit(req.actor!.email, "dashboard.culture");
   res.json({
     asOf: today, range: W.range, staff, minGroup: MIN_ANONYMOUS_RESPONSES,
     logins: { optedIn, dau: dau.map((d) => ({ day: d.day, count: d.count >= MIN_ANONYMOUS_RESPONSES || d.count === 0 ? d.count : null })), today: (() => { const n = dau.at(-1)?.count ?? 0; return n >= MIN_ANONYMOUS_RESPONSES || n === 0 ? n : null; })() },
     engagement,
     esat,
-    pulse: pulse.map((p) => ({ week: p.week, responses: p.n, average: shouldShowResults(p.n) ? p.avg : null, enjoy: shouldShowResults(p.nEnjoy) ? p.enjoy : null, belief: shouldShowResults(p.nBelief) ? p.belief : null })),
+    pulse: pulse.map((p) => ({ week: p.week, responses: p.n, mood: shouldShowResults(p.n) ? toIndex(p.mood) : null, stress: shouldShowResults(p.nStress) ? toIndex(p.stress) : null, motivation: shouldShowResults(p.nMotivation) ? toIndex(p.motivation) : null })),
   });
 }));
 
