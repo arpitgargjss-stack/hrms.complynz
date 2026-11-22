@@ -5,6 +5,7 @@ import { env } from "../env";
 import { clerkMiddleware, getAuth, clerkClient } from "@clerk/express";
 import { SUPER_ADMIN_IMPLIES, type Role } from "../../shared/hr/access";
 import { noteLogin } from "../lib/loginDays";
+import { createIdentityCache } from "../lib/identityCache";
 
 export interface Actor {
   email: string; employeeId: string | null; roles: Set<Role>; directReportIds: string[];
@@ -13,14 +14,20 @@ declare global { namespace Express { interface Request { actor?: Actor } } }
 
 export const clerkHandler = env.AUTH_MODE === "clerk" ? clerkMiddleware() : (_req: Request, _res: Response, next: NextFunction) => next();
 
+/** Verified primary email for a Clerk user id, or null. Called through the cache below, not per request. */
+async function clerkEmail(userId: string): Promise<string | null> {
+  const u = await clerkClient.users.getUser(userId);
+  const primary = u.emailAddresses.find((e) => e.id === u.primaryEmailAddressId);
+  if (!primary || primary.verification?.status !== "verified") return null;
+  return primary.emailAddress.toLowerCase();
+}
+const identities = createIdentityCache(clerkEmail);
+
 async function emailFromRequest(req: Request): Promise<string | null> {
   if (env.AUTH_MODE === "dev") return env.DEV_AUTH_EMAIL?.toLowerCase() ?? null;
   const a = getAuth(req);
   if (!a.userId) return null;
-  const u = await clerkClient.users.getUser(a.userId);
-  const primary = u.emailAddresses.find((e) => e.id === u.primaryEmailAddressId);
-  if (!primary || primary.verification?.status !== "verified") return null;
-  return primary.emailAddress.toLowerCase();
+  return identities.get(a.userId);
 }
 
 /** Staff gate: verified @complynz.com email only. Resolves the actor and roles. */
