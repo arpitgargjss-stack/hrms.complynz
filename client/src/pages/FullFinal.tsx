@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
+import { ConfigHint } from "../lib/ConfigHint";
 import { openHtml } from "../lib/openHtml";
 import { Card, Chip, ErrorNote, Field, Page, inr } from "../lib/ui";
 import { DataTable } from "../lib/DataTable";
@@ -56,7 +57,7 @@ function Work({ id, onDone }: { id: string; onDone: () => void }) {
   </div>;
 }
 
-function Rules() {
+export function Rules() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["fnf-rules"], queryFn: () => api<FnfRules>("/fnf/rules") });
   const [f, setF] = useState<FnfRules | null>(null);
@@ -88,7 +89,7 @@ export default function FullFinal() {
   return <Page title="Full and final settlement">
     <div className="tabs" role="tablist">{[["list", "Settlements"], ["rules", "Rules"]].map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? "on" : ""} onClick={() => { setTab(k); setWork(null); }}>{l}</button>)}</div>
     <ErrorNote error={q.error ?? paid.error} />
-    {tab === "rules" && <Rules />}
+    {tab === "rules" && <><ConfigHint tab="pay" label="Pay and money" /><Rules /></>}
     {tab === "list" && work && <><p><button className="btn" onClick={() => setWork(null)}>Back</button></p><Work id={work} onDone={() => { setWork(null); qc.invalidateQueries({ queryKey: ["fnf"] }); }} /></>}
     {tab === "list" && !work && <>
       <Card><h2>To settle</h2><DataTable rows={q.data?.due ?? []} rowKey={(x) => x.id} empty="Nobody is leaving right now." file="fnf-due"

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
+import { ConfigHint } from "../lib/ConfigHint";
 import { Card, Chip, ErrorNote, Field, Page } from "../lib/ui";
 import { celebrate } from "../lib/gz";
 
@@ -89,7 +90,7 @@ function Team() {
   );
 }
 
-function CalendarSettings() {
+export function CalendarSettings() {
   const qc = useQueryClient();
   const cal = useQuery({ queryKey: ["calendar"], queryFn: () => api<Cal>("/calendar") });
   const [f, setF] = useState<Cal | null>(null);
@@ -120,7 +121,7 @@ function CalendarSettings() {
   );
 }
 
-function Holidays() {
+export function Holidays() {
   const qc = useQueryClient();
   const [year, setYear] = useState(Number(istToday().slice(0, 4)));
   const [f, setF] = useState({ id: "", date: "", name: "", optional: false });
@@ -157,7 +158,7 @@ export default function Attendance() {
   return (
     <Page title="Attendance">
       <div className="tabs" role="tablist">{tabs.map((t) => <button key={t.k} role="tab" aria-selected={tab === t.k} className={tab === t.k ? "on" : ""} onClick={() => setTab(t.k)}>{t.l}</button>)}</div>
-      {tab === "mine" && <Mine />}{tab === "team" && <Team />}{tab === "calendar" && <CalendarSettings />}{tab === "holidays" && <Holidays />}
+      {tab === "mine" && <Mine />}{tab === "team" && <Team />}{tab === "calendar" && <><ConfigHint tab="time" label="Time off" /><CalendarSettings /></>}{tab === "holidays" && <><ConfigHint tab="time" label="Time off" /><Holidays /></>}
     </Page>
   );
 }

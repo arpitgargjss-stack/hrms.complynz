@@ -41,7 +41,7 @@ type Culture = {
   logins: { optedIn: number; dau: { day: string; count: number | null }[]; today: number | null };
   engagement: { key: string; label: string; posts: number; kudos: number; posters: number; activePeople: number }[];
   esat: { title: string; createdAt: string; responses: number; average: number | null; participationPct: number | null }[];
-  pulse: { week: string; responses: number; average: number | null; enjoy: number | null; belief: number | null }[];
+  pulse: { week: string; responses: number; mood: number | null; stress: number | null; motivation: number | null }[];
 };
 
 function PeopleTab({ range }: { range: Range }) {
@@ -107,7 +107,7 @@ function FinanceTab({ range }: { range: Range }) {
   </>;
 }
 
-const FEEL: [keyof Culture["pulse"][number], string][] = [["average", "Happy at work"], ["enjoy", "Enjoying the work"], ["belief", "Believe in where we're going"]];
+const FEEL: [keyof Culture["pulse"][number], string][] = [["stress", "Stressometer (100 = calm)"], ["mood", "Happy Index"], ["motivation", "Motivation Index"]];
 function FeelTab({ range }: { range: Range }) {
   const q = useQuery({ queryKey: ["dash", "culture", range], queryFn: () => api<Culture>("/dashboard/culture" + qs(range)), placeholderData: (p) => p });
   if (q.error) return <ErrorNote error={q.error} />;
@@ -117,16 +117,16 @@ function FeelTab({ range }: { range: Range }) {
   const prevOf = (k: keyof Culture["pulse"][number], week?: string) => [...d.pulse].reverse().find((p) => p[k] != null && p.week !== week);
   const one = (n: number) => String(Math.round(n * 10) / 10);
   const latestEsat = d.esat.filter((e) => e.average != null).at(-1);
-  const trend = (k: keyof Culture["pulse"][number]) => { const l = latestOf(k), pr = prevOf(k, l?.week); if (!l || !pr) return undefined; const diff = Number(l[k]) - Number(pr[k]); return diff === 0 ? "Same as the week before" : `${diff > 0 ? "Up" : "Down"} ${one(Math.abs(diff))} on the week before`; };
+  const trend = (k: keyof Culture["pulse"][number]) => { const l = latestOf(k), pr = prevOf(k, l?.week); if (!l || !pr) return undefined; const diff = Number(l[k]) - Number(pr[k]); return diff === 0 ? "Same as the week before" : `${diff > 0 ? "Up" : "Down"} ${Math.abs(diff)} on the week before`; };
   return <>
-    <p className="k" style={{ marginTop: -4 }}>From the anonymous weekly check-in on everyone's Home page, on a 1 to 5 scale. Weeks with fewer than {d.minGroup} answers stay hidden, so no one can be picked out.</p>
+    <p className="k" style={{ marginTop: -4 }}>From the anonymous weekly check-in on everyone's Home page, as indexes out of 100 (higher is better, so a high Stressometer means calm). Weeks with fewer than {d.minGroup} answers stay hidden, so no one can be picked out.</p>
     <div className="dash-kpis">
-      {FEEL.map(([k, l]) => { const x = latestOf(k); return <Stat key={k} label={l} value={x ? `${x[k]} / 5` : "-"} sub={x ? trend(k) ?? `Week ${x.week.slice(-2)}, ${x.responses} answers` : `Shown at ${d.minGroup} or more answers`} />; })}
+      {FEEL.map(([k, l]) => { const x = latestOf(k); return <Stat key={k} label={l} value={x ? `${x[k]} / 100` : "-"} sub={x ? trend(k) ?? `Week ${x.week.slice(-2)}, ${x.responses} answers` : `Shown at ${d.minGroup} or more answers`} />; })}
       <Stat label="Latest eSAT survey" value={latestEsat ? `${latestEsat.average} / 5` : "-"} sub={latestEsat ? `${latestEsat.title}, ${latestEsat.participationPct}% answered` : `Shown at ${d.minGroup} or more responses`} />
     </div>
     <div className="dash-grid">
-      <Card><LineChart title="How people feel, week by week" labels={d.pulse.map((p) => `W${p.week.slice(-2)}`)} max={5} fmt={one}
-        series={FEEL.map(([k, l]) => ({ name: l, values: d.pulse.map((p) => p[k] as number | null) }))} note="Averages of the three check-in questions. A gap means too few answers that week." /></Card>
+      <Card><LineChart title="How people feel, week by week" labels={d.pulse.map((p) => `W${p.week.slice(-2)}`)} max={100}
+        series={FEEL.map(([k, l]) => ({ name: l, values: d.pulse.map((p) => p[k] as number | null) }))} note="Stressometer, Happy Index and Motivation Index, out of 100. A gap means too few answers that week." /></Card>
       <Card><LineChart title="eSAT average by survey" labels={d.esat.map((e) => e.title.length > 14 ? e.title.slice(0, 13) + "…" : e.title)} max={5} fmt={one} series={[{ name: "Average rating", values: d.esat.map((e) => e.average) }]}
         note="Average of all rating questions. Surveys with fewer than 5 responses are hidden." /></Card>
       <Card><BarChart title="Kudos and posts" labels={labels} series={[{ name: "Kudos", values: d.engagement.map((e) => e.kudos) }, { name: "Feed posts", values: d.engagement.map((e) => e.posts) }]} note="Thank-yous and sharing are a sign people enjoy working together." /></Card>
@@ -146,7 +146,7 @@ function RangeBar({ range, set }: { range: Range; set: (r: Range) => void }) {
       onClick={() => { if (k === "custom") setCustom(true); else { setCustom(false); set({ preset: k, from: "", to: "" }); } }}>{l}</button>)}
     {custom && <><label className="dash-date"><span>From</span><input type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} /></label>
       <label className="dash-date"><span>To</span><input type="date" value={to} min={from} max={today} onChange={(e) => setTo(e.target.value)} /></label>
-      <button type="button" className="btn primary" disabled={!from || !to} onClick={() => set({ preset: "custom", from, to })}>Apply</button></>}
+      <button type="button" className="btn p" disabled={!from || !to} onClick={() => set({ preset: "custom", from, to })}>Apply</button></>}
   </div>;
 }
 

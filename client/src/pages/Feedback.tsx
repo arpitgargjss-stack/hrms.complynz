@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearch } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { Card, Chip, ErrorNote, Field, Page } from "../lib/ui";
@@ -145,7 +146,8 @@ export default function Feedback() {
   const me = useQuery({ queryKey: ["me"], queryFn: () => api<Me>("/me") });
   const hr = (me.data?.roles ?? []).includes("hr_admin");
   const tabs = [{ k: "survey", l: "Survey" }, { k: "box", l: "Suggestion box" }, ...(hr ? [{ k: "cycles", l: "Cycles" }, { k: "results", l: "Results" }, { k: "inbox", l: "Suggestions inbox" }] : [])];
-  const [tab, setTab] = useState("survey");
+  const asked = new URLSearchParams(useSearch()).get("tab");
+  const [tab, setTab] = useState(asked === "box" ? "box" : "survey");
   return (
     <Page title="Feedback">
       <div className="tabs" role="tablist">{tabs.map((t) => <button key={t.k} role="tab" aria-selected={tab === t.k} className={tab === t.k ? "on" : ""} onClick={() => setTab(t.k)}>{t.l}</button>)}</div>

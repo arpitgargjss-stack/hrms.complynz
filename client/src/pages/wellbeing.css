@@ -1,0 +1,39 @@
+/* Home check-in: playful, still brand blue. */
+.wb{position:relative;overflow:hidden;display:flex;flex-direction:column;gap:16px;background:linear-gradient(160deg,#f0f5ff 0%,#fff 45%,#eef4ff 100%)}
+.wb::before{content:"";position:absolute;right:-60px;top:-60px;width:180px;height:180px;border-radius:50%;background:radial-gradient(circle,#c7d8ff 0,rgba(199,216,255,0) 70%);pointer-events:none}
+.wb-head{position:relative}
+.wb-head h3{margin:2px 0 0;font-size:20px;font-weight:800;letter-spacing:-.02em;line-height:1.2}
+.wb-tag{display:inline-flex;gap:6px;align-items:center;font-size:12px;font-weight:800;color:#0048e4;background:#e6eeff;border-radius:999px;padding:4px 10px}
+.wb-q{background:#fff;border:1px solid #dbe6ff;border-radius:18px;padding:12px 12px 10px;transition:border-color .2s,box-shadow .2s}
+.wb-q.done{border-color:#0048e4;box-shadow:0 10px 24px -18px rgba(0,72,228,.6)}
+.wb-qh{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+.wb-qh b{font-size:14px;display:flex;gap:6px;align-items:center}
+.wb-qh small{display:block;font-size:12px;color:var(--gz-mute);font-weight:500}
+.wb-pick{font-size:12px;font-weight:800;color:#fff;background:#0048e4;border-radius:999px;padding:3px 10px;white-space:nowrap;animation:wbIn .25s ease}
+.wb-row{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.wb-e{font:inherit;font-size:28px;line-height:1;height:52px;border-radius:14px;border:0;background:#f4f7ff;cursor:pointer;transition:transform .18s cubic-bezier(.3,1.6,.5,1),background .2s,filter .2s,opacity .2s}
+.wb-e:hover{transform:translateY(-3px) scale(1.08);background:#e6eeff}
+.wb-e:focus-visible{outline:3px solid #93b4ff;outline-offset:2px}
+.wb-row.has .wb-e:not(.on){filter:grayscale(.7);opacity:.55}
+.wb-e.on{background:#dbe6ff;transform:scale(1.18);box-shadow:0 0 0 2px #0048e4 inset;animation:wbBounce .35s cubic-bezier(.3,1.6,.5,1)}
+.wb-send{font:inherit;font-size:15px;font-weight:800;min-height:52px;border:0;border-radius:16px;color:#fff;cursor:pointer;background:linear-gradient(90deg,#00236e,#0048e4,#3b82f6);background-size:200% 100%;animation:gzShift 6s ease infinite;transition:transform .15s}
+.wb-send:hover{transform:translateY(-2px)}.wb-send:disabled{background:#c7d2e8;animation:none;cursor:not-allowed;transform:none}
+.wb-dots{display:flex;gap:4px;justify-content:center}.wb-dots i{width:8px;height:8px;border-radius:99px;background:#dbe6ff;transition:background .2s,width .2s}.wb-dots i.on{background:#0048e4;width:18px}
+.wb-link{font:inherit;font-size:13px;font-weight:800;color:#0048e4;background:#fff;border:1px dashed #93b4ff;border-radius:999px;padding:8px 14px;cursor:pointer;align-self:flex-start}
+.wb-meter{height:12px;border-radius:99px;background:#e6eeff;overflow:hidden;margin-top:6px}
+.wb-meter i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#93b4ff,#0048e4);animation:wbGrow .8s cubic-bezier(.2,.8,.2,1)}
+.wb-sup{position:relative;display:flex;flex-direction:column;gap:12px;background:#fff;border:1px solid #dbe6ff;border-radius:20px;padding:16px;animation:gzPop .5s cubic-bezier(.2,.8,.2,1)}
+.wb-tiles{display:grid;grid-template-columns:1fr;gap:10px}
+.wb-tile{border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.wb-tile.anon{background:#f0f5ff}.wb-tile.talk{background:linear-gradient(160deg,#e6eeff,#f7f9ff)}
+.wb-tile h4{margin:0;font-size:15px;display:flex;gap:8px;align-items:center}
+.wb-tile p{margin:0;font-size:13px;color:#334155}
+.wb-chips{display:flex;flex-wrap:wrap;gap:6px}
+.wb-chip{font:inherit;font-size:13px;font-weight:700;min-height:36px;padding:0 12px;border-radius:999px;border:1px solid #dbe6ff;background:#fff;color:var(--gz-ink);cursor:pointer;transition:transform .15s}
+.wb-chip:hover{transform:translateY(-1px)}.wb-chip.on{background:#0048e4;border-color:#0048e4;color:#fff}
+.wb-note{font:inherit;font-size:14px;border-radius:12px;border:1px solid #dbe6ff;padding:10px;resize:vertical;background:#fff}
+.wb-fine{font-size:12px;color:var(--gz-mute)}
+@keyframes wbBounce{0%{transform:scale(.9)}60%{transform:scale(1.28)}100%{transform:scale(1.18)}}
+@keyframes wbIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@keyframes wbGrow{from{width:0}}
+@media (prefers-reduced-motion:reduce){.wb-e,.wb-e.on,.wb-send,.wb-meter i,.wb-pick{animation:none;transition:none}}

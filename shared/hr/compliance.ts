@@ -23,7 +23,10 @@ export type Due = { monthly?: number; dates?: string[]; fixed?: string };
 export type Item = {
   key: string; title: string; category: Category; law: string; frequency: Frequency; due?: Due; dueText: string; form?: string; portal?: string; template?: string;
   applies: (f: CompanyFacts) => { need: Need; why: string };
+  /** Set when the item switches on at a headcount, intern or office threshold, so a newly crossed threshold can be flagged. */
+  trigger?: Trigger;
 };
+export type Trigger = "headcount" | "interns" | "office";
 
 const n = (f: CompanyFacts) => f.headcount + f.interns;
 const has = (f: CompanyFacts, s: string) => f.states.includes(s);
@@ -34,39 +37,39 @@ const turnoverOver = (f: CompanyFacts, band: CompanyFacts["turnoverBand"]) => Ob
 
 export const ITEMS: Item[] = [
   // ---------------- HR and labour
-  { key: "epf_registration", title: "EPF registration", category: "HR and labour", law: "EPF and MP Act, 1952 / Code on Social Security, 2020", frequency: "One time", dueText: "Within a month of reaching 20 employees", portal: "https://unifiedportal-emp.epfindia.gov.in/",
+  { key: "epf_registration", trigger: "headcount", title: "EPF registration", category: "HR and labour", law: "EPF and MP Act, 1952 / Code on Social Security, 2020", frequency: "One time", dueText: "Within a month of reaching 20 employees", portal: "https://unifiedportal-emp.epfindia.gov.in/",
     applies: (f) => (f.headcount >= 20 ? yes(`${f.headcount} employees (interns not counted); the threshold is 20`) : opt(`${f.headcount} employees; compulsory from 20, voluntary before that`)) },
-  { key: "epf_ecr", title: "EPF monthly return (ECR) and payment", category: "HR and labour", law: "EPF and MP Act, 1952", frequency: "Monthly", due: { monthly: 15 }, dueText: "15th of the next month", form: "ECR", portal: "https://unifiedportal-emp.epfindia.gov.in/",
+  { key: "epf_ecr", trigger: "headcount", title: "EPF monthly return (ECR) and payment", category: "HR and labour", law: "EPF and MP Act, 1952", frequency: "Monthly", due: { monthly: 15 }, dueText: "15th of the next month", form: "ECR", portal: "https://unifiedportal-emp.epfindia.gov.in/",
     applies: (f) => (f.headcount >= 20 ? yes("EPF applies at 20 or more employees") : no("Only once EPF applies or you register voluntarily")) },
-  { key: "esi_registration", title: "ESI registration", category: "HR and labour", law: "ESI Act, 1948 / Code on Social Security, 2020", frequency: "One time", dueText: "Within 15 days of reaching 10 employees", portal: "https://www.esic.gov.in/",
+  { key: "esi_registration", trigger: "headcount", title: "ESI registration", category: "HR and labour", law: "ESI Act, 1948 / Code on Social Security, 2020", frequency: "One time", dueText: "Within 15 days of reaching 10 employees", portal: "https://www.esic.gov.in/",
     applies: (f) => (n(f) >= 10 ? yes(`${n(f)} people including interns; the threshold is 10 in notified areas`) : no(`${n(f)} people; applies from 10`)) },
-  { key: "esi_monthly", title: "ESI monthly contribution", category: "HR and labour", law: "ESI Act, 1948", frequency: "Monthly", due: { monthly: 15 }, dueText: "15th of the next month", portal: "https://www.esic.gov.in/",
+  { key: "esi_monthly", trigger: "headcount", title: "ESI monthly contribution", category: "HR and labour", law: "ESI Act, 1948", frequency: "Monthly", due: { monthly: 15 }, dueText: "15th of the next month", portal: "https://www.esic.gov.in/",
     applies: (f) => (n(f) >= 10 ? yes("For employees earning up to ₹21,000 a month") : no("Applies from 10 people")) },
-  { key: "shops_up", title: "Shops and establishments registration, Uttar Pradesh", category: "HR and labour", law: "UP Dukan Aur Vanijya Adhishthan Adhiniyam, 1962", frequency: "One time", dueText: "On reaching 10 employees; renew as required", portal: "https://uplabour.gov.in/",
+  { key: "shops_up", trigger: "office", title: "Shops and establishments registration, Uttar Pradesh", category: "HR and labour", law: "UP Dukan Aur Vanijya Adhishthan Adhiniyam, 1962", frequency: "One time", dueText: "On reaching 10 employees; renew as required", portal: "https://uplabour.gov.in/",
     applies: (f) => (!has(f, "Uttar Pradesh") ? no("No office in Uttar Pradesh") : n(f) >= 10 ? yes("Office in Uttar Pradesh with 10 or more people") : opt("Office in Uttar Pradesh; registration is compulsory from 10 people")) },
-  { key: "shops_mh", title: "Shops and establishments registration or intimation, Maharashtra", category: "HR and labour", law: "Maharashtra Shops and Establishments Act, 2017", frequency: "One time", dueText: "Within 60 days of starting; intimation below 10 employees", portal: "https://mahakamgar.maharashtra.gov.in/",
+  { key: "shops_mh", trigger: "office", title: "Shops and establishments registration or intimation, Maharashtra", category: "HR and labour", law: "Maharashtra Shops and Establishments Act, 2017", frequency: "One time", dueText: "Within 60 days of starting; intimation below 10 employees", portal: "https://mahakamgar.maharashtra.gov.in/",
     applies: (f) => (!has(f, "Maharashtra") ? no("No office in Maharashtra") : yes(n(f) >= 10 ? "Office in Maharashtra with 10 or more people: registration" : "Office in Maharashtra under 10 people: one-time intimation")) },
-  { key: "mlwf", title: "Maharashtra Labour Welfare Fund", category: "HR and labour", law: "Maharashtra Labour Welfare Fund Act, 1953", frequency: "Half-yearly", due: { dates: ["07-15", "01-15"] }, dueText: "15 July (June) and 15 January (December)", portal: "https://public.mlwb.in/",
+  { key: "mlwf", trigger: "office", title: "Maharashtra Labour Welfare Fund", category: "HR and labour", law: "Maharashtra Labour Welfare Fund Act, 1953", frequency: "Half-yearly", due: { dates: ["07-15", "01-15"] }, dueText: "15 July (June) and 15 January (December)", portal: "https://public.mlwb.in/",
     applies: (f) => (has(f, "Maharashtra") && n(f) >= 5 ? yes("Office in Maharashtra with 5 or more people") : no("Only for Maharashtra offices with 5 or more people")) },
   { key: "posh_policy", title: "POSH policy and awareness", category: "HR and labour", law: "Sexual Harassment of Women at Workplace Act, 2013", frequency: "Ongoing", dueText: "Keep the policy published and run awareness at least yearly",
     applies: () => yes("Every employer, whatever the size") },
-  { key: "posh_ic", title: "POSH Internal Committee", category: "HR and labour", law: "Sexual Harassment of Women at Workplace Act, 2013, section 4", frequency: "One time", dueText: "As soon as there are 10 people, including interns", template: "posh_ic",
+  { key: "posh_ic", trigger: "headcount", title: "POSH Internal Committee", category: "HR and labour", law: "Sexual Harassment of Women at Workplace Act, 2013, section 4", frequency: "One time", dueText: "As soon as there are 10 people, including interns", template: "posh_ic",
     applies: (f) => (n(f) >= 10 ? yes(`${n(f)} people including interns; required from 10`) : opt("Required from 10 people; the Local Committee covers you until then")) },
-  { key: "posh_report", title: "POSH annual report to the District Officer", category: "HR and labour", law: "POSH Act, section 21 and Rule 14", frequency: "Annual", due: { dates: ["01-31"] }, dueText: "By 31 January for the calendar year", template: "posh_report",
+  { key: "posh_report", trigger: "headcount", title: "POSH annual report to the District Officer", category: "HR and labour", law: "POSH Act, section 21 and Rule 14", frequency: "Annual", due: { dates: ["01-31"] }, dueText: "By 31 January for the calendar year", template: "posh_report",
     applies: (f) => (n(f) >= 10 ? yes("Once an Internal Committee exists") : no("Only once an Internal Committee is needed")) },
   { key: "wage_slips", title: "Wage slips and on-time salary", category: "HR and labour", law: "Code on Wages, 2019", frequency: "Monthly", due: { monthly: 7 }, dueText: "Pay monthly salary by the 7th of the next month",
     applies: () => yes("Every employer") },
   { key: "registers", title: "Registers of employees, wages and attendance", category: "HR and labour", law: "Code on Wages and state rules", frequency: "Ongoing", dueText: "Keep them current; this HRMS holds most of them", template: "registers",
     applies: () => yes("Every employer") },
-  { key: "gratuity_notice", title: "Gratuity: notice of opening and payment of gratuity", category: "HR and labour", law: "Payment of Gratuity Act, 1972 / Code on Social Security, 2020", frequency: "One time", dueText: "Within 30 days of reaching 10 employees",
+  { key: "gratuity_notice", trigger: "headcount", title: "Gratuity: notice of opening and payment of gratuity", category: "HR and labour", law: "Payment of Gratuity Act, 1972 / Code on Social Security, 2020", frequency: "One time", dueText: "Within 30 days of reaching 10 employees",
     applies: (f) => (n(f) >= 10 ? yes("Applies from 10 people") : no("Applies from 10 people")) },
-  { key: "bonus", title: "Statutory bonus", category: "HR and labour", law: "Payment of Bonus Act, 1965 / Code on Wages, 2019", frequency: "Annual", due: { dates: ["11-30"] }, dueText: "Pay within 8 months of the year end (30 November)",
+  { key: "bonus", trigger: "headcount", title: "Statutory bonus", category: "HR and labour", law: "Payment of Bonus Act, 1965 / Code on Wages, 2019", frequency: "Annual", due: { dates: ["11-30"] }, dueText: "Pay within 8 months of the year end (30 November)",
     applies: (f) => (f.headcount >= 20 ? yes("20 or more employees; for those earning up to ₹21,000 a month") : no("Applies from 20 employees")) },
-  { key: "maternity", title: "Maternity benefit and creche", category: "HR and labour", law: "Maternity Benefit Act, 1961", frequency: "Ongoing", dueText: "26 weeks paid leave; creche from 50 employees",
+  { key: "maternity", trigger: "headcount", title: "Maternity benefit and creche", category: "HR and labour", law: "Maternity Benefit Act, 1961", frequency: "Ongoing", dueText: "26 weeks paid leave; creche from 50 employees",
     applies: (f) => (n(f) >= 10 ? yes(n(f) >= 50 ? "10 or more people, and a creche from 50" : "10 or more people") : opt("Applies from 10 people; good practice before that")) },
-  { key: "standing_orders", title: "Standing orders", category: "HR and labour", law: "Industrial Relations Code, 2020", frequency: "One time", dueText: "On reaching 300 workers",
+  { key: "standing_orders", trigger: "headcount", title: "Standing orders", category: "HR and labour", law: "Industrial Relations Code, 2020", frequency: "One time", dueText: "On reaching 300 workers",
     applies: (f) => (n(f) >= 300 ? yes("300 or more workers") : no("Applies from 300 workers")) },
-  { key: "interns", title: "Internship letters and stipend records", category: "HR and labour", law: "Contract and tax law", frequency: "Ongoing", dueText: "For every intern",
+  { key: "interns", trigger: "interns", title: "Internship letters and stipend records", category: "HR and labour", law: "Contract and tax law", frequency: "Ongoing", dueText: "For every intern",
     applies: (f) => (f.interns > 0 ? yes(`${f.interns} interns on the rolls`) : opt("No interns right now")) },
   // ---------------- payroll taxes
   { key: "tds_salary", title: "TDS on salary: monthly deposit", category: "Payroll taxes", law: "Income-tax Act, section 192", frequency: "Monthly", due: { monthly: 7 }, dueText: "7th of the next month (30 April for March)", form: "Challan 281", portal: "https://www.incometax.gov.in/",
@@ -75,7 +78,7 @@ export const ITEMS: Item[] = [
     applies: () => yes("Every employer deducting TDS on salary") },
   { key: "form16", title: "Form 16 to employees", category: "Payroll taxes", law: "Income-tax Act, section 203", frequency: "Annual", due: { dates: ["06-15"] }, dueText: "By 15 June", form: "Form 16",
     applies: () => yes("Every employer deducting TDS on salary") },
-  { key: "pt_mh", title: "Professional tax, Maharashtra (PTRC return and PTEC)", category: "Payroll taxes", law: "Maharashtra State Tax on Professions Act, 1975", frequency: "Monthly", due: { monthly: 31 }, dueText: "PTRC by the last day of the month (annual by 31 March if yearly tax is under ₹50,000); PTEC by 30 June", portal: "https://mahagst.gov.in/",
+  { key: "pt_mh", trigger: "office", title: "Professional tax, Maharashtra (PTRC return and PTEC)", category: "Payroll taxes", law: "Maharashtra State Tax on Professions Act, 1975", frequency: "Monthly", due: { monthly: 31 }, dueText: "PTRC by the last day of the month (annual by 31 March if yearly tax is under ₹50,000); PTEC by 30 June", portal: "https://mahagst.gov.in/",
     applies: (f) => (has(f, "Maharashtra") ? yes("Office in Maharashtra") : no("No office in a state that levies it; Uttar Pradesh has none")) },
   // ---------------- finance and tax
   { key: "tds_vendor", title: "TDS on vendor payments and Form 26Q", category: "Finance and tax", law: "Income-tax Act, sections 194C, 194J and others", frequency: "Monthly", due: { monthly: 7 }, dueText: "Deposit by the 7th; 26Q quarterly with 24Q dates", form: "26Q",
@@ -171,3 +174,39 @@ export function prevDue(item: Item, today: string): string | null {
 }
 /** The period a due date belongs to, used to mark it done: the month for monthly items, else the due date itself. */
 export const periodOf = (item: Item, due: string | null) => (due ? (item.frequency === "Monthly" ? due.slice(0, 7) : due) : "once");
+
+/** How urgent an item is. HR can override it per item; otherwise it is worked out by `defaultPriority`. */
+export type Priority = "High" | "Medium" | "Low";
+export const PRIORITIES: Priority[] = ["High", "Medium", "Low"];
+/** Days ahead within which a mandatory item counts as due soon and so high priority. */
+export const SOON_DAYS = 14;
+/**
+ * Default priority from need, status and due date:
+ * mandatory and overdue, due within 14 days, or a one-time item a headcount, intern or office threshold has just switched on = High;
+ * other mandatory items = Medium; optional, not applicable and already done = Low.
+ */
+export function defaultPriority(x: { need: string; status: string; due: string | null; trigger?: Trigger | null }, today: string): Priority {
+  if (x.need !== "Mandatory" || x.status === "Done" || x.status === "Not applicable") return "Low";
+  if (x.status === "Overdue") return "High";
+  if (x.due && Math.round((Date.parse(x.due) - Date.parse(today)) / 86400000) <= SOON_DAYS) return "High";
+  if (x.status === "To do" && x.trigger) return "High";
+  return "Medium";
+}
+
+/** Segments group the catalogue into the areas a founder thinks in; every item belongs to exactly one. */
+export type Segment = "hr" | "tax" | "corporate" | "fema" | "startup" | "it";
+export const SEGMENTS: { key: Segment; name: string; emoji: string; blurb: string }[] = [
+  { key: "hr", name: "HR and labour", emoji: "🧑‍💼", blurb: "EPF, ESI, POSH, shops act, wages" },
+  { key: "tax", name: "Taxes", emoji: "🧾", blurb: "GST, TDS, income tax, professional tax" },
+  { key: "corporate", name: "Statutory and corporate", emoji: "🏛️", blurb: "ROC and MCA filings, board, AGM, audit" },
+  { key: "it", name: "IT, data and security", emoji: "🔐", blurb: "DPDP, CERT-In, grievance officer" },
+  { key: "fema", name: "Foreign investment", emoji: "🌍", blurb: "RBI and FEMA filings" },
+  { key: "startup", name: "Startup and MSME", emoji: "🚀", blurb: "DPIIT, Udyam, MSME dues" },
+];
+const SEGMENT_BY_CATEGORY: Record<Category, Segment> = {
+  "HR and labour": "hr", "Payroll taxes": "tax", "Finance and tax": "tax", "Corporate (MCA)": "corporate",
+  "Foreign investment": "fema", "Startup and MSME": "startup", "Data protection and IT": "it",
+};
+/** Items whose category suggests one segment but which belong in another. */
+const SEGMENT_OVERRIDE: Record<string, Segment> = { stat_audit: "corporate" }; // Companies Act audit, filed with the ROC
+export const segmentOf = (item: Pick<Item, "key" | "category">): Segment => SEGMENT_OVERRIDE[item.key] ?? SEGMENT_BY_CATEGORY[item.category];

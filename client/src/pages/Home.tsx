@@ -2,9 +2,11 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
+import { PolicyReminders } from "../lib/PolicyReminders";
 import { Card, Chip, ErrorNote, inr } from "../lib/ui";
 import { Story, celebrate } from "../lib/gz";
-import { KudosPreview, PulseCard } from "./Kudos";
+import { KudosPreview } from "./Kudos";
+import { PulseCard, CareCard } from "./Wellbeing";
 import { POLL_MS, useNewItemChime } from "../lib/sound";
 import "../gz.css";
 
@@ -72,7 +74,7 @@ function StartMyDay({ t }: { t: Today }) {
       <div><b className="display" style={{ fontSize: 30, display: "block", position: "relative" }}>{title}</b><span style={{ color: "#dbe6ff" }}>{sub}</span></div>
       <div style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap", position: "relative" }}>
         {t.day.state !== "done" && <button className="gz-btn white" style={{ minHeight: 52, fontSize: 16, padding: "0 26px" }} disabled={punch.isPending} onClick={() => punch.mutate(working ? "out" : "in")}>{working ? "End my day" : "Start my day"}</button>}
-        <a href="#pulse" style={{ color: "#fff", fontSize: 14, fontWeight: 600, textDecoration: "underline", textUnderlineOffset: 3 }}>How are you, really? Three anonymous taps</a>
+        <a href="#pulse" style={{ color: "#fff", fontSize: 14, fontWeight: 600, textDecoration: "underline", textUnderlineOffset: 3 }}>How are you feeling today? Three anonymous taps</a>
       </div>
       <ErrorNote error={punch.error} />
     </section>
@@ -117,6 +119,7 @@ export default function Home() {
   return (
     <div className="gz" style={{ display: "flex", flexDirection: "column", gap: 22 }}>
       <ErrorNote error={home.error ?? t.error} />
+      <PolicyReminders />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 16, flexWrap: "wrap" }}>
         <div><span style={{ fontSize: 14, color: "var(--gz-mute)" }}>{h ? fmtDay(h.today) : ""}</span>
           <h1 style={{ margin: "4px 0 0", fontSize: "clamp(30px,4vw,42px)", fontWeight: 800, lineHeight: 1.05 }}>{greeting()}{d ? `, ${d.firstName}` : ""}. <span style={{ color: "var(--gz-blue)" }}>{new Date().getDay() === 5 ? "Last stretch before the weekend." : "Let's make it a good one."}</span></h1></div>
@@ -148,6 +151,7 @@ export default function Home() {
         <KudosPreview />
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           {hasEmp && <PulseCard />}
+          {hasEmp && <CareCard />}
           {d?.longWeekend && <section className="gz-card gz-pop" style={{ background: "#f0f5ff", borderColor: "#bfdbfe", color: "#172554" }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: "#1e3a8a" }}>Leave planner tip · {d.longWeekend.holiday}</span>
             <b style={{ display: "block", fontSize: 16, margin: "6px 0" }}>Take {d.longWeekend.take.map(fmtDay).join(" and ")} off, get {d.longWeekend.daysOff} days in a row.</b>

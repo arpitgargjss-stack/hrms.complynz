@@ -17,8 +17,12 @@ import feedback from "./routes/feedback";
 import dashboard from "./routes/dashboard";
 import fnf from "./routes/fnf";
 import compliance from "./routes/compliance";
+import adminConfig from "./routes/config";
+import policyAdmin from "./routes/policyAdmin";
+import configMore from "./routes/configMore";
 import vibe from "./routes/vibe";
 import buzz from "./routes/buzz";
+import care from "./routes/care";
 
 const app = express();
 app.disable("x-powered-by");
@@ -62,8 +66,12 @@ app.use("/api", feedback);
 app.use("/api", dashboard);
 app.use("/api", fnf);
 app.use("/api", compliance);
+app.use("/api", adminConfig);
+app.use("/api", policyAdmin);
+app.use("/api", configMore);
 app.use("/api", vibe);
 app.use("/api", buzz);
+app.use("/api", care);
 
 const dist = path.resolve("dist/client");
 app.use(express.static(dist));

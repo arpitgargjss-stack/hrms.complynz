@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULT_FACTS, ITEMS, nextDue, prevDue, periodOf, type CompanyFacts } from "./compliance";
+import { DEFAULT_FACTS, ITEMS, SEGMENTS, defaultPriority, segmentOf, nextDue, prevDue, periodOf, type CompanyFacts } from "./compliance";
 
 const facts = (o: Partial<CompanyFacts> = {}): CompanyFacts => ({ ...DEFAULT_FACTS, headcount: 8, interns: 3, states: ["Uttar Pradesh", "Maharashtra"], ...o });
 const item = (k: string) => ITEMS.find((i) => i.key === k)!;
@@ -40,4 +40,35 @@ test("due dates roll forward and back", () => {
   assert.equal(nextDue(item("tds_salary"), "2026-12-25"), "2027-01-07");
   assert.equal(prevDue(item("tds_salary"), "2027-01-03"), "2026-12-07");
   assert.equal(periodOf(item("tds_salary"), "2026-12-07"), "2026-12");
+});
+
+test("default priority follows need, status and due date", () => {
+  const T = "2026-11-22";
+  const p = (need: string, status: string, due: string | null = null, trigger: "headcount" | null = null) => defaultPriority({ need, status, due, trigger }, T);
+  assert.equal(p("Mandatory", "Overdue", "2026-11-07"), "High");
+  assert.equal(p("Mandatory", "Due in 30 days", "2026-12-06"), "High"); // 14 days out
+  assert.equal(p("Mandatory", "Due in 30 days", "2026-12-07"), "Medium"); // 15 days out
+  assert.equal(p("Mandatory", "Upcoming", "2027-01-31"), "Medium");
+  assert.equal(p("Mandatory", "Ongoing"), "Medium");
+  assert.equal(p("Mandatory", "To do", null, "headcount"), "High"); // a threshold just switched it on
+  assert.equal(p("Mandatory", "To do"), "Medium");
+  assert.equal(p("Optional", "Due in 30 days", "2026-11-25"), "Low");
+  assert.equal(p("Optional", "To do", null, "headcount"), "Low");
+  assert.equal(p("Not applicable", "Not applicable"), "Low");
+  assert.equal(p("Mandatory", "Done"), "Low");
+});
+
+test("threshold items carry a trigger", () => {
+  for (const k of ["epf_registration", "esi_registration", "posh_ic", "shops_mh", "interns"]) assert.ok(item(k).trigger, k);
+  assert.equal(item("itr6").trigger, undefined);
+});
+
+test("every item sits in exactly one known segment, and no segment is empty", () => {
+  const keys = SEGMENTS.map((s) => s.key);
+  for (const i of ITEMS) assert.ok(keys.includes(segmentOf(i)), i.key);
+  for (const k of keys) assert.ok(ITEMS.some((i) => segmentOf(i) === k), k);
+  assert.equal(segmentOf(item("gstr3b")), "tax");
+  assert.equal(segmentOf(item("pt_mh")), "tax");
+  assert.equal(segmentOf(item("stat_audit")), "corporate");
+  assert.equal(segmentOf(item("certin")), "it");
 });

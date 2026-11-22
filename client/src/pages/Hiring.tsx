@@ -1,5 +1,6 @@
 import { Link } from "wouter";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { KIND_LABEL, candidateSteps, type ChecklistItem, type LinkChecklist } from "../../../shared/hr/onboardingChecklist";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LETTER_STATUS_LABEL, letterDef } from "../../../shared/hr/letters";
 import { FieldInput } from "./Letters";
@@ -10,7 +11,7 @@ import { openHtml } from "../lib/openHtml";
 
 type Candidate = { id: string; fullName: string; email: string; phone: string | null; position: string | null; status: string; expectedJoining: string | null };
 type Letter = { id: string; type: string; refNo: string; status: string; reviewNote?: string | null };
-type Onb = { id: string; steps: string[]; expiresAt: string; completedAt: string | null; createdAt: string; submission: null | {
+type Onb = { id: string; steps: string[]; expiresAt: string; completedAt: string | null; createdAt: string; checklist?: LinkChecklist | null; submission: null | {
   personal: Record<string, unknown> | null; panMasked: string | null; accountMasked: string | null; bankName: string | null; ifsc: string | null;
   documents: { fileId: string; kind: string; name: string }[]; submittedAt: string | null } };
 type Shared = { linkPath: string; expiresAt: string; emailed: boolean };
@@ -124,6 +125,10 @@ function Onboarding({ c }: { c: Candidate }) {
   const [steps, setSteps] = useState<string[]>(["details", "kyc", "bank", "documents"]);
   const [shared, setShared] = useState<Shared | null>(null);
   const subs = useQuery({ queryKey: ["onb", c.id], queryFn: () => api<Onb[]>(`/candidates/${c.id}/onboarding`) });
+  // The default checklist from Configuration decides which steps start ticked; each new link keeps its own copy.
+  const def = useQuery({ queryKey: ["config-onboarding"], queryFn: () => api<{ current: { version: number; items: ChecklistItem[] } }>("/config/onboarding") });
+  useEffect(() => { if (def.data) setSteps(candidateSteps(def.data.current)); }, [def.data]);
+  const tick = useMutation({ mutationFn: (x: { link: string; item: string; done: boolean }) => api(`/onboarding-links/${x.link}/checklist/${x.item}`, { method: "PATCH", body: { done: x.done } }), onSuccess: () => qc.invalidateQueries({ queryKey: ["onb", c.id] }) });
   const create = useMutation({ mutationFn: () => api<Shared>(`/candidates/${c.id}/onboarding-link`, { body: { steps } }), onSuccess: (s) => { setShared(s); qc.invalidateQueries({ queryKey: ["onb", c.id] }); } });
   return (
     <Card><h2>Onboarding</h2>
@@ -132,11 +137,16 @@ function Onboarding({ c }: { c: Candidate }) {
       {STEPS.map((s) => <label key={s.key} style={{ display: "flex", gap: 12, padding: "10px 0", borderTop: "1px solid var(--line)", alignItems: "flex-start" }}>
         <input type="checkbox" checked={steps.includes(s.key)} onChange={(e) => setSteps(e.target.checked ? [...steps, s.key] : steps.filter((x) => x !== s.key))} />
         <span><strong>{s.label}</strong><br /><span className="k">{s.hint}</span></span></label>)}
-      <ErrorNote error={create.error} />
+      {def.data && <p className="k">The link copies the default onboarding checklist (version {def.data.current.version || "starting list"}, {def.data.current.items.length} items). <Link href="/admin/config?tab=onboarding">Edit it in Configuration → Onboarding</Link>.</p>}
+      <ErrorNote error={create.error ?? tick.error} />
       <p><button className="btn p" disabled={create.isPending || !steps.length} onClick={() => create.mutate()}>Create onboarding link</button></p>
       {shared && <CopyLink shared={shared} title="Onboarding link created" />}
       {(subs.data ?? []).map((o) => <div key={o.id} style={{ borderTop: "1px solid var(--line)", paddingTop: 10, marginTop: 10 }}>
         <p style={{ margin: 0 }}><Chip tone={o.completedAt ? "ok" : "warn"}>{o.completedAt ? "Submitted" : "Waiting"}</Chip> <span className="k">Link created {o.createdAt.slice(0, 10)}, expires {o.expiresAt.slice(0, 10)}, steps: {o.steps.join(", ")}</span></p>
+        {o.checklist && <div className="onb-checklist"><p className="k" style={{ margin: "8px 0 4px" }}>HR checklist (version {o.checklist.version})</p>
+          {o.checklist.items.filter((i) => i.kind !== "candidate_step").map((i) => <label key={i.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "4px 0", fontSize: 14 }}>
+            <input type="checkbox" checked={i.done} disabled={tick.isPending} onChange={(e) => tick.mutate({ link: o.id, item: i.id, done: e.target.checked })} />
+            <span>{i.label}{!i.required && <span className="k"> (optional)</span>} <span className="k">· {KIND_LABEL[i.kind]}{i.done && i.doneBy ? ` · done by ${i.doneBy}` : ""}</span></span></label>)}</div>}
         {o.submission && <dl style={{ display: "grid", gridTemplateColumns: "max-content 1fr", gap: "4px 16px", fontSize: 14 }}>
           {Object.entries(o.submission.personal ?? {}).map(([k, v]) => <><dt className="k" key={k + "k"}>{k}</dt><dd key={k} style={{ margin: 0 }}>{String(v)}</dd></>)}
           {o.submission.panMasked && <><dt className="k">PAN</dt><dd style={{ margin: 0 }}>{o.submission.panMasked}</dd></>}

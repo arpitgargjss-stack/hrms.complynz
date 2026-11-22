@@ -123,7 +123,6 @@ r.post("/suggestions", wrap(async (req, res) => {
 }));
 r.get("/suggestions", wrap(async (req, res) => {
   requireHr(req);
-  await logAudit(req.actor!.email, "suggestions.list");
   res.json(await db.select({ id: A.suggestions.id, body: A.suggestions.body, status: A.suggestions.status, reply: A.suggestions.reply, createdDay: A.suggestions.createdDay }).from(A.suggestions).orderBy(desc(A.suggestions.createdDay)).limit(500));
 }));
 r.post("/suggestions/:id/reply", wrap(async (req, res) => {

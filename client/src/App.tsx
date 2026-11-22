@@ -9,7 +9,7 @@ import { Avatar } from "./lib/Avatar";
 const P = {
   Home: lazy(() => import("./pages/Home")), People: lazy(() => import("./pages/People")), OrgChart: lazy(() => import("./pages/OrgChart")),
   Org: lazy(() => import("./pages/Org")), Assets: lazy(() => import("./pages/Assets")), Policies: lazy(() => import("./pages/Policies")),
-  Access: lazy(() => import("./pages/Access")), Hiring: lazy(() => import("./pages/Hiring")), Payroll: lazy(() => import("./pages/Payroll")), Dashboard: lazy(() => import("./pages/Dashboard")), Letters: lazy(() => import("./pages/Letters")), FullFinal: lazy(() => import("./pages/FullFinal")), Compliance: lazy(() => import("./pages/Compliance")),
+  Access: lazy(() => import("./pages/Access")), Hiring: lazy(() => import("./pages/Hiring")), Payroll: lazy(() => import("./pages/Payroll")), Dashboard: lazy(() => import("./pages/Dashboard")), Letters: lazy(() => import("./pages/Letters")), FullFinal: lazy(() => import("./pages/FullFinal")), Compliance: lazy(() => import("./pages/Compliance")), Config: lazy(() => import("./pages/Config")),
   Payslips: lazy(() => import("./pages/Payslips")), Attendance: lazy(() => import("./pages/Attendance")), Leave: lazy(() => import("./pages/Leave")),
   Reimbursements: lazy(() => import("./pages/Reimbursements")), Exits: lazy(() => import("./pages/Exits")), Feedback: lazy(() => import("./pages/Feedback")),
   Profile: lazy(() => import("./pages/Profile")), Audit: lazy(() => import("./pages/Audit")),
@@ -20,7 +20,7 @@ const P = {
 
 type Me = { email: string; employeeId: string | null; roles: string[]; profile: { fullName: string; photoFileId: string | null; complete: boolean; missing: string[] } | null };
 const SKIP_KEY = "hrms.profilePromptSkipped";
-type NavItem = { to: string; label: string; roles?: string[] };
+type NavItem = { to: string; label: string; roles?: string[]; cat?: string };
 const NAV: { title: string; items: NavItem[] }[] = [
   { title: "", items: [{ to: "/home", label: "Home" }] },
   { title: "Me", items: [
@@ -42,33 +42,48 @@ const NAV: { title: string; items: NavItem[] }[] = [
     { to: "/org-chart", label: "Org chart" },
   ] },
   { title: "Admin", items: [
+    // Admin links sit in small categories so the list stays easy to scan.
     { to: "/dashboards", label: "Dashboards", roles: ["hr_admin", "finance_signatory"] },
-    { to: "/people", label: "People", roles: ["hr_admin", "manager"] },
-    { to: "/hiring", label: "Hiring and onboarding", roles: ["hr_admin"] },
-    { to: "/letters", label: "Letters", roles: ["hr_admin"] },
-    { to: "/full-and-final", label: "Full and final", roles: ["hr_admin"] },
-    { to: "/payroll", label: "Payroll", roles: ["hr_admin", "finance_signatory"] },
-    { to: "/compliance", label: "Compliance", roles: ["hr_admin", "finance_signatory"] },
-    { to: "/org", label: "Organisation", roles: ["hr_admin"] },
-    { to: "/assets", label: "Assets", roles: ["hr_admin"] },
-    { to: "/access", label: "Roles and access", roles: ["hr_admin"] },
-    { to: "/audit", label: "Audit log", roles: ["hr_admin"] },
+    { to: "/people", label: "People", roles: ["hr_admin", "manager"], cat: "People" },
+    { to: "/hiring", label: "Hiring and onboarding", roles: ["hr_admin"], cat: "People" },
+    { to: "/org", label: "Organisation", roles: ["hr_admin"], cat: "People" },
+    { to: "/payroll", label: "Payroll", roles: ["hr_admin", "finance_signatory"], cat: "Pay and money" },
+    { to: "/full-and-final", label: "Full and final", roles: ["hr_admin"], cat: "Pay and money" },
+    { to: "/compliance", label: "Compliance", roles: ["hr_admin", "finance_signatory"], cat: "Compliance and docs" },
+    { to: "/letters", label: "Letters", roles: ["hr_admin"], cat: "Compliance and docs" },
+    { to: "/admin/config", label: "Configuration", roles: ["hr_admin", "finance_signatory"], cat: "Settings" },
+    { to: "/assets", label: "Assets", roles: ["hr_admin"], cat: "Settings" },
+    { to: "/access", label: "Roles and access", roles: ["hr_admin"], cat: "Settings" },
+    { to: "/audit", label: "Audit log", roles: ["hr_admin"], cat: "Settings" },
   ] },
 ];
 const NAV_KEY = "hrms.navClosed";
 function SideNav({ roles, loc }: { roles: Set<string>; loc: string }) {
   const [closed, setClosed] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem(NAV_KEY) || "[]"); } catch { return []; } });
-  const toggle = (t: string) => { const n = closed.includes(t) ? closed.filter((x) => x !== t) : [...closed, t]; setClosed(n); try { localStorage.setItem(NAV_KEY, JSON.stringify(n)); } catch { /* private mode */ } };
+  const save = (n: string[]) => { setClosed(n); try { localStorage.setItem(NAV_KEY, JSON.stringify(n)); } catch { /* private mode */ } };
+  const toggle = (t: string) => save(closed.includes(t) ? closed.filter((x) => x !== t) : [...closed, t]);
   const isOn = (to: string) => loc === to || loc.startsWith(to + "/");
+  // Opening a page expands the section (and category) holding it; after that a click on the header always wins.
+  useEffect(() => {
+    const keys = NAV.flatMap((g) => g.items.filter((n) => isOn(n.to)).flatMap((n) => [g.title, ...(n.cat ? [`${g.title}/${n.cat}`] : [])]));
+    if (keys.some((k) => closed.includes(k))) save(closed.filter((k) => !keys.includes(k)));
+  }, [loc]); // eslint-disable-line react-hooks/exhaustive-deps
+  const link = (n: NavItem) => <Link key={n.to} href={n.to} className={isOn(n.to) ? "on" : ""} aria-current={isOn(n.to) ? "page" : undefined}>{n.label}</Link>;
   return <nav aria-label="Sections">{NAV.map((g) => {
     const items = g.items.filter((n) => !n.roles || n.roles.some((r) => roles.has(r)));
     if (!items.length) return null;
-    const links = items.map((n) => <Link key={n.to} href={n.to} className={isOn(n.to) ? "on" : ""} aria-current={isOn(n.to) ? "page" : undefined}>{n.label}</Link>);
-    if (!g.title) return <div key="top">{links}</div>;
-    // A group holding the current page always stays open.
-    const shut = closed.includes(g.title) && !items.some((n) => isOn(n.to));
+    if (!g.title) return <div key="top">{items.map(link)}</div>;
+    const cats = [...new Set(items.map((n) => n.cat ?? ""))];
+    const body = cats.map((c) => {
+      const inCat = items.filter((n) => (n.cat ?? "") === c);
+      if (!c) return inCat.map(link);
+      const k = `${g.title}/${c}`, off = closed.includes(k);
+      return <div key={k} className={`nav-sub${off ? " closed" : ""}`}>
+        <button type="button" aria-expanded={!off} onClick={() => toggle(k)}>{c}<i aria-hidden="true">▾</i></button><div>{inCat.map(link)}</div></div>;
+    });
+    const shut = closed.includes(g.title);
     return <div key={g.title} className={`nav-group${shut ? " closed" : ""}`}>
-      <button type="button" aria-expanded={!shut} onClick={() => toggle(g.title)}>{g.title}<i aria-hidden="true">▾</i></button><div>{links}</div></div>;
+      <button type="button" aria-expanded={!shut} onClick={() => toggle(g.title)}>{g.title}<i aria-hidden="true">▾</i></button><div>{body}</div></div>;
   })}</nav>;
 }
 
@@ -180,7 +195,7 @@ function Shell() {
           <Route path="/hiring" component={P.Hiring} /><Route path="/org" component={P.Org} /><Route path="/assets" component={P.Assets} />
           <Route path="/attendance" component={P.Attendance} /><Route path="/leave" component={P.Leave} />
           <Route path="/reimbursements" component={P.Reimbursements} /><Route path="/exits" component={P.Exits} />
-          <Route path="/payroll" component={P.Payroll} /><Route path="/dashboards" component={P.Dashboard} /><Route path="/letters" component={P.Letters} /><Route path="/full-and-final" component={P.FullFinal} /><Route path="/compliance" component={P.Compliance} /><Route path="/payslips" component={P.Payslips} /><Route path="/feedback" component={P.Feedback} />
+          <Route path="/payroll" component={P.Payroll} /><Route path="/dashboards" component={P.Dashboard} /><Route path="/letters" component={P.Letters} /><Route path="/full-and-final" component={P.FullFinal} /><Route path="/compliance" component={P.Compliance} /><Route path="/admin/config" component={P.Config} /><Route path="/payslips" component={P.Payslips} /><Route path="/feedback" component={P.Feedback} />
           <Route path="/policies/:slug?" component={P.Policies} /><Route path="/profile" component={P.Profile} />
           <Route path="/access" component={P.Access} />
           <Route path="/vibe/:id?" component={P.Vibe} /><Route path="/team" component={P.Team} /><Route path="/feed" component={P.Feed} /><Route path="/privacy" component={P.Privacy} /><Route path="/kudos" component={P.Kudos} /><Route path="/audit" component={P.Audit} />
@@ -190,7 +205,17 @@ function Shell() {
   );
 }
 
+/** Applies the saved theme as soon as the app loads (the picker itself only mounts inside the account menu). */
+function useSavedTheme() {
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const apply = () => { let t: Theme = "system"; try { t = (localStorage.getItem(THEME_KEY) as Theme) || "system"; } catch { /* private mode */ } document.documentElement.dataset.theme = t === "system" ? (mq.matches ? "dark" : "light") : t; };
+    apply(); mq.addEventListener("change", apply); return () => mq.removeEventListener("change", apply);
+  }, []);
+}
+
 export default function App({ devNoClerk }: { devNoClerk?: boolean }) {
+  useSavedTheme();
   const [loc] = useLocation();
   // Public candidate routes sit outside the staff login.
   if (loc.startsWith("/accept/") || loc.startsWith("/onboarding/")) {

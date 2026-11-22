@@ -6,7 +6,7 @@ import { env } from "../env";
 import { wrap, parse, HttpError } from "./util";
 import { logAudit } from "../lib/audit";
 import { encryptField, decryptField, hmac, maskTail, newToken } from "../lib/crypto";
-import { sendEmail, fillTemplate } from "../lib/email";
+import { sendEmail } from "../lib/email";
 import { renderLetter } from "../lib/letterHtml";
 import { LETTER_TYPES, COMPANY_DEFAULTS, type CompanyProfile } from "../../shared/hr/letters";
 import { letterContext } from "../lib/letterContext";
@@ -15,6 +15,10 @@ import { CONSENT_PURPOSES } from "../../shared/hr/misc";
 import { need, requireHr, idParam, dateStr } from "../lib/routeHelpers";
 import { letterRef, nextEmployeeCode } from "../../shared/hr/misc";
 import { canAccess } from "../../shared/hr/access";
+import { fillEmail } from "../../shared/hr/emailTemplates";
+import { candidateSteps, copyForLink } from "../../shared/hr/onboardingChecklist";
+import { textPlaceholderValues } from "../lib/policyValues";
+import { currentChecklist } from "./configMore";
 
 const r = Router();
 const A = schema;
@@ -209,7 +213,6 @@ r.get("/letters/prefill", wrap(async (req, res) => {
   const comp = await one(db.select({ g: A.compensation.monthlyGrossPaise }).from(A.compensation).where(eq(A.compensation.employeeId, e.id)).orderBy(desc(A.compensation.effectiveFrom)).limit(1));
   const res2 = await one(db.select({ d: A.resignations.createdAt }).from(A.resignations).where(eq(A.resignations.employeeId, e.id)).orderBy(desc(A.resignations.createdAt)).limit(1));
   const from: Record<string, unknown> = { designation: des?.n, department: dep?.n, location: loc ? `${loc.n}${loc.s ? `, ${loc.s}` : ""}` : undefined, manager: mgr?.n, joiningDate: e.joiningDate, lastWorkingDay: e.lastWorkingDay ?? undefined, monthlyGross: comp?.g };
-  await logAudit(req.actor!.email, "letters.prefill", "employee", e.id);
   res.json({ name: e.fullName, code: e.code, from, resignationDate: res2 ? res2.d.toISOString().slice(0, 10) : undefined });
 }));
 
@@ -266,7 +269,9 @@ r.post("/letters/:id/share", wrap(async (req, res) => {
   const [tpl] = await db.select().from(A.emailTemplates).where(eq(A.emailTemplates.key, "offer_link")).limit(1);
   const t = tpl ?? DEFAULT_OFFER_TEMPLATE;
   const vars = { name: who.name || "there", link: env.HR_APP_URL.replace(/\/$/, "") + linkPath, expiry: expiresAt.toISOString().slice(0, 10) };
-  const sent = await sendEmail({ to: email, subject: fillTemplate(t.subject, vars), text: fillTemplate(t.body, vars) });
+  // Templates edited in Configuration may also use company placeholders such as {{company.legal_name}}.
+  const all = { ...(await textPlaceholderValues()), ...vars };
+  const sent = await sendEmail({ to: email, subject: fillEmail(t.subject, all), text: fillEmail(t.body, all) });
   await logAudit(req.actor!.email, "letter.share", "letter", l.id, { expiresAt, emailed: sent });
   res.status(201).json({ linkPath, expiresAt, emailed: sent }); // the only time the link path is returned
 }));
@@ -321,18 +326,25 @@ r.get("/hiring/pipeline", wrap(async (req, res) => {
 const STEP_RE = /^[a-z_]{2,30}$/;
 r.post("/candidates/:id/onboarding-link", wrap(async (req, res) => {
   need(req, "hiring.manage", "all");
-  const b = parse(z.object({ steps: z.array(z.string().regex(STEP_RE)).min(1).max(12) }), req.body);
+  const b = parse(z.object({ steps: z.array(z.string().regex(STEP_RE)).min(1).max(12).optional() }), req.body);
   const [c] = await db.select().from(A.candidates).where(eq(A.candidates.id, idParam(req))).limit(1);
   if (!c) throw new HttpError(404, "Not found");
+  // The link keeps its own copy of the default onboarding checklist, so later edits in Configuration do not change it.
+  const def = await currentChecklist();
+  const steps = b.steps ?? candidateSteps(def);
+  if (!steps.length) throw new HttpError(400, "Choose at least one step for the candidate");
+  const copy = copyForLink(def);
+  copy.items = copy.items.filter((i) => i.kind !== "candidate_step" || steps.includes(i.key ?? ""));
   const { token, hash } = newToken();
   const expiresAt = new Date(Date.now() + 14 * 86400_000);
-  const [link] = await db.insert(A.onboardingLinks).values({ candidateId: c.id, tokenHash: hash, steps: [...new Set(b.steps)], expiresAt }).returning({ id: A.onboardingLinks.id });
+  const [link] = await db.insert(A.onboardingLinks).values({ candidateId: c.id, tokenHash: hash, steps: [...new Set(steps)], expiresAt, checklist: copy }).returning({ id: A.onboardingLinks.id });
   const linkPath = `/onboarding/${token}`;
   const vars = { name: c.fullName, link: env.HR_APP_URL.replace(/\/$/, "") + linkPath, expiry: expiresAt.toISOString().slice(0, 10) };
   const [tpl] = await db.select().from(A.emailTemplates).where(eq(A.emailTemplates.key, "onboarding_link")).limit(1);
   const t = tpl ?? { subject: "Complete your joining details at Complynz", body: "Hello {{name}},\n\nPlease complete your joining details using the secure link below. You will verify with a one-time code sent to this email address.\n\n{{link}}\n\nThis link expires on {{expiry}}.\n\nComplynz HR" };
-  const sent = await sendEmail({ to: c.email, subject: fillTemplate(t.subject, vars), text: fillTemplate(t.body, vars) });
-  await logAudit(req.actor!.email, "onboarding.link", "candidate", c.id, { linkId: link.id, emailed: sent });
+  const all = { ...(await textPlaceholderValues()), ...vars };
+  const sent = await sendEmail({ to: c.email, subject: fillEmail(t.subject, all), text: fillEmail(t.body, all) });
+  await logAudit(req.actor!.email, "onboarding.link", "candidate", c.id, { linkId: link.id, emailed: sent, checklistVersion: copy.version });
   res.status(201).json({ linkPath, expiresAt, emailed: sent });
 }));
 
@@ -343,11 +355,10 @@ r.get("/candidates/:id/onboarding", wrap(async (req, res) => {
   need(req, "hiring.manage", "all");
   const id = idParam(req);
   const links = await db.select().from(A.onboardingLinks).where(eq(A.onboardingLinks.candidateId, id)).orderBy(desc(A.onboardingLinks.createdAt));
-  await logAudit(req.actor!.email, "onboarding.view", "candidate", id);
   res.json(links.map((l) => {
     const s = (l.submitted ?? null) as Submission | null;
     return {
-      id: l.id, steps: l.steps, expiresAt: l.expiresAt, completedAt: l.completedAt, createdAt: l.createdAt,
+      id: l.id, steps: l.steps, expiresAt: l.expiresAt, completedAt: l.completedAt, createdAt: l.createdAt, checklist: l.checklist ?? null,
       submission: s ? { personal: s.personal ?? null, panMasked: safeMask(s.panEnc), accountMasked: safeMask(s.accountEnc), bankName: s.bankName ?? null, ifsc: s.ifsc ?? null, documents: s.documents ?? [], submittedAt: s.submittedAt ?? null } : null,
     };
   }));

@@ -256,7 +256,6 @@ r.post("/leave/requests", wrap(async (req, res) => {
     if (days2 > balanceX2(entitled, u.approved, u.pending).available) throw new HttpError(400, "Insufficient leave balance");
   }
   const [row] = await db.insert(A.leaveRequests).values({ employeeId: empId, leaveTypeId: type.id, fromDate: b.fromDate, toDate: b.toDate, halfDay: b.halfDay, days2, reason: b.reason ?? null }).returning();
-  await logAudit(req.actor!.email, "leave.request", "leave_request", row.id, { days2 });
   res.status(201).json(row);
 }));
 
@@ -267,7 +266,6 @@ r.post("/leave/requests/:id/cancel", wrap(async (req, res) => {
   const ok = row.status === "pending" || (row.status === "approved" && row.fromDate > istDate());
   if (!ok) throw new HttpError(409, "This request can no longer be cancelled");
   await db.update(A.leaveRequests).set({ status: "cancelled" }).where(eq(A.leaveRequests.id, row.id));
-  await logAudit(req.actor!.email, "leave.cancel", "leave_request", row.id);
   res.json({ ok: true });
 }));
 
