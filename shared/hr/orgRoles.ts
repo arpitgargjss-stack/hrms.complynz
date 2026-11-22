@@ -3,11 +3,21 @@
  * such as the grievance officer, DPO and HR contact. Each person is either an employee (picked from People)
  * or typed in (for example the external member of the Internal Committee).
  */
-export type OrgRole = "posh_presiding" | "posh_member" | "posh_external" | "grievance_officer" | "dpo" | "hr_contact";
-export const CONTACT_ROLES: { key: Extract<OrgRole, "grievance_officer" | "dpo" | "hr_contact">; label: string; hint: string }[] = [
-  { key: "grievance_officer", label: "Grievance officer", hint: "Named in privacy notices; answers employee and candidate grievances" },
-  { key: "dpo", label: "Data protection officer", hint: "Contact for personal data requests under the DPDP Act" },
-  { key: "hr_contact", label: "HR contact", hint: "Shown to employees as the first point of contact for HR questions" },
+export type ContactRole = "grievance_officer" | "dpo" | "hr_contact" | "ethics_officer" | "ombudsperson" | "security_contact" | "ic_mailbox" | "whistleblower_form";
+export type OrgRole = "posh_presiding" | "posh_member" | "posh_external" | ContactRole;
+/**
+ * Named contacts. "person" is someone picked from People or typed in; "mailbox" is just an e-mail address
+ * (stored in email); "link" is a web address (stored in organisation, since it is not a person).
+ */
+export const CONTACT_ROLES: { key: ContactRole; label: string; hint: string; kind: "person" | "mailbox" | "link" }[] = [
+  { key: "grievance_officer", label: "Grievance officer", hint: "Named in privacy notices; answers employee and candidate grievances", kind: "person" },
+  { key: "dpo", label: "Data protection officer", hint: "Contact for personal data requests under the DPDP Act", kind: "person" },
+  { key: "hr_contact", label: "HR contact", hint: "Shown to employees as the first point of contact for HR questions", kind: "person" },
+  { key: "ethics_officer", label: "Ethics officer", hint: "Receives whistleblower reports", kind: "person" },
+  { key: "ombudsperson", label: "Independent ombudsperson", hint: "For concerns about the ethics officer or a founder", kind: "person" },
+  { key: "ic_mailbox", label: "Internal Committee mailbox", hint: "Shared e-mail for POSH complaints", kind: "mailbox" },
+  { key: "security_contact", label: "Security incident mailbox", hint: "Where to report phishing, lost devices and data leaks", kind: "mailbox" },
+  { key: "whistleblower_form", label: "Anonymous reporting form", hint: "Web link for anonymous whistleblower reports", kind: "link" },
 ];
 export type Gender = "female" | "male" | "other" | "undisclosed";
 export type Person = { employeeId: string | null; name: string; email: string | null; phone: string | null; designation: string | null; organisation: string | null; gender: Gender };

@@ -1,24 +1,56 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { convertLegacyHtml, keyForBlank } from "./legacyPolicy";
+import { convertLegacyHtml, keyForBlank, legacyBlanks, replaceBlank } from "./legacyPolicy";
 import { chipHtml, fromEditorHtml, toEditorHtml } from "./policyEditor";
 import { PLACEHOLDERS, renderTemplate, type Values } from "./placeholders";
 
 const label = (k: string) => PLACEHOLDERS.find((p) => p.key === k)?.label ?? null;
 
-test("legacy POSH blanks become placeholders; unknown blanks are kept and reported; running twice changes nothing", () => {
-  const html = `<p>The Presiding Officer is [Name of Presiding Officer] ([Presiding Officer email]).</p><p>External member: [External member name], [NGO name].</p>
-<p>Members: [Committee members]</p><p>Grievance officer: [Grievance Officer name]. HR: [HR Manager name], [HR email].</p><p>Signed [Something odd]</p>`;
+test("legacy POSH policy: the committee table and IC mailbox link to Configuration (exact shape of posh.html)", () => {
+  const html = `<h2>4. Internal Committee (IC)</h2>
+<table class="g"><tr><th>Role</th><th>Name</th></tr>
+<tr><td>Presiding Officer (senior woman employee)</td><td><span class="ph">[Name]</span></td></tr>
+<tr><td>Member (employee)</td><td><span class="ph">[Name]</span></td></tr>
+<tr><td>Member (employee)</td><td><span class="ph">[Name]</span></td></tr>
+<tr><td>External member (NGO or person familiar with sexual harassment issues)</td><td><span class="ph">[Name]</span></td></tr></table>
+<p>At least half of the members are women. Members hold office for up to three years. The IC can be contacted at <span class="ph">[ic@complynz.com]</span>.</p>`;
   const r = convertLegacyHtml(html);
-  assert.deepEqual(r.replaced.map((x) => x.key), ["posh.ic.presiding_officer.name", "posh.ic.presiding_officer.email", "posh.ic.external_member.name", "posh.ic.external_member.organisation",
-    "posh.ic.members", "contacts.grievance_officer.name", "contacts.hr_contact.name", "contacts.hr_contact.email"]);
-  assert.deepEqual(r.unknownBlanks, ["Something odd"]);
-  assert.match(r.template, /\[Something odd\]/);
-  const again = convertLegacyHtml(r.template);
-  assert.equal(again.template, r.template);
-  assert.deepEqual(again.replaced, []);
+  assert.equal(r.template, `<h2>4. Internal Committee (IC)</h2>
+{{posh.ic.members}}
+<p>At least half of the members are women. Members hold office for up to three years. The IC can be contacted at {{posh.ic.email}}.</p>`);
+  assert.deepEqual(r.replaced.map((x) => x.key), ["posh.ic.members", "posh.ic.email"]);
+  assert.deepEqual(r.unmatched, []);
+  assert.deepEqual(convertLegacyHtml(r.template).template, r.template); // idempotent
+  assert.deepEqual(legacyBlanks(r.template), []);
+});
+
+test("other policies: [Name] by row label, mailboxes, leave days; numbers with no setting are reported, not guessed", () => {
+  const wb = `<tr><td>Ethics Officer</td><td><span class="ph">[Name]</span>, <span class="ph">[ethics@complynz.com]</span></td></tr>
+<tr><td>Anonymous report</td><td><span class="ph">[Anonymous form link]</span>.</td></tr>
+<tr><td>If the concern involves the Ethics Officer or a founder</td><td><span class="ph">[Independent director or external ombudsperson, contact]</span></td></tr>`;
+  assert.equal(convertLegacyHtml(wb).template, `<tr><td>Ethics Officer</td><td>{{contacts.ethics_officer.name}}, {{contacts.ethics_officer.email}}</td></tr>
+<tr><td>Anonymous report</td><td>{{whistleblower.form_link}}.</td></tr>
+<tr><td>If the concern involves the Ethics Officer or a founder</td><td>{{contacts.ombudsperson.name}}, {{contacts.ombudsperson.email}}</td></tr>`);
+  const leave = `<tr><td>Paternity leave</td><td><span class="ph">[5]</span> working days</td></tr><tr><td>Bereavement leave</td><td><span class="ph">[3]</span> working days</td></tr>`;
+  assert.deepEqual(convertLegacyHtml(leave).replaced.map((x) => x.key), ["leave.paternity.days", "leave.bereavement.days"]);
+  const mail = `<p>write to HR at <span class="ph">[hr@complynz.com]</span>, privacy at <span class="ph">[privacy@complynz.com]</span>, incidents to <span class="ph">[security@complynz.com]</span>.</p>`;
+  assert.deepEqual(convertLegacyHtml(mail).replaced.map((x) => x.key), ["contacts.hr_contact.email", "contacts.dpo.email", "contacts.security.email"]);
+  const travel = `<p>paid within <span class="ph">[30]</span> days of approval.</p>`;
+  const t = convertLegacyHtml(travel);
+  assert.equal(t.template, travel);
+  assert.equal(t.unmatched[0].blank, "30");
+  assert.match(t.unmatched[0].reason, /no Configuration setting/);
+  assert.deepEqual(legacyBlanks(t.template), ["30"]);
+  assert.equal(replaceBlank(t.template, "30", "reimbursement.submit_within_days"), "<p>paid within {{reimbursement.submit_within_days}} days of approval.</p>");
   assert.equal(keyForBlank("Company name"), "company.legal_name");
   assert.equal(keyForBlank("date"), null);
+});
+
+test("every key the converter can produce is on the fixed placeholder list", () => {
+  const all = [...PLACEHOLDERS.map((p) => p.key)];
+  const sample = `<p>[Name of Presiding Officer] [Presiding Officer email] [External member name] [NGO name] [Committee members] [Grievance Officer name] [HR Manager name] [HR email]
+[DPO email] [Data protection officer] [Ethics Officer email] [Anonymous form link] [Company name] [Registered address] [CIN] [Website] [Signatory] [ic@x.com] [grievance@x.com]</p>`;
+  for (const m of convertLegacyHtml(sample).replaced) assert.ok(all.includes(m.key), m.key);
 });
 
 test("a converted legacy policy renders live with current values, and shows what is still missing", () => {

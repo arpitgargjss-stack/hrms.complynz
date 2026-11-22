@@ -5,15 +5,16 @@ import { openAuthed } from "../lib/openHtml";
 import { RichEditor } from "../lib/RichEditor";
 import { Card, ErrorNote, Field } from "../lib/ui";
 import { PLACEHOLDERS, type PlaceholderDef } from "../../../shared/hr/placeholders";
+import { convertLegacyHtml, replaceBlank } from "../../../shared/hr/legacyPolicy";
 
 type Ver = { id: string; version: number; status: string; statusLabel: string; summary: string | null; createdBy: string | null; createdAt: string; submittedBy: string | null; submittedAt: string | null;
   approvedBy: string | null; approvedAt: string | null; reviewNote: string | null; publishedBy: string | null; publishedAt: string | null; fileId: string | null; hasTemplate: boolean };
-type Row = { slug: string; title: string; category: string | null; kind: string; version: number | null; publishedAt: string | null; draft: Ver | null; acks: { done: number; total: number } | null; updatedSince: string[]; missing: string[] };
+type Row = { slug: string; title: string; category: string | null; kind: string; version: number | null; publishedAt: string | null; draft: Ver | null; acks: { done: number; total: number } | null; updatedSince: string[]; missing: string[]; blanks: number };
 type ListResp = { ceo: boolean; starters: { slug: string; title: string; category: string; summary: string }[]; policies: Row[] };
 type Detail = { ceo: boolean; policy: { slug: string; title: string; category: string | null; kind: string; version: number | null };
-  draft: (Ver & { template: string | null }) | null; published: (Ver & { html: string; template: string | null; legacy: boolean; missing: string[]; unknown: string[]; updatedSince: string[]; updates: { group: string; at: string }[] }) | null;
-  preview: { html: string; missing: string[]; unknown: string[] } | null; history: Ver[] };
-type Preview = { html: string; missing: string[]; unknown: string[] };
+  draft: (Ver & { template: string | null }) | null; published: (Ver & { html: string; template: string | null; legacy: boolean; missing: string[]; unknown: string[]; blanks: string[]; updatedSince: string[]; updates: { group: string; at: string }[] }) | null;
+  preview: Preview | null; convertible: number; history: Ver[] };
+type Preview = { html: string; missing: string[]; unknown: string[]; blanks?: string[] };
 
 const label = (k: string) => PLACEHOLDERS.find((p) => p.key === k)?.label ?? k;
 const dt = (s: string | null) => (s ? new Date(s).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "");
@@ -24,10 +25,16 @@ const DOC_CSS = "<style>body{font-family:Inter,system-ui,sans-serif;color:#10182
 function Doc({ html, title }: { html: string; title: string }) {
   return <iframe className="cfg-doc" title={title} sandbox="" srcDoc={DOC_CSS + html} />;
 }
-function Missing({ p, goConfig }: { p: Preview; goConfig: (tab: string) => void }) {
-  if (!p.missing.length && !p.unknown.length) return <p className="cfg-ok-line">All placeholders have values. Ready to submit.</p>;
+function Missing({ p, goConfig, onReplace }: { p: Preview; goConfig: (tab: string) => void; onReplace?: (blank: string, key: string) => void }) {
+  const blanks = p.blanks ?? [];
+  if (!p.missing.length && !p.unknown.length && !blanks.length) return <p className="cfg-ok-line">All fields are linked and have values. Ready to submit.</p>;
   return <div className="cfg-missing" role="status">
-    <b>Fill these in before submitting</b>
+    <b>Needs attention before submitting</b>
+    {blanks.length > 0 && <ul>{blanks.map((b) => <li key={b}><code>[{b}]</code> is old text, not linked to Configuration.
+      {onReplace && <select className="cfg-replace" aria-label={`Replace [${b}] with a field`} value="" onChange={(e) => e.target.value && onReplace(b, e.target.value)}>
+        <option value="">Replace with field…</option>
+        {[...new Set(PLACEHOLDERS.map((x) => x.group))].map((g) => <optgroup key={g} label={g}>{PLACEHOLDERS.filter((x) => x.group === g).map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}</optgroup>)}
+      </select>} <span className="k">or edit the text.</span></li>)}</ul>}
     <ul>{p.missing.map((k) => { const d = PLACEHOLDERS.find((x) => x.key === k)!; const tab = d.source.includes("Company") ? "company" : d.source.includes("People") ? "people" : null;
       return <li key={k}>{d.label} <code>{`{{${k}}}`}</code> {tab ? <button type="button" className="cp-link" onClick={() => goConfig(tab)}>{d.source}</button> : <span className="k">{d.source}</span>}</li>; })}
       {p.unknown.map((k) => <li key={k} className="cfg-bad"><code>{`{{${k}}}`}</code> is not a known placeholder. Use the Insert placeholder list.</li>)}</ul>
@@ -94,7 +101,8 @@ function Editor({ slug, onBack, goConfig }: { slug: string; onBack: () => void; 
   const [f, setF] = useState({ title: "", category: "", summary: "", template: "" });
   const [note, setNote] = useState("");
   const [preview, setPreview] = useState<Preview | null>(null);
-  useEffect(() => { if (d) { setF({ title: d.policy.title, category: d.policy.category ?? "", summary: d.draft?.summary ?? "", template: d.draft?.template ?? "" }); setPreview(d.preview); } }, [d]);
+  const [converted, setConverted] = useState<number | null>(null);
+  useEffect(() => { if (d) { setF({ title: d.policy.title, category: d.policy.category ?? "", summary: d.draft?.summary ?? "", template: d.draft?.template ?? "" }); setPreview(d.preview); setConverted(null); } }, [d]);
   const dirty = !!d?.draft && (f.template !== (d.draft.template ?? "") || f.title !== d.policy.title || (f.category || null) !== d.policy.category || (f.summary || null) !== (d.draft.summary ?? null));
   // Live preview with real values, a moment after typing stops.
   useEffect(() => {
@@ -108,17 +116,22 @@ function Editor({ slug, onBack, goConfig }: { slug: string; onBack: () => void; 
   const newVersion = useMutation({ mutationFn: () => api("/config/policies", { body: { slug, title: d!.policy.title, category: d!.policy.category } }), onSuccess: refresh });
   if (q.error) return <ErrorNote error={q.error} />;
   if (!d) return <Card><p className="k">Loading…</p></Card>;
-  const dr = d.draft, pub = d.published, ready = !!preview && !preview.missing.length && !preview.unknown.length;
+  const dr = d.draft, pub = d.published, ready = !!preview && !preview.missing.length && !preview.unknown.length && !(preview.blanks ?? []).length;
+  const unlinked = dr ? (preview?.blanks ?? []).length : pub?.blanks.length ?? 0;
+  const convert = () => { const r = convertLegacyHtml(f.template); setF((x) => ({ ...x, template: r.template })); setConverted(r.replaced.length); };
   const err = save.error ?? act.error ?? newVersion.error;
   return <>
     <div className="cfg-crumb"><button type="button" className="cp-link" onClick={onBack}>← All policies</button></div>
     <div className="cfg-pol-head">
-      <div><h2>{d.policy.title}</h2><p className="k">{d.policy.category ?? "Uncategorised"} · {d.policy.kind === "pdf" ? "PDF, view and acknowledge" : "Template with placeholders"}{pub ? ` · Published version ${pub.version} on ${dt(pub.publishedAt)}` : " · Not published yet"}</p></div>
+      <div><h2>{d.policy.title}</h2><p className="k">{d.policy.category ?? "Uncategorised"} · {d.policy.kind === "pdf" ? "PDF, view and acknowledge" : unlinked ? `Legacy text: ${unlinked} blank${unlinked === 1 ? "" : "s"} not linked` : "Linked to Configuration"}{pub ? ` · Published version ${pub.version} on ${dt(pub.publishedAt)}` : " · Not published yet"}</p></div>
       {dr ? <span className={`cp-tag ${tone(dr.status)}`}>Version {dr.version}: {dr.statusLabel}</span> : pub && <span className="cp-tag green">Published</span>}
     </div>
     {pub && pub.missing.length > 0 && <div className="cfg-banner amber"><b>Details missing in the published policy:</b> {pub.missing.map(label).join(", ")}. Employees see these as highlighted blanks until they are set. <button type="button" className="cp-link" onClick={() => goConfig(pub.missing.some((k) => k.startsWith("company.")) ? "company" : "people")}>Fill them in Configuration</button></div>}
     {pub && pub.updates.length > 0 && <div className="cfg-banner slate">Details updated since version {pub.version} was published: {pub.updates.map((u) => `${u.group} on ${dt(u.at)}`).join(", ")}. Employees already see the new details; no re-publish or new acknowledgement is needed.</div>}
-    {pub?.legacy && <div className="cfg-banner slate">This version was published before fields existed. Its blanks have been matched to fields where the wording was clear, and they fill in from Configuration.</div>}
+    {pub?.legacy && <div className="cfg-banner slate">This version was published before fields existed. Its blanks have been matched to Configuration where the context was clear and fill in live.</div>}
+    {!dr && pub && pub.blanks.length > 0 && <div className="cfg-banner amber"><b>{pub.blanks.length} blank{pub.blanks.length === 1 ? "" : "s"} not linked:</b> {pub.blanks.map((b) => `[${b}]`).join(", ")}. Start a new version to link them to a field or edit the text.</div>}
+    {dr && d.convertible > 0 && converted === null && <div className="cfg-banner amber"><b>This draft still has old [blanks] that can be linked to Configuration ({d.convertible}).</b> <button type="button" className="btn sm p" onClick={convert}>Convert blanks to fields</button></div>}
+    {converted !== null && <div className="cfg-banner slate">Linked {converted} blank{converted === 1 ? "" : "s"} to fields. Check the text, then Save draft.</div>}
     {dr?.reviewNote && <div className="cfg-banner slate"><b>CEO note:</b> {dr.reviewNote}</div>}
     {err && <ErrorNote error={err} />}
 
@@ -136,7 +149,7 @@ function Editor({ slug, onBack, goConfig }: { slug: string; onBack: () => void; 
         <div className="cfg-pane">
           <div className="cfg-pane-bar"><b>Preview with current values</b></div>
           {preview && <Doc html={preview.html} title="Preview" />}
-          {preview && <Missing p={preview} goConfig={goConfig} />}
+          {preview && <Missing p={preview} goConfig={goConfig} onReplace={(b, k) => setF((x) => ({ ...x, template: replaceBlank(x.template, b, k) }))} />}
         </div>
       </div>
     </Card>}
@@ -224,7 +237,7 @@ export function PoliciesTab({ goConfig }: { goConfig: (tab: string) => void }) {
       {rows.length === 0 && <div className="cfg-pol-row"><span className="k">No policies yet. Start from the POSH or Leave template.</span></div>}
       {rows.map((r) => { const pct = r.acks && r.acks.total ? Math.round((100 * r.acks.done) / r.acks.total) : 0; return <div key={r.slug} className="cfg-pol-row">
         <span><b>{r.title}</b><span className="k">{r.category ?? "Uncategorised"}{r.kind === "pdf" ? " · PDF" : ""}</span></span>
-        <span>{r.version ? <>Version {r.version}<span className="k">{dt(r.publishedAt)}</span></> : <span className="k">Not yet</span>}{r.missing.length > 0 ? <span className="cp-tag amber cfg-ood" title={`Missing: ${r.missing.map(label).join(", ")}`}>{r.missing.length} detail{r.missing.length === 1 ? "" : "s"} missing</span>
+        <span>{r.version ? <>Version {r.version}<span className="k">{dt(r.publishedAt)}</span></> : <span className="k">Not yet</span>}{r.blanks > 0 ? <span className="cp-tag amber cfg-ood">{r.blanks} blank{r.blanks === 1 ? "" : "s"} not linked</span> : r.missing.length > 0 ? <span className="cp-tag amber cfg-ood" title={`Missing: ${r.missing.map(label).join(", ")}`}>{r.missing.length} detail{r.missing.length === 1 ? "" : "s"} missing</span>
           : r.updatedSince.length > 0 && <span className="cp-tag slate cfg-ood" title={`Updated: ${r.updatedSince.map(label).join(", ")}`}>Details updated, shown live</span>}</span>
         <span>{r.draft ? <span className={`cp-tag ${tone(r.draft.status)}`}>v{r.draft.version}: {r.draft.statusLabel}</span> : <span className="k">None</span>}</span>
         <span>{r.acks ? <span className="cfg-ack"><span className="k">{r.acks.done} of {r.acks.total} ({pct}%)</span><span className={`cp-bar ${pct >= 80 ? "green" : "amber"}`}><i style={{ width: `${pct}%` }} /></span></span> : <span className="k">–</span>}</span>
