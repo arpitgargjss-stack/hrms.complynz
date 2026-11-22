@@ -76,12 +76,16 @@ r.get("/payroll/overview", wrap(async (req, res) => {
   const today = todayIst(), thisMonth = today.slice(0, 7);
   const months: string[] = [];
   { let y = Number(thisMonth.slice(0, 4)), m = Number(thisMonth.slice(5, 7)); for (let i = 0; i < 12; i++) { months.unshift(`${y}-${String(m).padStart(2, "0")}`); if (--m === 0) { m = 12; y--; } } }
-  const [rule] = await db.select({ effectiveFrom: schema.statutoryRules.effectiveFrom }).from(schema.statutoryRules).where(lte(schema.statutoryRules.effectiveFrom, monthStart(thisMonth))).orderBy(desc(schema.statutoryRules.effectiveFrom)).limit(1);
-  const [{ n: templates }] = await db.select({ n: sql<number>`count(*)::int` }).from(schema.salaryTemplates);
-  const active = await db.select({ id: schema.employees.id, code: schema.employees.code, fullName: schema.employees.fullName }).from(schema.employees).where(inArray(schema.employees.status, ["active", "notice"]));
-  const withComp = new Set((await db.selectDistinct({ id: schema.compensation.employeeId }).from(schema.compensation)).map((x) => x.id));
-  const sigs = await db.select().from(schema.signatories);
-  const runs = await db.select().from(schema.payrollRuns).where(inArray(schema.payrollRuns.month, months));
+  // Independent reads run together instead of one after another.
+  const [[rule], [{ n: templates }], active, compRows, sigs, runs] = await Promise.all([
+    db.select({ effectiveFrom: schema.statutoryRules.effectiveFrom }).from(schema.statutoryRules).where(lte(schema.statutoryRules.effectiveFrom, monthStart(thisMonth))).orderBy(desc(schema.statutoryRules.effectiveFrom)).limit(1),
+    db.select({ n: sql<number>`count(*)::int` }).from(schema.salaryTemplates),
+    db.select({ id: schema.employees.id, code: schema.employees.code, fullName: schema.employees.fullName }).from(schema.employees).where(inArray(schema.employees.status, ["active", "notice"])),
+    db.selectDistinct({ id: schema.compensation.employeeId }).from(schema.compensation),
+    db.select().from(schema.signatories),
+    db.select().from(schema.payrollRuns).where(inArray(schema.payrollRuns.month, months)),
+  ]);
+  const withComp = new Set(compRows.map((x) => x.id));
   const agg = runs.length ? await db.select({ runId: schema.payslips.runId, n: sql<number>`count(*)::int`, net: sql<number>`coalesce(sum(${schema.payslips.netPayPaise}),0)::bigint` })
     .from(schema.payslips).where(inArray(schema.payslips.runId, runs.map((x) => x.id))).groupBy(schema.payslips.runId) : [];
   const by = new Map(agg.map((a) => [a.runId, a]));

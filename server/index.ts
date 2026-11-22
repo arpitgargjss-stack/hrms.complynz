@@ -1,5 +1,6 @@
 import express, { type Request, type Response, type NextFunction } from "express";
 import path from "node:path";
+import compression from "compression";
 import { env } from "./env";
 import { clerkHandler, requireStaff } from "./middleware/auth";
 import { HttpError } from "./routes/util";
@@ -25,12 +26,15 @@ import care from "./routes/care";
 
 const app = express();
 app.disable("x-powered-by");
+app.use(compression()); // gzip API JSON and the app's JS/CSS (roughly 3x smaller)
 app.use(express.json({ limit: "12mb" }));
-app.use((_req, res, next) => {
+app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("Referrer-Policy", "same-origin");
-  res.setHeader("Cache-Control", "no-store");
+  // Built JS/CSS under /assets have a content hash in their name, so the static handler below caches them for a year.
+  // Everything else (API data, index.html) is never cached.
+  if (!req.path.startsWith("/assets/")) res.setHeader("Cache-Control", "no-store");
   next();
 });
 
@@ -73,7 +77,8 @@ app.use("/api", buzz);
 app.use("/api", care);
 
 const dist = path.resolve("dist/client");
-app.use(express.static(dist));
+app.use("/assets", express.static(path.join(dist, "assets"), { immutable: true, maxAge: "365d", fallthrough: false }));
+app.use(express.static(dist, { cacheControl: false }));
 app.get(/^\/(?!api).*/, (_req, res) => res.sendFile(path.join(dist, "index.html"), (e) => e && res.status(404).end()));
 
 app.use((err: Error & { status?: number }, _req: Request, res: Response, _next: NextFunction) => {

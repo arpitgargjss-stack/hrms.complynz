@@ -154,11 +154,19 @@ r.get("/dashboard/trends", wrap(async (req, res) => {
   const today = istDate();
   const months6 = lastMonths(6, today);
   const months3 = months6.slice(-3);
-  const runs = await db.select({ month: A.payrollRuns.month, net: A.payslips.netPayPaise }).from(A.payslips)
-    .innerJoin(A.payrollRuns, eq(A.payrollRuns.id, A.payslips.runId)).where(and(inArray(A.payrollRuns.status, ["locked", "paid"]), inArray(A.payrollRuns.month, months3)));
+  // All independent, so they run together instead of one after another.
+  const [runs, emps, [onLeave], [pendingLeave], [openResign], [openPips]] = await Promise.all([
+    db.select({ month: A.payrollRuns.month, net: A.payslips.netPayPaise }).from(A.payslips)
+      .innerJoin(A.payrollRuns, eq(A.payrollRuns.id, A.payslips.runId)).where(and(inArray(A.payrollRuns.status, ["locked", "paid"]), inArray(A.payrollRuns.month, months3))),
+    db.select({ id: A.employees.id, joiningDate: A.employees.joiningDate, status: A.employees.status, lastWorkingDay: A.employees.lastWorkingDay, departmentId: A.employees.departmentId }).from(A.employees),
+    db.select({ n: sql<number>`count(distinct ${A.leaveRequests.employeeId})::int` }).from(A.leaveRequests)
+      .where(and(eq(A.leaveRequests.status, "approved"), sql`${A.leaveRequests.fromDate} <= ${today}`, gte(A.leaveRequests.toDate, today))),
+    db.select({ n: sql<number>`count(*)::int` }).from(A.leaveRequests).where(eq(A.leaveRequests.status, "pending")),
+    db.select({ n: sql<number>`count(*)::int` }).from(A.resignations).where(inArray(A.resignations.status, ["submitted", "manager_reviewed", "accepted"])),
+    db.select({ n: sql<number>`count(*)::int` }).from(A.pips).where(inArray(A.pips.status, ["active", "extended"])),
+  ]);
   const netSalary = months3.map((m) => { const rs = runs.filter((x) => x.month === m); return { month: m, netPaise: rs.reduce((a, x) => a + x.net, 0), payslips: rs.length }; });
 
-  const emps = await db.select({ id: A.employees.id, joiningDate: A.employees.joiningDate, status: A.employees.status, lastWorkingDay: A.employees.lastWorkingDay, departmentId: A.employees.departmentId }).from(A.employees);
   const exitDay = (e: (typeof emps)[number]) => (e.status === "active" ? null : e.lastWorkingDay);
   const headcount = months6.map((m) => {
     const { to } = monthRange(m);
@@ -167,11 +175,6 @@ r.get("/dashboard/trends", wrap(async (req, res) => {
   const joiners = months6.map((m) => { const { from, to } = monthRange(m); return { month: m, count: emps.filter((e) => e.joiningDate >= from && e.joiningDate <= to).length }; });
   const offboarding = months6.map((m) => { const { from, to } = monthRange(m); return { month: m, count: emps.filter((e) => { const d = exitDay(e); return !!d && d >= from && d <= to; }).length }; });
 
-  const [onLeave] = await db.select({ n: sql<number>`count(distinct ${A.leaveRequests.employeeId})::int` }).from(A.leaveRequests)
-    .where(and(eq(A.leaveRequests.status, "approved"), sql`${A.leaveRequests.fromDate} <= ${today}`, gte(A.leaveRequests.toDate, today)));
-  const [pendingLeave] = await db.select({ n: sql<number>`count(*)::int` }).from(A.leaveRequests).where(eq(A.leaveRequests.status, "pending"));
-  const [openResign] = await db.select({ n: sql<number>`count(*)::int` }).from(A.resignations).where(inArray(A.resignations.status, ["submitted", "manager_reviewed", "accepted"]));
-  const [openPips] = await db.select({ n: sql<number>`count(*)::int` }).from(A.pips).where(inArray(A.pips.status, ["active", "extended"]));
   const org = {
     total: emps.length, active: emps.filter((e) => e.status === "active").length, onNotice: emps.filter((e) => e.status === "notice").length, exited: emps.filter((e) => e.status === "exited").length,
     onLeaveToday: onLeave?.n ?? 0, pendingLeaveRequests: pendingLeave?.n ?? 0, openResignations: openResign?.n ?? 0, openPips: openPips?.n ?? 0,

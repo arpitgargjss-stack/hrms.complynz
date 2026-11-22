@@ -725,19 +725,22 @@ r.put("/me/consents/:key", wrap(async (req, res) => {
 r.get("/home", wrap(async (req, res) => {
   const a = actorOf(req);
   const today = istToday();
-  const emps = await db.select({ id: S.employees.id, name: S.employees.fullName, dob: S.employees.dob, joiningDate: S.employees.joiningDate, photoFileId: S.employees.photoFileId })
-    .from(S.employees).where(ne(S.employees.status, "exited"));
-  const optRows = await db.select().from(S.consentEvents).where(eq(S.consentEvents.purposeKey, "show_birthday")).orderBy(desc(S.consentEvents.at));
+  // All independent, so they run together instead of one after another.
+  const [emps, optRows, announcements, pols, acks] = await Promise.all([
+    db.select({ id: S.employees.id, name: S.employees.fullName, dob: S.employees.dob, joiningDate: S.employees.joiningDate, photoFileId: S.employees.photoFileId })
+      .from(S.employees).where(ne(S.employees.status, "exited")),
+    db.select().from(S.consentEvents).where(eq(S.consentEvents.purposeKey, "show_birthday")).orderBy(desc(S.consentEvents.at)),
+    db.select().from(S.announcements).orderBy(desc(S.announcements.pinned), desc(S.announcements.createdAt)).limit(5),
+    a.employeeId ? db.select().from(S.policies) : Promise.resolve([]),
+    a.employeeId ? db.select().from(S.policyAcks).where(eq(S.policyAcks.employeeId, a.employeeId)) : Promise.resolve([]),
+  ]);
   const latest = new Map<string, string>();
   for (const e of optRows) if (!latest.has(e.subjectId)) latest.set(e.subjectId, e.status);
   const photo = new Map(emps.map((e) => [e.id, e.photoFileId]));
   const events = upcomingEvents(today, emps.map((e) => ({ id: e.id, name: e.name, dob: e.dob, joiningDate: e.joiningDate, birthdayOptIn: latest.get(subjectOf(e.id)) === "granted" })), 30)
     .map((ev) => ({ ...ev, photoFileId: photo.get(ev.id) ?? null }));
-  const announcements = await db.select().from(S.announcements).orderBy(desc(S.announcements.pinned), desc(S.announcements.createdAt)).limit(5);
   let policiesToAck = 0;
   if (a.employeeId) {
-    const pols = await db.select().from(S.policies);
-    const acks = await db.select().from(S.policyAcks).where(eq(S.policyAcks.employeeId, a.employeeId));
     policiesToAck = pols.filter((p) => p.currentVersion > 0 && !acks.some((x) => x.policyId === p.id && x.version === p.currentVersion)).length; // 0 = still in its first draft
   }
   res.json({

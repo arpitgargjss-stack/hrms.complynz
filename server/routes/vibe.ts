@@ -182,9 +182,10 @@ r.post("/me/vibe/photos", wrap(async (req, res) => {
 // Know your team
 // =====================================================================
 r.get("/team", wrap(async (req, res) => {
-  const viewer = await viewerOf(req);
-  const L = await lookups();
-  const emps = await db.select().from(S.employees).where(ne(S.employees.status, "exited")).orderBy(asc(S.employees.fullName));
+  const [viewer, L, emps] = await Promise.all([
+    viewerOf(req), lookups(),
+    db.select().from(S.employees).where(ne(S.employees.status, "exited")).orderBy(asc(S.employees.fullName)),
+  ]);
   const vis = await visibleSections(viewer, emps);
   const mine = tagsOf(vis.get(viewer.id) ?? []);
   const monthAgo = new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);
