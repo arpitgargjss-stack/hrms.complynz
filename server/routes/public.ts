@@ -42,8 +42,10 @@ const NOT_YET_SENT = { sent: true };
 const otpBody = z.object({ otp: z.string().regex(/^\d{6}$/) });
 const hdr = (req: Request, name: string) => { const v = req.headers[name]; return typeof v === "string" ? v : undefined; };
 
-async function sendOtpEmail(to: string, otp: string) {
-  await sendEmail({ to, subject: "Your Complynz verification code", text: `Your verification code is ${otp}. It is valid for 10 minutes. If you did not request it, ignore this email.` });
+const SEND_FAILED = "We couldn't send the code right now. Please try again in a few minutes, or contact HR if it keeps failing.";
+/** Sends the code. Returns false when the email provider did not accept it (the reason is logged by sendEmail). */
+async function sendOtpEmail(to: string, otp: string): Promise<boolean> {
+  return sendEmail({ to, subject: "Your Complynz verification code", text: `Your verification code is ${otp}. It is valid for 10 minutes. If you did not request it, ignore this email.` });
 }
 
 // ================= offer / letter acceptance =================
@@ -69,7 +71,11 @@ r.post("/accept/:token/otp", wrap(async (req, res) => {
   if (!link || link.acceptedAt) return res.json(NOT_YET_SENT);
   const otp = newOtp();
   await db.update(A.acceptanceLinks).set({ otpHash: otpHashOf(otp, th), otpExpiresAt: new Date(Date.now() + OTP_TTL_MS), otpAttempts: 0 }).where(eq(A.acceptanceLinks.id, link.id));
-  await sendOtpEmail(link.recipientEmail, otp);
+  if (!(await sendOtpEmail(link.recipientEmail, otp))) {
+    await db.update(A.acceptanceLinks).set({ otpHash: null, otpExpiresAt: null }).where(eq(A.acceptanceLinks.id, link.id));
+    console.error("accept OTP email failed; told the candidate to retry");
+    throw new HttpError(502, SEND_FAILED);
+  }
   res.json(NOT_YET_SENT);
 }));
 
@@ -179,7 +185,11 @@ r.post("/onboarding/:token/otp", wrap(async (req, res) => {
   const otp = newOtp();
   if (onbOtps.size > 5000) onbOtps.clear();
   onbOtps.set(th, { otpHash: otpHashOf(otp, th), otpExpiresAt: new Date(Date.now() + OTP_TTL_MS), attempts: 0 });
-  await sendOtpEmail(cand.email, otp);
+  if (!(await sendOtpEmail(cand.email, otp))) {
+    onbOtps.delete(th);
+    console.error("onboarding OTP email failed; told the candidate to retry");
+    throw new HttpError(502, SEND_FAILED);
+  }
   res.json(NOT_YET_SENT);
 }));
 
