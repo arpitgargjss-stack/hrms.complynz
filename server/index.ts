@@ -2,6 +2,7 @@ import express, { type Request, type Response, type NextFunction } from "express
 import path from "node:path";
 import compression from "compression";
 import { env } from "./env";
+import { emailConfigured } from "./lib/email";
 import { clerkHandler, requireStaff } from "./middleware/auth";
 import { HttpError } from "./routes/util";
 import { eq } from "drizzle-orm";
@@ -87,4 +88,7 @@ app.use((err: Error & { status?: number }, _req: Request, res: Response, _next: 
   res.status(status).json({ error: status >= 500 ? "Something went wrong" : err.message });
 });
 
-app.listen(env.PORT, () => console.log(`HRMS listening on ${env.PORT}`));
+app.listen(env.PORT, () => {
+  console.log(`HRMS listening on ${env.PORT}`);
+  if (!emailConfigured()) console.error("WARNING: RESEND_API_KEY is not set. OTP and notification emails will NOT be sent.");
+});
