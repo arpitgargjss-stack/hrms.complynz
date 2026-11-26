@@ -6,6 +6,7 @@ import { resolveComponents, type ComponentDef } from "../../shared/hr/payroll";
 import { TEMPLATE_PRESETS } from "../../shared/hr/presets";
 import { COMPANY_DEFAULTS, LETTER_TYPES, letterLabel, type CompanyProfile } from "../../shared/hr/letters";
 import { NDA_BLOCKS } from "./letters/ndaText";
+import { ageOn, istParts, ordinal, type NdaParty } from "../../shared/hr/ndaParty";
 
 export { LETTER_TYPES };
 export type LetterType = string;
@@ -19,6 +20,8 @@ export interface LetterCtx {
   acceptedAt?: Date | null;
   /** Signature and stamp of the authorised signatory (uploaded images, or the default stamp and a handwritten-style name). */
   marks?: Marks | null;
+  /** The employee's own details for the NDA, from their onboarding submission or employee record. */
+  party?: NdaParty | null;
 }
 
 export function esc(v: unknown): string {
@@ -156,9 +159,20 @@ ${CONSENT_PURPOSES.map((c) => `<tr><td><b>${esc(c.title)}</b> — ${esc(c.detail
 }
 
 function ndaHtml(ctx: LetterCtx, co: Co): string {
-  const p = ctx.payload;
+  const p = ctx.payload, party = ctx.party ?? {};
+  // Blanks the candidate fills in by hand stay as lines until onboarding (or HR) supplies the value.
+  const gap = (n: number) => "_".repeat(n);
+  const or = (v: string | null | undefined, n: number) => (v ? `<b>${esc(v)}</b>` : gap(n));
+  const signedOn = ctx.acceptedAt ? istParts(ctx.acceptedAt) : null;
+  const place = blank(p.location) ? null : String(p.location).trim();
+  const age = ageOn(party.dob, ctx.acceptedAt ?? new Date());
+  const code = blank(p.employeeCode) ? party.employeeCode ?? null : String(p.employeeCode);
   const vars: Record<string, string> = {
-    name: esc(ctx.name) || ph("employee name"), employeeCode: blank(p.employeeCode) ? ph("employee code") : esc(p.employeeCode), legalName: esc(co.legalName),
+    name: esc(ctx.name) || ph("employee name"), employeeCode: code ? esc(code) : ph("employee code"), legalName: esc(co.legalName),
+    place: or(place, 18), day: signedOn ? `<b>${ordinal(signedOn.day)}</b>` : gap(4), month: signedOn ? `<b>${esc(signedOn.month)}</b>` : gap(14),
+    year: signedOn ? `<b>${signedOn.year}</b>` : `20${gap(4)}`,
+    relationName: or(party.relationName, 27), age: age === null ? gap(4) : `<b>${age}</b>`, pan: or(party.pan, 12),
+    aadhaarLast4: or(party.aadhaarLast4, 12), address: or(party.address, 50),
     registeredAddress: esc(co.registeredAddress), ndaDamages: co.ndaDamages ? `INR ${esc(co.ndaDamages)}` : ph("liquidated damages amount, set in Company details"),
     employmentType: blank(p.employmentType) ? ph("employment type") : esc(p.employmentType), arbitrationSeat: esc(co.arbitrationSeat), email: esc(co.email),
   };
@@ -172,7 +186,7 @@ function ndaHtml(ctx: LetterCtx, co: Co): string {
   if (inList) out += "</ul>";
   const line = "__________________________";
   out += `<h3>EXECUTION</h3><p>IN WITNESS WHEREOF, the Parties hereto have executed this Agreement on the day, month and year first hereinabove written.</p>
-<table><tr><th>Details of employer</th><th>Details of employee</th></tr><tr><td>Name: ${co.signatoryName ? esc(co.signatoryName) : line}<br>Designation: ${esc(co.signatoryDesignation)}<br>Date: ${line}<br>Place: ${line}<br>Signature: ${marksHtml(ctx.marks, co.signatoryName) || line}</td>
+<table><tr><th>Details of employer</th><th>Details of employee</th></tr><tr><td>Name: ${co.signatoryName ? esc(co.signatoryName) : line}<br>Designation: ${esc(co.signatoryDesignation)}<br>Date: ${signedOn ? esc(`${signedOn.day} ${signedOn.month} ${signedOn.year}`) : line}<br>Place: ${place ? esc(place) : line}<br>Signature: ${marksHtml(ctx.marks, co.signatoryName) || line}</td>
 <td>Name: ${vars.name}<br>Employee Code: ${vars.employeeCode}<br>${eSign(ctx)}</td></tr></table>`;
   return `<div class="nda">${out}</div>`;
 }

@@ -120,6 +120,36 @@ function Letters({ c }: { c: Candidate }) {
   );
 }
 
+const PERSONAL_LABEL: Record<string, string> = { fullName: "Full name", relationName: "Father's, mother's or spouse's name", dob: "Date of birth", gender: "Gender", phone: "Phone", address: "Address", aadhaarLast4: "Aadhaar, last 4 digits" };
+
+/** HR adds the NDA details a candidate did not give (older submissions did not ask for them). The offer letter fills in on its next open. */
+function NdaDetails({ c, o }: { c: Candidate; o: Onb }) {
+  const qc = useQueryClient();
+  const p = (o.submission?.personal ?? {}) as Record<string, string | undefined>;
+  const [f, setF] = useState({ relationName: p.relationName ?? "", aadhaarLast4: p.aadhaarLast4 ?? "", address: p.address ?? "", dob: p.dob ?? "" });
+  const missing = ["relationName", "aadhaarLast4", "address", "dob"].filter((k) => !String(p[k] ?? "").trim());
+  const [open, setOpen] = useState(false);
+  const save = useMutation({
+    mutationFn: () => api(`/candidates/${c.id}/onboarding/${o.id}/details`, { method: "PATCH", body: Object.fromEntries(Object.entries(f).map(([k, v]) => [k, v.trim() || undefined])) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["onb", c.id] }); setOpen(false); },
+  });
+  if (!missing.length && !open) return <p className="k" style={{ margin: "6px 0" }}>NDA details are complete. <button type="button" className="btn" onClick={() => setOpen(true)}>Correct them</button></p>;
+  if (!open) return <div className="note warn" style={{ margin: "8px 0" }}>The NDA in the offer letter is missing: {missing.map((k) => PERSONAL_LABEL[k].toLowerCase()).join(", ")}. <button type="button" className="btn" onClick={() => setOpen(true)}>Add them</button></div>;
+  return (
+    <form style={{ margin: "8px 0" }} onSubmit={(e) => { e.preventDefault(); save.mutate(); }}>
+      <p className="k">Printed in the NDA (Annexure A of the full offer letter). The letter picks these up the next time it is opened; it does not need to be issued again.</p>
+      <div className="grid">
+        <Field label={PERSONAL_LABEL.relationName}><input minLength={2} maxLength={120} value={f.relationName} onChange={(e) => setF({ ...f, relationName: e.target.value })} /></Field>
+        <Field label={PERSONAL_LABEL.aadhaarLast4}><input inputMode="numeric" pattern="\d{4}" maxLength={4} value={f.aadhaarLast4} onChange={(e) => setF({ ...f, aadhaarLast4: e.target.value.replace(/\D/g, "").slice(0, 4) })} /></Field>
+        <Field label={PERSONAL_LABEL.dob}><input type="date" value={f.dob} onChange={(e) => setF({ ...f, dob: e.target.value })} /></Field>
+        <Field label={PERSONAL_LABEL.address}><textarea rows={2} maxLength={500} value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} /></Field>
+      </div>
+      <ErrorNote error={save.error} />
+      <p><button className="btn p" disabled={save.isPending}>Save NDA details</button> <button type="button" className="btn" onClick={() => setOpen(false)}>Cancel</button></p>
+    </form>
+  );
+}
+
 function Onboarding({ c }: { c: Candidate }) {
   const qc = useQueryClient();
   const [steps, setSteps] = useState<string[]>(["details", "kyc", "bank", "documents"]);
@@ -148,11 +178,12 @@ function Onboarding({ c }: { c: Candidate }) {
             <input type="checkbox" checked={i.done} disabled={tick.isPending} onChange={(e) => tick.mutate({ link: o.id, item: i.id, done: e.target.checked })} />
             <span>{i.label}{!i.required && <span className="k"> (optional)</span>} <span className="k">· {KIND_LABEL[i.kind]}{i.done && i.doneBy ? ` · done by ${i.doneBy}` : ""}</span></span></label>)}</div>}
         {o.submission && <dl style={{ display: "grid", gridTemplateColumns: "max-content 1fr", gap: "4px 16px", fontSize: 14 }}>
-          {Object.entries(o.submission.personal ?? {}).map(([k, v]) => <><dt className="k" key={k + "k"}>{k}</dt><dd key={k} style={{ margin: 0 }}>{String(v)}</dd></>)}
+          {Object.entries(o.submission.personal ?? {}).map(([k, v]) => <><dt className="k" key={k + "k"}>{PERSONAL_LABEL[k] ?? k}</dt><dd key={k} style={{ margin: 0 }}>{String(v)}</dd></>)}
           {o.submission.panMasked && <><dt className="k">PAN</dt><dd style={{ margin: 0 }}>{o.submission.panMasked}</dd></>}
           {o.submission.bankName && <><dt className="k">Bank</dt><dd style={{ margin: 0 }}>{o.submission.bankName}, IFSC {o.submission.ifsc}, account {o.submission.accountMasked}</dd></>}
           <dt className="k">Documents</dt><dd style={{ margin: 0 }}>{o.submission.documents.length ? o.submission.documents.map((d) => `${d.kind}: ${d.name}`).join("; ") : "None"}</dd>
         </dl>}
+        {o.submission && o.completedAt && <NdaDetails key={o.submission.submittedAt ?? o.id} c={c} o={o} />}
       </div>)}
     </Card>
   );

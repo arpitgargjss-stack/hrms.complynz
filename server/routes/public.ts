@@ -211,6 +211,8 @@ const submitBody = z.object({
   personal: z.object({
     fullName: z.string().trim().min(2).max(120), dob: dateStr.optional(), gender: z.enum(["female", "male", "other", "undisclosed"]).optional(),
     phone: z.string().trim().regex(/^\+?[0-9 ]{8,15}$/).optional(), address: z.string().trim().max(500).optional(),
+    // Printed in the NDA: "son/daughter/spouse of ..." and "Aadhaar (last 4 digits) ...". Only the last 4 Aadhaar digits are ever taken.
+    relationName: z.string().trim().min(2).max(120).optional(), aadhaarLast4: z.string().trim().regex(/^\d{4}$/, "Enter only the last 4 digits of your Aadhaar").optional(),
   }),
   pan: z.string().trim().toUpperCase().regex(PAN_RE, "Invalid PAN").optional(),
   bank: z.object({
