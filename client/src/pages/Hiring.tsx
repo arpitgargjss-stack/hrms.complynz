@@ -86,9 +86,11 @@ function Letters({ c }: { c: Candidate }) {
     mutationFn: async () => {
       const payload = Object.fromEntries(Object.entries(form).filter(([, v]) => v !== undefined && v !== ""));
       // Every hire gets both formats, from one payload.
-      for (const type of ["offer_short", "offer_full"]) await api("/letters", { body: { type, candidateId: c.id, payload } });
+      // Only the formats that are missing (one may have been discarded).
+      for (const type of ["offer_short", "offer_full"]) if (!list.some((l) => l.type === type && l.status !== "void")) await api("/letters", { body: { type, candidateId: c.id, payload } });
     }, onSuccess: refresh,
   });
+  const discard = useMutation({ mutationFn: (id: string) => api(`/letters/${id}`, { method: "DELETE" }), onSuccess: refresh });
   const issue = useMutation({ mutationFn: (a: { id: string; step: string }) => api(`/letters/${a.id}/${a.step}`, { method: "POST", body: {} }), onSuccess: refresh });
   const me = useQuery({ queryKey: ["me"], queryFn: () => api<{ roles: string[] }>("/me") });
   const ceo = !!me.data?.roles.includes("super_admin");
@@ -103,9 +105,10 @@ function Letters({ c }: { c: Candidate }) {
           <td className="row-gap"><button className="btn" onClick={() => openHtml(`/letters/${l.id}/html`)}>Preview</button>
             {(l.status === "draft" || l.status === "pending_approval") && ceo && <button className="btn p" disabled={issue.isPending} onClick={() => issue.mutate({ id: l.id, step: "approve" })}>Approve as CEO</button>}
             {l.status === "draft" && !ceo && <button className="btn p" disabled={issue.isPending} onClick={() => issue.mutate({ id: l.id, step: "submit" })}>Send to CEO</button>}
-            {l.status === "approved" && <button className="btn p" disabled={issue.isPending} onClick={() => issue.mutate({ id: l.id, step: "issue" })}>Issue</button>}</td></tr>)}
+            {l.status === "approved" && <button className="btn p" disabled={issue.isPending} onClick={() => issue.mutate({ id: l.id, step: "issue" })}>Issue</button>}
+            {(l.status === "draft" || l.status === "pending_approval") && <button className="btn" disabled={discard.isPending} onClick={() => { if (window.confirm(`Discard ${typeLabel(l.type)} (${l.refNo})? You can create it again below.`)) discard.mutate(l.id); }}>Discard draft</button>}</td></tr>)}
       </tbody></table></div>}
-      <ErrorNote error={issue.error} />
+      <ErrorNote error={issue.error ?? discard.error} />
       {issued && <div style={{ marginTop: 12 }}>
         <p className="k">One acceptance link covers both offer formats. The candidate verifies by a code sent to {c.email}.</p>
         <button className="btn p" disabled={share.isPending} onClick={() => share.mutate(issued.id)}>Share acceptance link</button>

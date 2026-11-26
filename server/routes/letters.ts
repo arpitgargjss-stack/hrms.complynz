@@ -129,6 +129,16 @@ r.patch("/letters/:id", wrap(async (req, res) => {
   res.json(row);
 }));
 
+/** Discards a letter that has not been approved yet (draft or waiting for the CEO), so it can be prepared again. */
+r.delete("/letters/:id", wrap(async (req, res) => {
+  need(req, "letters.generate", "all");
+  const [row] = await db.delete(A.letters).where(and(eq(A.letters.id, idParam(req)), inArray(A.letters.status, ["draft", "pending_approval"])))
+    .returning({ id: A.letters.id, type: A.letters.type, refNo: A.letters.refNo });
+  if (!row) throw new HttpError(409, "Only a draft or a letter still waiting for the CEO can be discarded");
+  await logAudit(req.actor!.email, "letter.discard", "letter", row.id, { type: row.type, refNo: row.refNo });
+  res.json({ discarded: true });
+}));
+
 /** HR sends a draft to the CEO. A super admin's own draft can be approved straight away from the approvals list. */
 r.post("/letters/:id/submit", wrap(async (req, res) => {
   need(req, "letters.generate", "all");
