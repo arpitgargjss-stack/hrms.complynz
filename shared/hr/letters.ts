@@ -2,14 +2,14 @@
  * Letter catalogue shared by the server (rendering, validation) and the admin Letters page (forms).
  * Every letter is drafted by HR, approved by the CEO (super admin), then issued.
  */
-export type FieldKind = "text" | "textarea" | "date" | "money" | "number" | "bool" | "template" | "select";
+export type FieldKind = "text" | "textarea" | "date" | "money" | "number" | "bool" | "template" | "select" | "employee";
 export type LetterField = { key: string; label: string; kind: FieldKind; hint?: string; options?: string[]; fromEmployee?: string };
 export type LetterDef = { type: string; label: string; group: "Hiring" | "During employment" | "Exit" | "Other"; audience: "candidate" | "employee" | "both"; summary: string; fields: LetterField[] };
 
 const POS: LetterField = { key: "position", label: "Designation", kind: "text", fromEmployee: "designation" };
 const DEPT: LetterField = { key: "department", label: "Department", kind: "text", fromEmployee: "department" };
 const LOC: LetterField = { key: "location", label: "Work location", kind: "text", hint: "e.g. Noida, Uttar Pradesh", fromEmployee: "location" };
-const MGR: LetterField = { key: "reportingTo", label: "Reporting manager", kind: "text", fromEmployee: "manager" };
+const MGR: LetterField = { key: "reportingTo", label: "Reporting manager", kind: "employee", fromEmployee: "manager" };
 const DOJ: LetterField = { key: "joiningDate", label: "Date of joining", kind: "date", fromEmployee: "joiningDate" };
 const LWD: LetterField = { key: "lastWorkingDay", label: "Last working day", kind: "date", fromEmployee: "lastWorkingDay" };
 const EFF: LetterField = { key: "effectiveFrom", label: "Effective from", kind: "date" };
@@ -21,10 +21,14 @@ export const LETTER_DEFS: LetterDef[] = [
     fields: [POS, GROSS, { key: "salaryNote", label: "Salary note", kind: "text", hint: "e.g. for 3 months and it will be appraised based on your performance" }, { key: "joiningDate", label: "Probation starts on", kind: "date" }] },
   { type: "offer_full", label: "Offer letter, full", group: "Hiring", audience: "candidate", summary: "Full terms: compensation table, background check, DPDP consent choices, policies and the NDA and IP agreement (Annexure A).",
     fields: [{ key: "salutation", label: "Title", kind: "select", options: ["Ms.", "Mr.", "Mx.", "Dr."] }, { key: "addressLine1", label: "Address line 1", kind: "text" }, { key: "addressLine2", label: "Address line 2, city, state, PIN", kind: "text" },
-      { key: "employeeCode", label: "Employee code (if known)", kind: "text" }, POS, DEPT, MGR, LOC, DOJ,
-      { key: "employmentType", label: "Employment type", kind: "select", options: ["Full-Time, Permanent", "Full-Time, Fixed Term", "Part-Time", "Contract"] },
+      { key: "employeeCode", label: "Employee code", kind: "text", hint: "Filled with the next free code; used when the candidate joins" }, POS, DEPT, MGR, LOC, DOJ,
+      { key: "employmentType", label: "Employment type", kind: "select", options: ["Full-Time, Permanent", "Full-Time, Fixed Term", "Part-Time", "Intern", "Contract"] },
       GROSS, { key: "templateKey", label: "Salary structure", kind: "template" }, { key: "pfApplicable", label: "Provident fund applies", kind: "bool", hint: "Off while you have fewer than 20 employees and have not registered voluntarily" },
-      { key: "ptState", label: "State for professional tax", kind: "text", hint: "Uttar Pradesh has none; Maharashtra does" }, { key: "validUntil", label: "Offer valid until", kind: "date" }] },
+      { key: "ptState", label: "State for professional tax", kind: "text", hint: "Uttar Pradesh has none; Maharashtra does" }, { key: "validUntil", label: "Offer valid until", kind: "date" },
+      // Annexure A (NDA) details. Filled from the candidate's onboarding where they have submitted it; HR can change them.
+      { key: "ndaDate", label: "NDA date", kind: "date", hint: "Today unless you change it" },
+      { key: "relationName", label: "Father's, mother's or spouse's name (NDA)", kind: "text" },
+      { key: "aadhaarLast4", label: "Aadhaar, last 4 digits (NDA)", kind: "text" }] },
   { type: "appointment", label: "Appointment letter", group: "Hiring", audience: "employee", summary: "Confirms the appointment on joining.", fields: [POS, DEPT, DOJ, GROSS, { key: "probation", label: "Probation", kind: "text", hint: "e.g. 6 months" }, NOTICE] },
   { type: "internship_offer", label: "Internship offer", group: "Hiring", audience: "candidate", summary: "Stipend, dates and mentor for an intern.",
     fields: [POS, { key: "stipendPaise", label: "Monthly stipend (₹)", kind: "money" }, { key: "startDate", label: "Start date", kind: "date" }, { key: "endDate", label: "End date", kind: "date" }, MGR, LOC, { key: "validUntil", label: "Offer valid until", kind: "date" }] },

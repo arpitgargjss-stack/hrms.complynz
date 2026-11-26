@@ -7,6 +7,7 @@ import { TEMPLATE_PRESETS } from "../../shared/hr/presets";
 import type { ComponentDef } from "../../shared/hr/payroll";
 import { mergeParty, type NdaParty } from "../../shared/hr/ndaParty";
 import { decryptField } from "./crypto";
+import { nextEmployeeCode } from "../../shared/hr/misc";
 
 const plain = (enc: string | null | undefined) => { if (!enc) return null; try { return decryptField(enc); } catch { return null; } };
 
@@ -22,12 +23,14 @@ export async function ndaParty(candidateId?: string | null, employeeId?: string 
     employeeId ? db.select({ dob: schema.employees.dob, address: schema.employees.currentAddress, panEnc: schema.employees.panEnc, code: schema.employees.code })
       .from(schema.employees).where(eq(schema.employees.id, employeeId)).limit(1) : [],
   ]);
-  if (!link && !emp) return null;
+  // Before they join, show the code they will get (the next free one) unless HR typed one on the letter.
+  const next = !emp && candidateId ? nextEmployeeCode((await db.select({ code: schema.employees.code }).from(schema.employees)).map((x) => x.code)) : null;
+  if (!link && !emp) return next ? { employeeCode: next } : null;
   const s = (link?.submitted ?? {}) as { personal?: Record<string, unknown>; panEnc?: string };
   const personal = s.personal ?? {};
   return mergeParty(
     emp ? { dob: emp.dob, address: emp.address, pan: plain(emp.panEnc), employeeCode: emp.code } : null,
-    { relationName: personal.relationName, dob: personal.dob, address: personal.address, aadhaarLast4: personal.aadhaarLast4, pan: plain(s.panEnc) },
+    { employeeCode: next, relationName: personal.relationName, dob: personal.dob, address: personal.address, aadhaarLast4: personal.aadhaarLast4, pan: plain(s.panEnc) },
   );
 }
 

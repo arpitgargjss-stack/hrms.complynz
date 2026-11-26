@@ -50,6 +50,15 @@ function AllLetters({ ceo, onlyPending = false }: { ceo: boolean; onlyPending?: 
   </Card>;
 }
 
+/** Picks a current employee by name (stored as the name, as printed on the letter). Keeps an older typed value selectable. */
+function EmployeePick({ v, set }: { v: string; set: (x: unknown) => void }) {
+  const q = useQuery({ queryKey: ["letter-employees"], queryFn: () => api<{ id: string; code: string; fullName: string }[]>("/letters/employees"), staleTime: 60_000 });
+  const names = (q.data ?? []).map((e) => e.fullName);
+  return <select value={v} onChange={(e) => set(e.target.value || undefined)}><option value="">Choose</option>
+    {v && !names.includes(v) && <option value={v}>{v}</option>}
+    {(q.data ?? []).map((e) => <option key={e.id} value={e.fullName}>{e.fullName} ({e.code})</option>)}</select>;
+}
+
 export function FieldInput({ f, v, set }: { f: LetterDef["fields"][number]; v: unknown; set: (x: unknown) => void }) {
   const s = v == null ? "" : String(v);
   if (f.kind === "textarea") return <textarea rows={3} value={s} onChange={(e) => set(e.target.value)} />;
@@ -58,6 +67,7 @@ export function FieldInput({ f, v, set }: { f: LetterDef["fields"][number]; v: u
   if (f.kind === "money") return <input inputMode="decimal" placeholder="0" value={typeof v === "number" ? String(v / 100) : ""} onChange={(e) => { const n = Number(e.target.value.replace(/[,₹\s]/g, "")); set(e.target.value === "" || !Number.isFinite(n) ? undefined : Math.round(n * 100)); }} />;
   if (f.kind === "bool") return <label style={{ display: "flex", gap: 8, alignItems: "center" }}><input type="checkbox" checked={v === true} onChange={(e) => set(e.target.checked)} />Yes</label>;
   if (f.kind === "select") return <select value={s} onChange={(e) => set(e.target.value || undefined)}><option value="">Choose</option>{f.options!.map((o) => <option key={o}>{o}</option>)}</select>;
+  if (f.kind === "employee") return <EmployeePick v={s} set={set} />;
   if (f.kind === "template") return <select value={s || "standard"} onChange={(e) => set(e.target.value)}>{TEMPLATE_PRESETS.map((t) => <option key={t.key} value={t.key}>{t.name}</option>)}</select>;
   return <input value={s} onChange={(e) => set(e.target.value || undefined)} />;
 }
