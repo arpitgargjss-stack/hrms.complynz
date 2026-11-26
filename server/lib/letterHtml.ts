@@ -91,7 +91,8 @@ function doc(ctx: LetterCtx, title: string, pages: string): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)} ${esc(ctx.refNo)}</title><style>${CSS}${MARKS_CSS}</style></head><body>
 ${ctx.status === "draft" || ctx.status === "pending_approval" ? `<div class="draft">DRAFT</div>` : ""}${pages}</body></html>`;
 }
-const issuedDay = (ctx: LetterCtx) => (ctx.issuedAt ?? ctx.approvedAt ?? null);
+// Until a letter is issued it is dated today; issuing stamps the real date.
+const issuedDay = (ctx: LetterCtx): Date | null => ctx.issuedAt ?? ctx.approvedAt ?? new Date(Date.now() + 330 * 60_000);
 function signature(ctx: LetterCtx, co: Co, forLabel = true): string {
   const when = ctx.approvedAt && ["approved", "issued", "accepted"].includes(ctx.status) ? `<div class="e">Approved and signed electronically on ${esc(longDate(ctx.approvedAt.toISOString().slice(0, 10)))}</div>` : "";
   return `<div class="sign">${forLabel ? `For ${esc(co.legalName)}<br>` : "Warm regards,<br>"}${marksHtml(ctx.marks, co.signatoryName)}<b>${co.signatoryName ? esc(co.signatoryName) : ph("signatory name")}</b><br>${esc(co.signatoryDesignation)}${forLabel ? "" : `<br>${esc(co.brandName)}`}${when}</div>`;
