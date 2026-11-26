@@ -1,6 +1,7 @@
 import { useAuth } from "@clerk/clerk-react";
 
-export class ApiError extends Error { constructor(public status: number, message: string) { super(message); } }
+/** `data` is the full JSON error body, for endpoints that send details beyond the message (e.g. a list of rows to fix). */
+export class ApiError extends Error { constructor(public status: number, message: string, public data?: unknown) { super(message); } }
 
 const TOO_LARGE = "The upload is too large. Please use smaller files (photos of documents are fine at a few hundred KB) and try again.";
 /** Turn a failed response into a readable error. Proxies (nginx) answer 413 with an HTML page, not JSON. */
@@ -8,7 +9,7 @@ async function errorOf(res: Response, fallback: string): Promise<ApiError> {
   if (res.status === 413) return new ApiError(413, TOO_LARGE);
   const j = await res.json().catch(() => ({}));
   const msg = (j as { error?: string }).error;
-  if (msg) return new ApiError(res.status, msg);
+  if (msg) return new ApiError(res.status, msg, j);
   if (res.status >= 500) return new ApiError(res.status, "The server had a problem. Please try again in a few minutes.");
   return new ApiError(res.status, fallback);
 }

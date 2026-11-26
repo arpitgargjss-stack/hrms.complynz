@@ -10,8 +10,10 @@ export function validateRow(r: Omit<AdviceRow, "srNo">): string[] {
   const errs: string[] = [];
   if (!r.name.trim()) errs.push("Name missing");
   if (!r.bankName.trim()) errs.push("Bank name missing");
-  if (!/^\d{9,18}$/.test(r.accountNo)) errs.push("Account number must be 9 to 18 digits");
-  if (!IFSC.test(r.ifsc)) errs.push("IFSC is invalid");
+  if (!r.accountNo) errs.push("Account number missing");
+  else if (!/^\d{9,18}$/.test(r.accountNo)) errs.push("Account number must be 9 to 18 digits");
+  if (!r.ifsc) errs.push("IFSC missing");
+  else if (!IFSC.test(r.ifsc)) errs.push(`IFSC "${r.ifsc}" is invalid (expected 11 characters like HDFC0001234)`);
   if (!Number.isInteger(r.amountPaise) || r.amountPaise <= 0) errs.push("Amount must be positive");
   return errs;
 }
