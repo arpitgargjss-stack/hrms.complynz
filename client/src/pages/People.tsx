@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, fileToBase64 } from "../lib/api";
@@ -187,6 +187,53 @@ function EditDetails({ d, own }: { d: Detail; own: boolean }) {
   );
 }
 
+/** Admin fix-up for bank details used by the bank advice. Opened directly from Payroll → Bank advice via ?fix=bank. */
+function BankEditor({ d }: { d: Detail }) {
+  const qc = useQueryClient();
+  const fromAdvice = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("fix") === "bank";
+  const [open, setOpen] = useState(fromAdvice);
+  const [f, setF] = useState({ bankName: d.bankName ?? "", accountNumber: "", ifsc: d.ifsc ?? "" });
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (fromAdvice) ref.current?.scrollIntoView({ behavior: "smooth", block: "start" }); }, [fromAdvice]);
+  const m = useMutation({
+    mutationFn: () => {
+      const body: Record<string, string> = {};
+      if (f.bankName.trim() !== (d.bankName ?? "")) body.bankName = f.bankName.trim();
+      if (f.ifsc.trim().toUpperCase() !== (d.ifsc ?? "")) body.ifsc = f.ifsc.trim().toUpperCase();
+      if (f.accountNumber.trim()) body.accountNumber = f.accountNumber.replace(/\s+/g, "");
+      if (!Object.keys(body).length) throw new Error("Nothing changed");
+      return api(`/employees/${d.id}`, { method: "PATCH", body });
+    },
+    onSuccess: () => { setOpen(false); setF((x) => ({ ...x, accountNumber: "" })); for (const k of ["employee", "employees", "audit"]) qc.invalidateQueries({ queryKey: [k] }); },
+  });
+  return (
+    <div ref={ref} id="bank">
+      <Card>
+        <div className="row-gap" style={{ justifyContent: "space-between", alignItems: "center" }}>
+          <h2 style={{ margin: 0 }}>Bank details for salary</h2>
+          {!open && <button className="btn" onClick={() => { setF({ bankName: d.bankName ?? "", accountNumber: "", ifsc: d.ifsc ?? "" }); m.reset(); setOpen(true); }}>Edit bank details</button>}
+        </div>
+        <p className="k">Used in the bank advice. Account {d.accountMasked ?? "not provided"}. Changes are recorded in the audit log.</p>
+        {m.isSuccess && !open && <div className="note ok">Bank details saved.</div>}
+        {open && (
+          <form onSubmit={(e) => { e.preventDefault(); m.mutate(); }}>
+            <div className="grid">
+              <Field label="Bank name"><input maxLength={120} value={f.bankName} onChange={(e) => setF({ ...f, bankName: e.target.value })} /></Field>
+              <Field label={d.accountMasked ? "New account number (leave blank to keep the current one)" : "Account number"}>
+                <input inputMode="numeric" autoComplete="off" pattern="[0-9 ]{9,22}" title="9 to 18 digits" value={f.accountNumber} onChange={(e) => setF({ ...f, accountNumber: e.target.value })} /></Field>
+              <Field label="IFSC"><input maxLength={11} placeholder="HDFC0001234" value={f.ifsc} onChange={(e) => setF({ ...f, ifsc: e.target.value.toUpperCase() })} /></Field>
+            </div>
+            <ErrorNote error={m.error} />
+            <p className="row-gap">
+              <button className="btn p" disabled={m.isPending}>{m.isPending ? "Saving…" : "Save bank details"}</button>
+              <button type="button" className="btn" onClick={() => { setOpen(false); m.reset(); }}>Cancel</button>
+            </p>
+          </form>)}
+      </Card>
+    </div>
+  );
+}
+
 function ManagerCard({ id, current, names }: { id: string; current: string | null; names: Map<string, string> }) {
   const qc = useQueryClient();
   const all = useQuery({ queryKey: ["employees"], queryFn: () => api<{ employees: Dir[] }>("/employees") });
@@ -254,6 +301,7 @@ function Detail({ id, admin, myId }: { id: string; admin: boolean; myId: string 
               </dl>
               {admin && !own && <p className="k">Viewing sensitive details is recorded in the audit log.</p>}
             </Card>)}
+          {admin && <BankEditor key={d.id} d={d} />}
           {(admin || own) && <Documents id={id} canUpload />}
           {admin && <ManagerCard id={id} current={d.managerId} names={names} />}
           {admin && (

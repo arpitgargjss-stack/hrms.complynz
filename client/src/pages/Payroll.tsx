@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, fileToBase64, getAuthToken } from "../lib/api";
+import { ApiError, api, fileToBase64, getAuthToken } from "../lib/api";
+import { PAYROLL_UNLOCK_ENABLED } from "../../../shared/hr/payrollTesting";
 import { ConfigHint } from "../lib/ConfigHint";
 import { CompensationEditor } from "./CompensationEditor";
 import { openHtml } from "../lib/openHtml";
@@ -312,9 +314,30 @@ function RunDetailView({ id, canRun, history, onDeleted }: { id: string; canRun:
       )}
       <ErrorNote error={recompute.error} /><ErrorNote error={lock.error} />
       {lock.isSuccess && <div className="note ok">Run locked. You can now generate the bank advice.</div>}
+      {/* TEMP: payroll unlock (testing only) */}
+      {PAYROLL_UNLOCK_ENABLED && run.status === "locked" && <UnlockRun id={id} month={run.month} onDone={() => { lock.reset(); refresh(); qc.invalidateQueries({ queryKey: ["bank-advices"] }); qc.invalidateQueries({ queryKey: ["payroll-overview"] }); }} />}
     </Card>
   );
 }
+
+// ---- TEMP: payroll unlock (testing only). Remove this component, its one use above and shared/hr/payrollTesting.ts. ----
+function UnlockRun({ id, month, onDone }: { id: string; month: string; onDone: () => void }) {
+  const me = useQuery({ queryKey: ["me"], queryFn: () => api<Me>("/me") });
+  const unlock = useMutation({ mutationFn: () => api<{ bankAdvicesRemoved: string[]; claimsReopened: number }>(`/payroll/runs/${id}/unlock`, { method: "POST", body: {} }), onSuccess: onDone });
+  if (!me.data?.roles.includes("hr_admin")) return null; // HR admin or super admin
+  return (
+    <div className="note warn" style={{ marginTop: 16 }}>
+      <strong>Testing only:</strong> unlock this run to put it back to draft so you can recompute or delete it. Any unsigned bank advice for the month is removed and its reimbursement claims go back to approved. Runs with a signed bank advice cannot be unlocked.
+      <p className="row-gap" style={{ marginTop: 8 }}>
+        <button className="btn" disabled={unlock.isPending} onClick={() => { if (confirm(`Unlock ${monthLabel(month)} and put it back to draft? This is recorded in the audit log.`)) unlock.mutate(); }}>
+          {unlock.isPending ? "Unlocking…" : "Unlock run"}
+        </button>
+      </p>
+      <ErrorNote error={unlock.error} />
+    </div>
+  );
+}
+// ---- end TEMP: payroll unlock ----
 
 // ------------------------------------------------------------------ Bank advice
 function BankAdvice({ canSign }: { canSign: boolean }) {
@@ -338,6 +361,7 @@ function BankAdvice({ canSign }: { canSign: boolean }) {
           <div><button className="btn p" disabled={!runId || gen.isPending} onClick={() => gen.mutate()}>{gen.isPending ? "Generating…" : "Generate bank advice"}</button></div>
         </div>
         <ErrorNote error={gen.error} />
+        <InvalidBankList error={gen.error} />
         <p className="k">Generation fails if any employee has invalid bank details. A signed advice cannot be regenerated.</p>
       </Card>
       <Card>
@@ -355,6 +379,26 @@ function BankAdvice({ canSign }: { canSign: boolean }) {
       </Card>
       {sel && <AdviceView id={sel} canSign={canSign} />}
     </>
+  );
+}
+
+type InvalidBankRow = { employeeId: string | null; employeeCode: string; name: string; bankName: string; ifsc: string; errors: string[] };
+/** The people whose bank details stopped the advice, with what is wrong and a link to fix each one. */
+function InvalidBankList({ error }: { error: unknown }) {
+  const rows = error instanceof ApiError ? (error.data as { rows?: InvalidBankRow[] } | undefined)?.rows : undefined;
+  if (!rows?.length) return null;
+  return (
+    <div style={{ marginTop: 12 }}>
+      <h3 style={{ margin: "0 0 6px" }}>People with invalid bank details ({rows.length})</h3>
+      <div style={tableWrap}><table className="t"><thead><tr><th>Employee ID</th><th>Name</th><th>Bank</th><th>IFSC</th><th>What is wrong</th><th></th></tr></thead><tbody>
+        {rows.map((r, i) => (
+          <tr key={r.employeeId ?? i}><td>{r.employeeCode}</td><td>{r.name}</td><td>{r.bankName || <span className="k">Missing</span>}</td><td>{r.ifsc || <span className="k">Missing</span>}</td>
+            <td><ul style={{ margin: 0, paddingLeft: 18 }}>{r.errors.map((e) => <li key={e}>{e}</li>)}</ul></td>
+            <td>{r.employeeId && <Link href={`/people/${r.employeeId}?fix=bank`} className="btn" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center" }}>Fix</Link>}</td></tr>
+        ))}
+      </tbody></table></div>
+      <p className="k">Account numbers are not shown here. After fixing, come back and generate again.</p>
+    </div>
   );
 }
 

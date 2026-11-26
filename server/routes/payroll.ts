@@ -20,6 +20,7 @@ import {
   sumTdsYtd, sumGrossYtd, totalsOf, eligibleRuleSets, runsUsingRuleSet,
 } from "./payrollHelpers";
 import { sameRules } from "../../shared/hr/presets";
+import { PAYROLL_UNLOCK_ENABLED } from "../../shared/hr/payrollTesting";
 
 const r = Router();
 
@@ -502,6 +503,36 @@ r.post("/payroll/runs/:id/lock", wrap(async (req, res) => {
   res.json({ ok: true, ...out });
 }));
 
+// ---- TEMP: payroll unlock (testing only). Remove this whole block with shared/hr/payrollTesting.ts. ----
+/**
+ * Put a locked run back to draft so it can be recomputed or deleted. HR admin / super admin only.
+ * Refused for paid or imported months and when a signed bank advice exists. Unsigned bank advices for the
+ * run are deleted (they would no longer match the payslips), and reimbursement claims this run marked as
+ * paid go back to approved so the next lock pays them again.
+ */
+r.post("/payroll/runs/:id/unlock", wrap(async (req, res) => {
+  if (!PAYROLL_UNLOCK_ENABLED) throw new HttpError(404, "Not found");
+  if (!actorOf(req).roles.has("hr_admin")) deny(); // super_admin implies hr_admin
+  const id = idParam(req);
+  const a = actorOf(req);
+  const out = await db.transaction(async (tx) => {
+    const [run] = await tx.select().from(schema.payrollRuns).where(eq(schema.payrollRuns.id, id)).for("update");
+    if (!run) throw new HttpError(404, "Payroll run not found");
+    if (run.status === "draft") throw new HttpError(409, "This run is already a draft");
+    if (run.status !== "locked" || (run.rulesSnapshot as { imported?: boolean } | null)?.imported === true) throw new HttpError(409, "Paid and imported months cannot be unlocked");
+    const advs = await tx.select().from(schema.bankAdvices).where(eq(schema.bankAdvices.runId, id));
+    if (advs.some((x) => x.signedAt)) throw new HttpError(409, "This run has a signed bank advice, so it cannot be unlocked");
+    if (advs.length) await tx.delete(schema.bankAdvices).where(eq(schema.bankAdvices.runId, id));
+    const claims = await tx.update(schema.reimbClaims).set({ status: "approved", paidInRunId: null })
+      .where(and(eq(schema.reimbClaims.paidInRunId, id), eq(schema.reimbClaims.status, "paid"))).returning({ id: schema.reimbClaims.id });
+    await tx.update(schema.payrollRuns).set({ status: "draft", lockedBy: null, lockedAt: null }).where(eq(schema.payrollRuns.id, id));
+    return { month: run.month, previouslyLockedBy: run.lockedBy, previouslyLockedAt: run.lockedAt, bankAdvicesRemoved: advs.map((x) => x.refNo), claimsReopened: claims.length };
+  });
+  await logAudit(a.email, "payroll.run.unlock", "payroll_run", id, out);
+  res.json({ ok: true, ...out });
+}));
+// ---- end TEMP: payroll unlock ----
+
 // ============================================================ payslips
 async function loadSlip(req: Request) {
   const id = idParam(req);
@@ -642,13 +673,20 @@ async function liveAdvice(run: RunRow, refNo: string) {
   for (const x of rows) {
     if (x.s.netPayPaise <= 0) skipped.push({ code: x.e.code, name: x.e.fullName, reason: "Net pay is zero" }); else used.push(x);
   }
-  const inputs = used.map((x) => {
+  const unreadable = new Set<number>(); // account stored but could not be decrypted
+  const inputs = used.map((x, i) => {
     let accountNo = "";
-    try { if (x.e.accountEnc) accountNo = decryptField(x.e.accountEnc).replace(/\s+/g, ""); } catch { /* invalid stays empty and fails validation */ }
+    try { if (x.e.accountEnc) accountNo = decryptField(x.e.accountEnc).replace(/\s+/g, ""); } catch { unreadable.add(i); /* stays empty and fails validation */ }
     return { name: x.e.fullName, bankName: x.e.bankName ?? "", accountNo, ifsc: (x.e.ifsc ?? "").toUpperCase().trim(), amountPaise: x.s.netPayPaise };
   });
   const built = buildAdvice({ month: run.month, refNo, rows: inputs });
-  return { built, skipped, used };
+  /** One entry per person whose bank details block the advice, with plain-language reasons. */
+  const invalid = built.ok ? [] : built.errors.map((e) => {
+    const x = used[e.row - 1];
+    const errors = unreadable.has(e.row - 1) ? e.errors.map((m) => (m === "Account number missing" ? "Account number could not be read; enter it again" : m)) : e.errors;
+    return { employeeId: x?.e.id ?? null, employeeCode: x?.e.code ?? "", name: x?.e.fullName ?? "", bankName: x?.e.bankName ?? "", ifsc: x?.e.ifsc ?? "", errors };
+  });
+  return { built, skipped, used, invalid };
 }
 
 async function loadAdvice(req: Request) {
@@ -681,9 +719,10 @@ r.post("/payroll/runs/:id/bank-advice", wrap(async (req, res) => {
   if (existing.some((x) => x.signedAt)) throw new HttpError(409, "A signed bank advice already exists for this run");
   const allRefs = await db.select({ ref: schema.bankAdvices.refNo }).from(schema.bankAdvices).where(sql`${schema.bankAdvices.refNo} like ${"BA/" + run.month + "/%"}`);
   const refNo = nextAdviceRef(run.month, allRefs.map((x) => x.ref));
-  const { built, skipped, used } = await liveAdvice(run, refNo);
+  const { built, skipped, invalid } = await liveAdvice(run, refNo);
   if (!built.ok) {
-    return res.status(400).json({ error: "Some employees have invalid bank details", rows: built.errors.map((e) => ({ employeeCode: used[e.row - 1]?.e.code, name: used[e.row - 1]?.e.fullName, errors: e.errors })), skipped });
+    const n = invalid.length;
+    return res.status(400).json({ error: `${n} ${n === 1 ? "employee has" : "employees have"} invalid bank details. Fix them and generate again.`, rows: invalid, skipped });
   }
   if (!built.rows.length) throw new HttpError(400, "No payable rows");
   const [adv] = await db.insert(schema.bankAdvices).values({
