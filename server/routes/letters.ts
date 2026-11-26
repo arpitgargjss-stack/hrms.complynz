@@ -243,7 +243,7 @@ r.get("/letters/:id/html", wrap(async (req, res) => {
   }
   const who = await recipientName(l);
   const payload = (l.payload ?? {}) as Record<string, unknown>;
-  const html = renderLetter({ type: l.type, refNo: l.refNo, name: who.name, issuedAt: l.issuedAt, status: l.status, payload, approvedAt: l.approvedAt, ...(await letterContext({ type: l.type, payload, candidateId: l.candidateId, status: l.status })) });
+  const html = renderLetter({ type: l.type, refNo: l.refNo, name: who.name, issuedAt: l.issuedAt, status: l.status, payload, approvedAt: l.approvedAt, ...(await letterContext({ type: l.type, payload, candidateId: l.candidateId, employeeId: l.employeeId, status: l.status })) });
   res.type("html").send(html);
 }));
 
@@ -368,6 +368,32 @@ r.get("/candidates/:id/onboarding", wrap(async (req, res) => {
       submission: s ? { personal: s.personal ?? null, panMasked: safeMask(s.panEnc), accountMasked: safeMask(s.accountEnc), bankName: s.bankName ?? null, ifsc: s.ifsc ?? null, documents: s.documents ?? [], submittedAt: s.submittedAt ?? null } : null,
     };
   }));
+}));
+
+/**
+ * HR adds or corrects the details printed in the NDA on a submitted onboarding (for example a submission made before
+ * the form asked for them). Only these fields change; the candidate's documents, PAN and bank details are untouched.
+ * The offer letter reads them when it is opened, so it fills in without being re-issued.
+ */
+const ndaDetailsBody = z.object({
+  relationName: z.string().trim().min(2).max(120).optional(), aadhaarLast4: z.string().trim().regex(/^\d{4}$/, "Enter only the last 4 digits of the Aadhaar").optional(),
+  address: z.string().trim().min(5).max(500).optional(), dob: dateStr.optional(),
+}).refine((x) => Object.values(x).some((v) => v !== undefined), "Nothing to save");
+r.patch("/candidates/:id/onboarding/:linkId/details", wrap(async (req, res) => {
+  need(req, "hiring.manage", "all");
+  const b = parse(ndaDetailsBody, req.body);
+  const linkId = idParam(req, "linkId");
+  const [link] = await db.select().from(A.onboardingLinks).where(and(eq(A.onboardingLinks.id, linkId), eq(A.onboardingLinks.candidateId, idParam(req)))).limit(1);
+  if (!link) throw new HttpError(404, "Not found");
+  if (!link.completedAt || !link.submitted) throw new HttpError(409, "The candidate has not submitted this onboarding yet");
+  const s = link.submitted as Submission;
+  const before = (s.personal ?? {}) as Record<string, unknown>;
+  const changed = Object.keys(b).filter((k) => (b as Record<string, unknown>)[k] !== undefined && before[k] !== (b as Record<string, unknown>)[k]);
+  const personal = { ...before, ...Object.fromEntries(Object.entries(b).filter(([, v]) => v !== undefined)) };
+  await db.update(A.onboardingLinks).set({ submitted: { ...s, personal } }).where(eq(A.onboardingLinks.id, link.id));
+  // Field names only: the values are personal data.
+  await logAudit(req.actor!.email, "onboarding.details.update", "onboarding_link", link.id, { fields: changed });
+  res.json({ updated: changed });
 }));
 
 r.post("/candidates/:id/convert", wrap(async (req, res) => {

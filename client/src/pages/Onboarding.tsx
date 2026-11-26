@@ -28,7 +28,7 @@ export default function Onboarding() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [done, setDone] = useState(false);
-  const [p, setP] = useState({ fullName: "", dob: "", gender: "", phone: "", address: "" });
+  const [p, setP] = useState({ fullName: "", relationName: "", dob: "", gender: "", phone: "", address: "", aadhaarLast4: "" });
   const [pan, setPan] = useState("");
   const [bank, setBank] = useState({ bankName: "", accountNumber: "", ifsc: "" });
   const [docs, setDocs] = useState<Doc[]>([]);
@@ -46,7 +46,7 @@ export default function Onboarding() {
     const documents = [];
     for (const d of docs) documents.push({ kind: d.kind, name: d.name, mime: d.mime, dataBase64: await fileToBase64(d.file) });
     await publicApi(`/onboarding/${t}/submit`, { headers: { "X-Onboard-Session": session }, body: {
-      personal: { fullName: p.fullName, dob: p.dob || undefined, gender: p.gender || undefined, phone: p.phone || undefined, address: p.address || undefined },
+      personal: { fullName: p.fullName, relationName: p.relationName.trim() || undefined, dob: p.dob || undefined, gender: p.gender || undefined, phone: p.phone || undefined, address: p.address || undefined, aadhaarLast4: p.aadhaarLast4 || undefined },
       pan: has("kyc") && pan ? pan.toUpperCase() : undefined,
       bank: has("bank") ? { bankName: bank.bankName, accountNumber: bank.accountNumber, ifsc: bank.ifsc.toUpperCase() } : undefined,
       documents,
@@ -88,13 +88,16 @@ export default function Onboarding() {
   return (
     <Shell>
       <form onSubmit={(e) => { e.preventDefault(); submit(); }}>
-        <div className="card"><h1>Your joining details</h1><p className="k">Your PAN and account number are stored encrypted and shown to HR only in masked form.</p></div>
+        <div className="card"><h1>Your joining details</h1><p className="k">Your PAN and account number are stored encrypted and shown to HR in masked form. Your PAN is printed in full only in your non-disclosure agreement.</p></div>
         <div className="card"><h2>Personal details</h2>
           <label className="fld"><span>Full name</span><input required minLength={2} maxLength={120} autoComplete="name" value={p.fullName} onChange={(e) => setP({ ...p, fullName: e.target.value })} /></label>
-          <label className="fld"><span>Date of birth</span><input type="date" autoComplete="bday" value={p.dob} onChange={(e) => setP({ ...p, dob: e.target.value })} /></label>
+          <label className="fld"><span>Father's, mother's or spouse's name</span><input required minLength={2} maxLength={120} value={p.relationName} onChange={(e) => setP({ ...p, relationName: e.target.value })} /></label>
+          <label className="fld"><span>Date of birth</span><input required type="date" autoComplete="bday" value={p.dob} onChange={(e) => setP({ ...p, dob: e.target.value })} /></label>
           <label className="fld"><span>Gender</span><select value={p.gender} onChange={(e) => setP({ ...p, gender: e.target.value })}><option value="">Prefer not to say</option><option value="female">Female</option><option value="male">Male</option><option value="other">Other</option><option value="undisclosed">Undisclosed</option></select></label>
           <label className="fld"><span>Phone</span><input type="tel" inputMode="tel" autoComplete="tel" pattern="\+?[0-9 ]{8,15}" title="8 to 15 digits, optional leading +" value={p.phone} onChange={(e) => setP({ ...p, phone: e.target.value })} /></label>
-          <label className="fld"><span>Current address</span><textarea rows={3} maxLength={500} autoComplete="street-address" value={p.address} onChange={(e) => setP({ ...p, address: e.target.value })} /></label>
+          <label className="fld"><span>Current address</span><textarea required rows={3} minLength={5} maxLength={500} autoComplete="street-address" value={p.address} onChange={(e) => setP({ ...p, address: e.target.value })} /></label>
+          <label className="fld"><span>Aadhaar, last 4 digits only</span><input required inputMode="numeric" pattern="\d{4}" title="The last 4 digits of your Aadhaar" maxLength={4} autoComplete="off" value={p.aadhaarLast4} onChange={(e) => setP({ ...p, aadhaarLast4: e.target.value.replace(/\D/g, "").slice(0, 4) })} /></label>
+          <p className="k">Your name, parent's or spouse's name, age, address, PAN and the last 4 Aadhaar digits are printed in your non-disclosure agreement.</p>
         </div>
         {has("kyc") && <div className="card"><h2>PAN</h2>
           <label className="fld"><span>PAN number</span><input required pattern="[A-Za-z]{5}[0-9]{4}[A-Za-z]" title="Format: ABCDE1234F" maxLength={10} autoCapitalize="characters" autoComplete="off" value={pan} onChange={(e) => setPan(e.target.value.toUpperCase())} /></label></div>}
