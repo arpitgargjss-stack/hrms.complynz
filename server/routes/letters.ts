@@ -200,7 +200,16 @@ r.get("/letters/prefill", wrap(async (req, res) => {
     const [c] = await db.select().from(A.candidates).where(eq(A.candidates.id, q.candidateId)).limit(1);
     if (!c) throw new HttpError(404, "Not found");
     const [d] = c.departmentId ? await db.select({ n: A.departments.name }).from(A.departments).where(eq(A.departments.id, c.departmentId)).limit(1) : [];
-    return res.json({ name: c.fullName, values: { position: c.position ?? undefined, department: d?.n, joiningDate: c.expectedJoining ?? undefined } });
+    // Offer details the candidate already gave in onboarding (address, NDA details) and the next free employee code.
+    const [link] = await db.select({ submitted: A.onboardingLinks.submitted }).from(A.onboardingLinks)
+      .where(and(eq(A.onboardingLinks.candidateId, c.id), sql`${A.onboardingLinks.completedAt} is not null`)).orderBy(desc(A.onboardingLinks.completedAt)).limit(1);
+    const personal = ((link?.submitted as Submission | null)?.personal ?? {}) as Record<string, string | undefined>;
+    const codes = (await db.select({ code: A.employees.code }).from(A.employees)).map((x) => x.code);
+    const str = (x: unknown) => (typeof x === "string" && x.trim() ? x.trim() : undefined);
+    return res.json({ name: str(personal.fullName) ?? c.fullName, values: {
+      position: c.position ?? undefined, department: d?.n, joiningDate: c.expectedJoining ?? undefined, employeeCode: nextEmployeeCode(codes),
+      addressLine1: str(personal.address), relationName: str(personal.relationName), aadhaarLast4: str(personal.aadhaarLast4), ndaDate: new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 10),
+    } });
   }
   if (!q.employeeId) throw new HttpError(400, "Pick a person");
   const [e] = await db.select().from(A.employees).where(eq(A.employees.id, q.employeeId)).limit(1);
@@ -214,6 +223,14 @@ r.get("/letters/prefill", wrap(async (req, res) => {
   const res2 = await one(db.select({ d: A.resignations.createdAt }).from(A.resignations).where(eq(A.resignations.employeeId, e.id)).orderBy(desc(A.resignations.createdAt)).limit(1));
   const from: Record<string, unknown> = { designation: des?.n, department: dep?.n, location: loc ? `${loc.n}${loc.s ? `, ${loc.s}` : ""}` : undefined, manager: mgr?.n, joiningDate: e.joiningDate, lastWorkingDay: e.lastWorkingDay ?? undefined, monthlyGross: comp?.g };
   res.json({ name: e.fullName, code: e.code, from, resignationDate: res2 ? res2.d.toISOString().slice(0, 10) : undefined });
+}));
+
+/** Current employees, for pickers on the letter form (reporting manager). Names only. */
+r.get("/letters/employees", wrap(async (req, res) => {
+  need(req, "letters.generate", "all");
+  const rows = await db.select({ id: A.employees.id, code: A.employees.code, fullName: A.employees.fullName }).from(A.employees)
+    .where(inArray(A.employees.status, ["active", "notice"])).orderBy(A.employees.fullName);
+  res.json(rows);
 }));
 
 /** Preview a letter that is not saved yet, for the form's live preview. */
@@ -418,8 +435,12 @@ r.post("/candidates/:id/convert", wrap(async (req, res) => {
   const emp = await db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(7102)`);
     const codes = (await tx.select({ code: A.employees.code }).from(A.employees)).map((x) => x.code);
+    // Keep the code printed on the candidate's offer letter when it is still free.
+    const offers = await tx.select({ payload: A.letters.payload }).from(A.letters)
+      .where(and(eq(A.letters.candidateId, id), inArray(A.letters.type, ["offer_full", "offer_short"]), sql`${A.letters.status} <> 'void'`)).orderBy(desc(A.letters.createdAt));
+    const printed = offers.map((o) => String((o.payload as Record<string, unknown>)?.employeeCode ?? "").trim().toUpperCase()).find((x) => /^CMPZ\d{3,}$/.test(x) && !codes.includes(x));
     const [e] = await tx.insert(A.employees).values({
-      code: nextEmployeeCode(codes), workEmail: b.workEmail, fullName: personal.fullName?.trim() || c.fullName, personalEmail: c.email, phone: personal.phone ?? c.phone ?? null,
+      code: printed ?? nextEmployeeCode(codes), workEmail: b.workEmail, fullName: personal.fullName?.trim() || c.fullName, personalEmail: c.email, phone: personal.phone ?? c.phone ?? null,
       dob: personal.dob ?? null, gender: personal.gender ?? null, joiningDate,
       departmentId: b.departmentId ?? c.departmentId ?? null, designationId: b.designationId ?? null, locationId: b.locationId ?? null, managerId: b.managerId ?? null,
       employmentType: b.employmentType ?? "full_time", status: "active",

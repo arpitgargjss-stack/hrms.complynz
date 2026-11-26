@@ -6,7 +6,7 @@ import { resolveComponents, type ComponentDef } from "../../shared/hr/payroll";
 import { TEMPLATE_PRESETS } from "../../shared/hr/presets";
 import { COMPANY_DEFAULTS, LETTER_TYPES, letterLabel, type CompanyProfile } from "../../shared/hr/letters";
 import { NDA_BLOCKS } from "./letters/ndaText";
-import { ageOn, istParts, ordinal, type NdaParty } from "../../shared/hr/ndaParty";
+import { ageOn, istParts, mergeParty, ordinal, type NdaParty } from "../../shared/hr/ndaParty";
 
 export { LETTER_TYPES };
 export type LetterType = string;
@@ -159,18 +159,22 @@ ${CONSENT_PURPOSES.map((c) => `<tr><td><b>${esc(c.title)}</b> — ${esc(c.detail
 }
 
 function ndaHtml(ctx: LetterCtx, co: Co): string {
-  const p = ctx.payload, party = ctx.party ?? {};
+  const p = ctx.payload;
+  // What HR typed on the letter wins; the candidate's onboarding (or employee record) fills the rest.
+  const typedAddress = [p.addressLine1, p.addressLine2].filter((x) => !blank(x)).map((x) => String(x).trim()).join(", ");
+  const party = mergeParty({ relationName: p.relationName, aadhaarLast4: p.aadhaarLast4, address: typedAddress, employeeCode: p.employeeCode }, ctx.party);
   // Blanks the candidate fills in by hand stay as lines until onboarding (or HR) supplies the value.
   const gap = (n: number) => "_".repeat(n);
   const or = (v: string | null | undefined, n: number) => (v ? `<b>${esc(v)}</b>` : gap(n));
-  const signedOn = ctx.acceptedAt ? istParts(ctx.acceptedAt) : null;
+  // The NDA date: the one entered on the letter, else the day the candidate accepted online, else today.
+  const ndaDay = typeof p.ndaDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(p.ndaDate) ? new Date(p.ndaDate + "T06:30:00Z") : null;
+  const signedOn = istParts(ndaDay ?? ctx.acceptedAt ?? new Date());
   const place = blank(p.location) ? null : String(p.location).trim();
-  const age = ageOn(party.dob, ctx.acceptedAt ?? new Date());
-  const code = blank(p.employeeCode) ? party.employeeCode ?? null : String(p.employeeCode);
+  const age = ageOn(party.dob, ndaDay ?? ctx.acceptedAt ?? new Date());
+  const code = party.employeeCode ?? null;
   const vars: Record<string, string> = {
     name: esc(ctx.name) || ph("employee name"), employeeCode: code ? esc(code) : ph("employee code"), legalName: esc(co.legalName),
-    place: or(place, 18), day: signedOn ? `<b>${ordinal(signedOn.day)}</b>` : gap(4), month: signedOn ? `<b>${esc(signedOn.month)}</b>` : gap(14),
-    year: signedOn ? `<b>${signedOn.year}</b>` : `20${gap(4)}`,
+    place: or(place, 18), day: `<b>${ordinal(signedOn.day)}</b>`, month: `<b>${esc(signedOn.month)}</b>`, year: `<b>${signedOn.year}</b>`,
     relationName: or(party.relationName, 27), age: age === null ? gap(4) : `<b>${age}</b>`, pan: or(party.pan, 12),
     aadhaarLast4: or(party.aadhaarLast4, 12), address: or(party.address, 50),
     registeredAddress: esc(co.registeredAddress), ndaDamages: co.ndaDamages ? `INR ${esc(co.ndaDamages)}` : ph("liquidated damages amount, set in Company details"),
@@ -186,7 +190,7 @@ function ndaHtml(ctx: LetterCtx, co: Co): string {
   if (inList) out += "</ul>";
   const line = "__________________________";
   out += `<h3>EXECUTION</h3><p>IN WITNESS WHEREOF, the Parties hereto have executed this Agreement on the day, month and year first hereinabove written.</p>
-<table><tr><th>Details of employer</th><th>Details of employee</th></tr><tr><td>Name: ${co.signatoryName ? esc(co.signatoryName) : line}<br>Designation: ${esc(co.signatoryDesignation)}<br>Date: ${signedOn ? esc(`${signedOn.day} ${signedOn.month} ${signedOn.year}`) : line}<br>Place: ${place ? esc(place) : line}<br>Signature: ${marksHtml(ctx.marks, co.signatoryName) || line}</td>
+<table><tr><th>Details of employer</th><th>Details of employee</th></tr><tr><td>Name: ${co.signatoryName ? esc(co.signatoryName) : line}<br>Designation: ${esc(co.signatoryDesignation)}<br>Date: ${esc(`${signedOn.day} ${signedOn.month} ${signedOn.year}`)}<br>Place: ${place ? esc(place) : line}<br>Signature: ${marksHtml(ctx.marks, co.signatoryName) || line}</td>
 <td>Name: ${vars.name}<br>Employee Code: ${vars.employeeCode}<br>${eSign(ctx)}</td></tr></table>`;
   return `<div class="nda">${out}</div>`;
 }
@@ -203,7 +207,7 @@ function offerFull(ctx: LetterCtx): string {
 <p><b>Subject: Offer of Employment with ${esc(co.legalName)}</b></p>
 <p>We are pleased to offer you employment with ${esc(co.legalName)} (“Complynz” or “the Company”) on the terms and conditions set out below and in the Annexures to this letter. Please read this offer letter carefully before signing.</p>
 <p>This offer letter comprises this covering letter together with Annexure A (Employee Non-Disclosure, Confidentiality and Intellectual Property Assignment Agreement), which is enclosed herewith and forms an integral part of this offer.</p>
-<h2>1. Position Details</h2>${table([row("Employee Code", v("employeeCode")), row("Designation", v("position")), row("Department", v("department")), row("Reporting Manager", v("reportingTo")),
+<h2>1. Position Details</h2>${table([row("Employee Code", blank(p.employeeCode) && ctx.party?.employeeCode ? esc(ctx.party.employeeCode) : v("employeeCode")), row("Designation", v("position")), row("Department", v("department")), row("Reporting Manager", v("reportingTo")),
   row("Work Location", blank(p.location) ? `<span class="ph">${tbd}</span>` : `${esc(p.location)} (or as designated by the Company)`), row("Date of Joining", blank(p.joiningDate) ? `<span class="ph">${tbd}</span>` : dateText(p, "joiningDate", "date of joining")), row("Employment Type", v("employmentType"))])}
 <h2>2. Compensation</h2><p>Your compensation has been structured as per the Company’s standard salary breakup policy, as detailed below.${pf ? "" : " Please see the note on Provident Fund applicability below the table."}</p>${compTable(ctx)}
 <p>Basic Salary is fixed at not less than 50% of Gross Salary, with HRA at 40% of Basic Salary, in accordance with the revised wage definition under the Code on Wages, 2019 (part of India’s four Labour Codes, in force since 21 November 2025), which requires Basic Pay and Dearness Allowance (together, “wages”) to constitute at least 50% of total remuneration — i.e., allowances such as HRA and Special Allowance together cannot exceed 50% of Gross Salary.</p>

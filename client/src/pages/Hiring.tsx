@@ -79,6 +79,8 @@ function Letters({ c }: { c: Candidate }) {
   const letters = useQuery({ queryKey: ["letters", c.id], queryFn: () => api<Letter[]>(`/letters?candidateId=${c.id}`) });
   const [form, setForm] = useState<Record<string, unknown>>({ position: c.position ?? undefined, joiningDate: c.expectedJoining ?? undefined, templateKey: "standard", employmentType: "Full-Time, Permanent" });
   const [shared, setShared] = useState<Shared | null>(null);
+  // Next employee code, today's date for the NDA, and what the candidate gave in onboarding (address, NDA details). Typed values win.
+  useEffect(() => { api<{ values?: Record<string, unknown> }>(`/letters/prefill?candidateId=${c.id}`).then((r) => setForm((cur) => ({ ...Object.fromEntries(Object.entries(r.values ?? {}).filter(([, v]) => v != null && v !== "")), ...Object.fromEntries(Object.entries(cur).filter(([, v]) => v != null && v !== "")) }))).catch(() => {}); }, [c.id]);
   const refresh = () => { qc.invalidateQueries({ queryKey: ["letters", c.id] }); qc.invalidateQueries({ queryKey: ["candidates"] }); };
   const create = useMutation({
     mutationFn: async () => {
