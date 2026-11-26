@@ -2,10 +2,13 @@ import { useEffect, useState } from "react";
 import { useRoute } from "wouter";
 import { fileToBase64, publicApi } from "../lib/api";
 import { fmtSize, shrinkImage } from "../lib/shrinkImage";
+import { AccountNumberInput } from "../lib/AccountNumberInput";
+import { accountConfirmError } from "../../../shared/hr/accountConfirm";
 
 type Info = { valid: boolean; maskedEmail?: string; steps?: string[]; completed?: boolean };
-type Doc = { kind: "pan" | "aadhaar" | "photo" | "other"; name: string; mime: string; file: Blob };
+type Doc = { kind: "pan" | "aadhaar" | "bank_proof" | "photo" | "other"; name: string; mime: string; file: Blob };
 const KINDS: { k: Doc["kind"]; l: string }[] = [{ k: "photo", l: "Photo" }, { k: "pan", l: "PAN card" }, { k: "aadhaar", l: "Aadhaar (first 8 digits masked) or other ID" }, { k: "other", l: "Other (address proof, certificates)" }];
+const BANK_PROOF = "Cancelled cheque, passbook front page, or a mobile or net banking screenshot showing your name, account number and IFSC";
 const MAX = 10 * 1024 * 1024; // per file, matches server/lib/files.ts
 // All documents travel in one request. Keep the total under the server's 25 MB body limit once base64-encoded (x4/3).
 const TOTAL_MAX = 17 * 1024 * 1024;
@@ -30,7 +33,7 @@ export default function Onboarding() {
   const [done, setDone] = useState(false);
   const [p, setP] = useState({ fullName: "", relationName: "", dob: "", gender: "", phone: "", address: "", aadhaarLast4: "" });
   const [pan, setPan] = useState("");
-  const [bank, setBank] = useState({ bankName: "", accountNumber: "", ifsc: "" });
+  const [bank, setBank] = useState({ bankName: "", accountNumber: "", accountConfirm: "", ifsc: "" });
   const [docs, setDocs] = useState<Doc[]>([]);
   const [preparing, setPreparing] = useState(false);
   const total = docs.reduce((n, d) => n + d.file.size, 0);
@@ -43,6 +46,9 @@ export default function Onboarding() {
   const steps = info?.steps ?? [];
   const has = (s: string) => steps.includes(s);
   const submit = () => run(async () => {
+    const mismatch = has("bank") ? accountConfirmError(bank.accountNumber, bank.accountConfirm) : null;
+    if (mismatch) throw new Error(mismatch);
+    if (has("bank") && !docs.some((d) => d.kind === "bank_proof")) throw new Error("Upload proof of your bank account: a cancelled cheque, passbook page or banking screenshot.");
     const documents = [];
     for (const d of docs) documents.push({ kind: d.kind, name: d.name, mime: d.mime, dataBase64: await fileToBase64(d.file) });
     await publicApi(`/onboarding/${t}/submit`, { headers: { "X-Onboard-Session": session }, body: {
@@ -55,7 +61,7 @@ export default function Onboarding() {
   });
   async function addFiles(kind: Doc["kind"], files: FileList | null) {
     const f = files?.[0]; if (!f) return;
-    if (docs.length >= 6) { setErr("You can upload up to 6 documents."); return; }
+    if (docs.length >= 7) { setErr("You can upload up to 7 documents."); return; }
     if (!ALLOWED.has(f.type)) { setErr(`"${f.name}" is not a PDF, PNG, JPEG or WebP file. Please choose another file.`); return; }
     setErr(""); setPreparing(true);
     try {
@@ -103,12 +109,20 @@ export default function Onboarding() {
           <label className="fld"><span>PAN number</span><input required pattern="[A-Za-z]{5}[0-9]{4}[A-Za-z]" title="Format: ABCDE1234F" maxLength={10} autoCapitalize="characters" autoComplete="off" value={pan} onChange={(e) => setPan(e.target.value.toUpperCase())} /></label></div>}
         {has("bank") && <div className="card"><h2>Bank details</h2>
           <label className="fld"><span>Bank name</span><input required minLength={2} maxLength={100} value={bank.bankName} onChange={(e) => setBank({ ...bank, bankName: e.target.value })} /></label>
-          <label className="fld"><span>Account number</span><input required inputMode="numeric" pattern="\d{9,18}" title="9 to 18 digits" autoComplete="off" value={bank.accountNumber} onChange={(e) => setBank({ ...bank, accountNumber: e.target.value.replace(/\D/g, "") })} /></label>
-          <label className="fld"><span>IFSC</span><input required pattern="[A-Za-z]{4}0[A-Za-z0-9]{6}" title="Format: ABCD0123456" maxLength={11} autoCapitalize="characters" autoComplete="off" value={bank.ifsc} onChange={(e) => setBank({ ...bank, ifsc: e.target.value.toUpperCase() })} /></label></div>}
+          <AccountNumberInput label="Account number" required digitsOnly value={bank.accountNumber} confirm={bank.accountConfirm} onChange={(v) => setBank({ ...bank, accountNumber: v })} onConfirm={(v) => setBank({ ...bank, accountConfirm: v })} />
+          <label className="fld"><span>IFSC</span><input required pattern="[A-Za-z]{4}0[A-Za-z0-9]{6}" title="Format: ABCD0123456" maxLength={11} autoCapitalize="characters" autoComplete="off" value={bank.ifsc} onChange={(e) => setBank({ ...bank, ifsc: e.target.value.toUpperCase() })} /></label>
+          {(() => {
+            const proof = docs.find((d) => d.kind === "bank_proof");
+            return <label className="fld"><span>Proof of bank account (required)</span>
+              <small className="k">{BANK_PROOF}. PDF, PNG, JPEG or WebP. HR checks it against the details above before your first salary.</small>
+              {proof ? <span>{proof.name} <span className="k">({fmtSize(proof.file.size)})</span> <button type="button" className="btn" onClick={() => setDocs(docs.filter((d) => d !== proof))}>Remove</button></span>
+                : <input type="file" accept="application/pdf,image/png,image/jpeg,image/webp" disabled={preparing} onChange={(e) => { addFiles("bank_proof", e.target.files); e.target.value = ""; }} />}
+            </label>;
+          })()}</div>}
         {has("documents") && <div className="card"><h2>Documents</h2>
-          <p className="k">PDF, PNG, JPEG or WebP, up to 10 MB each, up to 6 files. Mask the first 8 digits of your Aadhaar.</p>
+          <p className="k">PDF, PNG, JPEG or WebP, up to 10 MB each, up to 7 files in all. Mask the first 8 digits of your Aadhaar.</p>
           {KINDS.map((k) => <label key={k.k} className="fld"><span>{k.l}</span><input type="file" accept="application/pdf,image/png,image/jpeg,image/webp" disabled={preparing} onChange={(e) => { addFiles(k.k, e.target.files); e.target.value = ""; }} /></label>)}
-          {docs.length > 0 && <ul style={{ paddingLeft: 20 }}>{docs.map((d, i) => <li key={i} style={{ margin: "6px 0" }}>{KINDS.find((k) => k.k === d.kind)?.l}: {d.name} <span className="k">({fmtSize(d.file.size)})</span> <button type="button" className="btn" onClick={() => setDocs(docs.filter((_, j) => j !== i))}>Remove</button></li>)}</ul>}
+          {docs.length > 0 && <ul style={{ paddingLeft: 20 }}>{docs.map((d, i) => d.kind === "bank_proof" ? null : <li key={i} style={{ margin: "6px 0" }}>{KINDS.find((k) => k.k === d.kind)?.l}: {d.name} <span className="k">({fmtSize(d.file.size)})</span> <button type="button" className="btn" onClick={() => setDocs(docs.filter((_, j) => j !== i))}>Remove</button></li>)}</ul>}
           {preparing && <p className="k" role="status">Preparing your file…</p>}</div>}
         {err && <div className="note bad" role="alert">{err}</div>}
         <button className="btn p" style={{ width: "100%" }} disabled={busy || preparing}>{busy ? "Submitting…" : "Submit details"}</button>

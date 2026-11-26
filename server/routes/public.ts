@@ -220,9 +220,9 @@ const submitBody = z.object({
     ifsc: z.string().trim().toUpperCase().regex(IFSC_RE, "Invalid IFSC"),
   }).optional(),
   documents: z.array(z.object({
-    kind: z.enum(["pan", "aadhaar", "photo", "other"]), name: z.string().trim().min(1).max(120),
+    kind: z.enum(["pan", "aadhaar", "bank_proof", "photo", "other"]), name: z.string().trim().min(1).max(120),
     mime: z.string().max(60), dataBase64: z.string().max(14_500_000),
-  })).max(6).default([]),
+  })).max(7).default([]),
 });
 
 r.post("/onboarding/:token/submit", wrap(async (req, res) => {
@@ -234,6 +234,7 @@ r.post("/onboarding/:token/submit", wrap(async (req, res) => {
   const steps = (link.steps as string[]) ?? [];
   if (steps.includes("kyc") && !b.pan) throw new HttpError(400, "PAN is required");
   if (steps.includes("bank") && !b.bank) throw new HttpError(400, "Bank details are required");
+  if (steps.includes("bank") && !b.documents.some((d) => d.kind === "bank_proof")) throw new HttpError(400, "Upload a cancelled cheque, passbook page or mobile banking screenshot showing your account number");
 
   const documents: { fileId: string; kind: string; name: string }[] = [];
   for (const d of b.documents) {

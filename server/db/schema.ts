@@ -39,6 +39,8 @@ export const employees = pgTable("hr_employees", {
   lastWorkingDay: date("last_working_day"),
   panEnc: text("pan_enc"), // AES-GCM encrypted; needed for TDS
   bankName: text("bank_name"), accountEnc: text("account_enc"), ifsc: text("ifsc"),
+  // HR admin approval of the bank details against an uploaded proof (cheque, passbook or banking screenshot). Cleared whenever the details change.
+  bankVerifiedAt: timestamp("bank_verified_at", { withTimezone: true }), bankVerifiedBy: text("bank_verified_by"),
   photoFileId: uuid("photo_file_id"),
   // Self-service profile details, asked for in the first-login "complete your profile" step.
   currentAddress: text("current_address"),
@@ -53,7 +55,7 @@ export const managerChanges = pgTable("hr_manager_changes", {
 });
 
 export const files = pgTable("hr_files", {
-  id: id(), kind: text("kind").notNull(), // pan | aadhaar | photo | stamp | signature | bill | policy | letter | other
+  id: id(), kind: text("kind").notNull(), // pan | aadhaar | bank_proof | photo | stamp | signature | bill | policy | letter | other
   ownerEmployeeId: uuid("owner_employee_id"), originalName: text("original_name").notNull(), mime: text("mime").notNull(),
   sizeBytes: integer("size_bytes").notNull(), sha256: text("sha256").notNull(), storageKey: text("storage_key").notNull(),
   uploadedBy: text("uploaded_by").notNull(), createdAt: created(),

@@ -143,6 +143,7 @@ function safeMask(enc: string | null): string | null {
 }
 const bankView = (e: EmpRow) => ({
   panMasked: safeMask(e.panEnc), bankName: e.bankName, ifsc: e.ifsc, accountMasked: safeMask(e.accountEnc),
+  bankVerifiedAt: e.bankVerifiedAt, bankVerifiedBy: e.bankVerifiedBy,
 });
 
 r.get("/employees", wrap(async (req, res) => {
@@ -178,6 +179,57 @@ r.get("/employees/:id", wrap(async (req, res) => {
   if (s !== "none" && canAccess(s, a, id)) return res.json({ ...work(e, L), access: "manager" });
   if (e.status === "exited") throw new HttpError(404, "Not found");
   res.json({ ...card(e, L), access: "directory" });
+}));
+
+/** Full bank details for one person: HR admin / super admin for anyone, every employee for themselves. Admin views of others are audited. */
+r.get("/employees/:id/bank", wrap(async (req, res) => {
+  const a = actorOf(req);
+  const id = idParam(req);
+  const s = scope(req, "bank.read");
+  if (!canAccess(s, a, id)) throw new HttpError(403, "Not allowed");
+  const [e] = await db.select({ bankName: S.employees.bankName, ifsc: S.employees.ifsc, accountEnc: S.employees.accountEnc })
+    .from(S.employees).where(eq(S.employees.id, id)).limit(1);
+  if (!e) throw new HttpError(404, "Not found");
+  let accountNumber: string | null = null;
+  if (e.accountEnc) { try { accountNumber = decryptField(e.accountEnc); } catch { accountNumber = null; } }
+  if (a.employeeId !== id && accountNumber) await logAudit(a.email, "employee.read_bank_full", "employee", id, { fields: ["account_number"] });
+  res.json({ bankName: e.bankName, ifsc: e.ifsc, accountNumber });
+}));
+
+/** Bank details of every employee (HR admin / super admin). Masked by default; ?full=1 unmasks and is audited. */
+r.get("/bank-details", wrap(async (req, res) => {
+  const a = actorOf(req);
+  need(req, "bank.read");
+  const full = req.query.full === "1";
+  const rows = await db.select({
+    id: S.employees.id, code: S.employees.code, fullName: S.employees.fullName, status: S.employees.status,
+    bankName: S.employees.bankName, ifsc: S.employees.ifsc, accountEnc: S.employees.accountEnc,
+    bankVerifiedAt: S.employees.bankVerifiedAt, bankVerifiedBy: S.employees.bankVerifiedBy,
+  }).from(S.employees).orderBy(asc(S.employees.code));
+  const proofs = new Set((await db.selectDistinct({ id: S.files.ownerEmployeeId }).from(S.files).where(eq(S.files.kind, "bank_proof"))).map((x) => x.id));
+  const out = rows.map(({ accountEnc, ...e }) => {
+    let acct: string | null = null;
+    if (accountEnc) { try { acct = decryptField(accountEnc); } catch { acct = null; } }
+    return { ...e, account: acct ? (full ? acct : maskTail(acct, 4)) : null, hasProof: proofs.has(e.id) };
+  });
+  if (full) await logAudit(a.email, "employee.read_bank_full_list", "employee", undefined, { count: out.filter((x) => x.account).length });
+  res.json({ full, employees: out });
+}));
+
+/** HR admin approves the bank account details after checking the uploaded proof. Not for one's own record. */
+r.post("/employees/:id/bank/verify", wrap(async (req, res) => {
+  const a = actorOf(req);
+  need(req, "people.write");
+  const id = idParam(req);
+  if (a.employeeId === id) throw new HttpError(403, "Another HR admin must approve your own bank details");
+  const [e] = await db.select().from(S.employees).where(eq(S.employees.id, id)).limit(1);
+  if (!e) throw new HttpError(404, "Not found");
+  if (!e.accountEnc || !e.ifsc) throw new HttpError(400, "Add the account number and IFSC before approving");
+  const [proof] = await db.select({ id: S.files.id }).from(S.files).where(and(eq(S.files.ownerEmployeeId, id), eq(S.files.kind, "bank_proof"))).limit(1);
+  if (!proof) throw new HttpError(400, "Upload a cancelled cheque, passbook page or banking screenshot before approving");
+  const [row] = await db.update(S.employees).set({ bankVerifiedAt: new Date(), bankVerifiedBy: a.email }).where(eq(S.employees.id, id)).returning();
+  await logAudit(a.email, "employee.bank_verify", "employee", id, { ifsc: e.ifsc, accountMasked: safeMask(e.accountEnc) });
+  res.json({ bankVerifiedAt: row.bankVerifiedAt, bankVerifiedBy: row.bankVerifiedBy });
 }));
 
 const PAN = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
@@ -262,6 +314,10 @@ r.patch("/employees/:id", wrap(async (req, res) => {
   if (accountNumber !== undefined) set.accountEnc = accountNumber ? encryptField(accountNumber) : null;
   const [before] = await db.select().from(S.employees).where(eq(S.employees.id, id)).limit(1);
   if (!before) throw new HttpError(404, "Not found");
+  const prevAccount = before.accountEnc ? (() => { try { return decryptField(before.accountEnc!); } catch { return null; } })() : null;
+  const bankChanged = (accountNumber !== undefined && (accountNumber ?? null) !== prevAccount)
+    || (b.ifsc !== undefined && (b.ifsc ?? null) !== before.ifsc) || (b.bankName !== undefined && (b.bankName ?? null) !== before.bankName);
+  if (bankChanged) { set.bankVerifiedAt = null; set.bankVerifiedBy = null; } // a changed account needs fresh proof and approval
   const emailChange = b.workEmail !== undefined && b.workEmail !== before.workEmail ? { from: before.workEmail, to: b.workEmail } : null;
   const updated = await uniq(db.transaction(async (tx) => {
     const [u] = await tx.update(S.employees).set(set).where(eq(S.employees.id, id)).returning();
@@ -281,7 +337,7 @@ r.patch("/employees/:id", wrap(async (req, res) => {
   }
   await logAudit(a.email, touchesSensitive ? "employee.update_sensitive" : "employee.update", "employee", id, {
     fields: Object.keys(b), by: admin && !own ? "hr_admin" : "self", ...(Object.keys(changes).length ? { changes } : {}),
-    ...(emailChange ? { rolesMovedToNewEmail: true } : {}),
+    ...(emailChange ? { rolesMovedToNewEmail: true } : {}), ...(bankChanged && before.bankVerifiedAt ? { bankApprovalCleared: true } : {}),
   });
   res.json({ ...work(row, L), ...personal(row), ...bankView(row) });
 }));
@@ -348,7 +404,7 @@ const SIG: Record<string, (b: Buffer) => boolean> = {
   "image/webp": (b) => b.subarray(0, 4).toString("latin1") === "RIFF" && b.subarray(8, 12).toString("latin1") === "WEBP",
 };
 const docBody = z.object({
-  kind: z.enum(["pan", "aadhaar", "photo"]), name: z.string().trim().min(1).max(200),
+  kind: z.enum(["pan", "aadhaar", "bank_proof", "photo"]), name: z.string().trim().min(1).max(200),
   mime: z.enum(["application/pdf", "image/png", "image/jpeg", "image/webp"]), dataBase64: z.string().min(8).max(15_000_000),
 }).strict();
 
@@ -378,7 +434,7 @@ r.get("/employees/:id/documents", wrap(async (req, res) => {
   const a = actorOf(req);
   const id = idParam(req);
   if (!(a.employeeId === id || scope(req, "id_docs.read") === "all")) throw new HttpError(403, "Not allowed");
-  const rows = await db.select().from(S.files).where(and(eq(S.files.ownerEmployeeId, id), inArray(S.files.kind, ["pan", "aadhaar", "photo"]))).orderBy(desc(S.files.createdAt));
+  const rows = await db.select().from(S.files).where(and(eq(S.files.ownerEmployeeId, id), inArray(S.files.kind, ["pan", "aadhaar", "bank_proof", "photo"]))).orderBy(desc(S.files.createdAt));
   res.json(rows.map((f) => ({ id: f.id, kind: f.kind, name: f.originalName, mime: f.mime, sizeBytes: f.sizeBytes, createdAt: f.createdAt })));
 }));
 
@@ -399,6 +455,10 @@ r.get("/files/:fileId", wrap(async (req, res) => {
   else if (f.kind === "pan" || f.kind === "aadhaar") {
     sensitive = true;
     const s = scope(req, "id_docs.read");
+    allowed = s === "all" || (owner && s !== "none");
+  } else if (f.kind === "bank_proof") {
+    sensitive = true;
+    const s = scope(req, "bank.read");
     allowed = s === "all" || (owner && s !== "none");
   } else if (f.kind === "bill") {
     const s = scope(req, "claims.read");

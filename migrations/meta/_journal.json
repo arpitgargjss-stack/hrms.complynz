@@ -120,6 +120,13 @@
       "when": 1795346582229,
       "tag": "0016_company_bank",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1795698186441,
+      "tag": "0017_bank_verification",
+      "breakpoints": true
     }
   ]
 }

@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, fileToBase64 } from "../lib/api";
 import { Avatar, squarePhoto } from "../lib/Avatar";
 import { Card, ErrorNote, Field } from "../lib/ui";
+import { AccountNumberInput } from "../lib/AccountNumberInput";
+import { accountConfirmError } from "../../../shared/hr/accountConfirm";
 import "./completeProfile.css";
 
 export type ProfileEmp = {
@@ -11,7 +13,7 @@ export type ProfileEmp = {
   bankName?: string | null; ifsc?: string | null; accountMasked?: string | null;
 };
 const TEXT = ["phone", "personalEmail", "dob", "gender", "currentAddress", "emergencyContactName", "emergencyContactRelation", "emergencyContactPhone", "bankName", "ifsc"] as const;
-type Form = Record<(typeof TEXT)[number] | "accountNumber", string>;
+type Form = Record<(typeof TEXT)[number] | "accountNumber" | "accountConfirm", string>;
 const today = () => new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
 
 /** The editable self-service profile: photo, personal details, emergency contact and (optional) bank details. */
@@ -33,7 +35,7 @@ export function ProfileForm({ id, emp, onDone, submitLabel = "Save profile", req
   const flip = (s: Set<string>, k: string) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; };
   const ackTodo = onb.data?.acknowledgements.filter((a) => !a.done) ?? [];
   const ackLeft = ackTodo.filter((a) => !acks.has(a.key)).length;
-  const [f, setF] = useState<Form>(() => ({ ...Object.fromEntries(TEXT.map((k) => [k, emp[k] ?? ""])), accountNumber: "" }) as Form);
+  const [f, setF] = useState<Form>(() => ({ ...Object.fromEntries(TEXT.map((k) => [k, emp[k] ?? ""])), accountNumber: "", accountConfirm: "" }) as Form);
   const [photo, setPhoto] = useState<{ blob: Blob; mime: string; preview: string } | null>(null);
   const [photoErr, setPhotoErr] = useState<string | null>(null);
   useEffect(() => () => { if (photo) URL.revokeObjectURL(photo.preview); }, [photo]);
@@ -50,6 +52,8 @@ export function ProfileForm({ id, emp, onDone, submitLabel = "Save profile", req
 
   const save = useMutation({
     mutationFn: async () => {
+      const mismatch = accountConfirmError(f.accountNumber, f.accountConfirm);
+      if (mismatch) throw new Error(mismatch);
       if (photo) await api(`/employees/${id}/documents`, { method: "POST", body: { kind: "photo", name: "profile-photo.jpg", mime: photo.mime, dataBase64: await fileToBase64(photo.blob) } });
       const body: Record<string, string | null> = {};
       for (const k of TEXT) { const v = f[k].trim(); if (v !== (emp[k] ?? "")) body[k] = v || null; }
@@ -102,9 +106,11 @@ export function ProfileForm({ id, emp, onDone, submitLabel = "Save profile", req
       </div>
 
       <h2 style={{ marginTop: 24 }}>Bank details for salary <span className="k" style={{ fontWeight: 400 }}>(optional, HR can add these too)</span></h2>
+      <p className="k">A new or changed account is checked by HR before salary is paid to it. Upload a cancelled cheque, passbook page or banking screenshot under Documents in your people record.</p>
       <div className="grid">
         <Field label="Bank name"><input maxLength={120} value={f.bankName} onChange={set("bankName")} /></Field>
-        <Field label={emp.accountMasked ? `Account number (on file: ${emp.accountMasked})` : "Account number"}><input inputMode="numeric" autoComplete="off" value={f.accountNumber} onChange={set("accountNumber")} placeholder={emp.accountMasked ? "Leave blank to keep" : ""} /></Field>
+        <AccountNumberInput label={emp.accountMasked ? `Account number (on file: ${emp.accountMasked})` : "Account number"} value={f.accountNumber} confirm={f.accountConfirm}
+          onChange={(v) => setF({ ...f, accountNumber: v })} onConfirm={(v) => setF({ ...f, accountConfirm: v })} placeholder={emp.accountMasked ? "Leave blank to keep" : undefined} />
         <Field label="IFSC"><input maxLength={11} value={f.ifsc} onChange={(e) => setF({ ...f, ifsc: e.target.value.toUpperCase() })} /></Field>
       </div>
 
