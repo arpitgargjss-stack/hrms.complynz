@@ -439,6 +439,22 @@ r.post("/payroll/runs/:id/recompute", wrap(async (req, res) => {
   res.json(out);
 }));
 
+/** Discard a draft run and its payslips. Locked or paid runs stay, since payslips and bank advice depend on them. */
+r.delete("/payroll/runs/:id", wrap(async (req, res) => {
+  if (!canRunPayroll(req)) deny();
+  const id = idParam(req);
+  const month = await db.transaction(async (tx) => {
+    const [run] = await tx.select().from(schema.payrollRuns).where(eq(schema.payrollRuns.id, id)).for("update");
+    if (!run) throw new HttpError(404, "Payroll run not found");
+    if (run.status !== "draft") throw new HttpError(409, "Only draft runs can be deleted. Locked and paid runs are kept for the record.");
+    await tx.delete(schema.payslips).where(eq(schema.payslips.runId, id));
+    await tx.delete(schema.payrollRuns).where(and(eq(schema.payrollRuns.id, id), eq(schema.payrollRuns.status, "draft")));
+    return run.month;
+  });
+  await logAudit(actorOf(req).email, "payroll.run.delete", "payroll_run", id, { month });
+  res.json({ ok: true });
+}));
+
 r.get("/payroll/runs", wrap(async (req, res) => {
   if (!canViewPayroll(req)) deny();
   const runs = await db.select().from(schema.payrollRuns).orderBy(desc(schema.payrollRuns.month));
