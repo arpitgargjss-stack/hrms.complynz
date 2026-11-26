@@ -109,3 +109,17 @@ export const TEMPLATE_PRESETS: TemplatePreset[] = [
     components: [{ code: "STIPEND", name: "Stipend", calc: { type: "balance" } }],
   },
 ];
+
+/** Key-order-independent JSON, so rules read back from jsonb compare equal to the preset they came from. */
+function canonical(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(canonical).join(",")}]`;
+  if (v && typeof v === "object") return `{${Object.keys(v as object).filter((k) => (v as Record<string, unknown>)[k] !== undefined).sort().map((k) => `${JSON.stringify(k)}:${canonical((v as Record<string, unknown>)[k])}`).join(",")}}`;
+  return JSON.stringify(v);
+}
+
+/** True when two rule sets hold the same statutory values. */
+export const sameRules = (a: unknown, b: unknown) => canonical(a) === canonical(b);
+
+/** True when a saved rule set is this preset (same effective date and the same values, not just the same date). */
+export const isPresetRow = (p: Pick<RulePreset, "effectiveFrom" | "rules">, row: { effectiveFrom: string; rules: unknown }) =>
+  row.effectiveFrom === p.effectiveFrom && sameRules(p.rules, row.rules);

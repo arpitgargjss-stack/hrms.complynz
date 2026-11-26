@@ -4,6 +4,7 @@ import { amountInWords, formatINR, type Paise } from "../../shared/hr/money";
 import { leaveDaysX2, type CalendarSettings, type Holiday } from "../../shared/hr/leave";
 import type { AdviceRow } from "../../shared/hr/bankAdvice";
 import type { SalaryResult, StatutoryRules } from "../../shared/hr/payroll";
+import { sameRules } from "../../shared/hr/presets";
 
 /** Pure helpers for the payroll routes. No I/O, no env, safe to unit test. */
 
@@ -215,4 +216,27 @@ export function totalsOf(results: SalaryResult[]): SlipTotals {
     t.employerContributionsPaise += (r.employerContributions ?? []).reduce((s, l) => s + l.amount, 0);
   }
   return t;
+}
+
+// ---------- statutory rule set choice ----------
+type RuleSetRow = { id: string; effectiveFrom: string; createdAt: Date | string; rules: unknown };
+type RunForRules = { month: string; status: string; rulesSnapshot: unknown };
+
+/** The rule sets a run for this month may use: any effective on or before the month's first day, newest first. */
+export function eligibleRuleSets<T extends RuleSetRow>(rows: T[], month: string): T[] {
+  const start = monthStart(month);
+  return rows.filter((r) => r.effectiveFrom <= start).sort((a, b) => (a.effectiveFrom === b.effectiveFrom ? new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime() : a.effectiveFrom < b.effectiveFrom ? 1 : -1));
+}
+
+/**
+ * Which runs were built from this rule set. Newer runs record the rule set id; older ones only kept the
+ * effective date and a copy of the values, so those match on both. Imported months used no rule set.
+ */
+export function runsUsingRuleSet(rule: { id: string; effectiveFrom: string; rules: unknown }, runs: RunForRules[]): RunForRules[] {
+  return runs.filter((run) => {
+    const s = run.rulesSnapshot as { imported?: boolean; ruleId?: string; ruleEffectiveFrom?: string; rules?: unknown } | null;
+    if (!s || s.imported) return false;
+    if (s.ruleId) return s.ruleId === rule.id;
+    return s.ruleEffectiveFrom === rule.effectiveFrom && sameRules(s.rules, rule.rules);
+  });
 }
