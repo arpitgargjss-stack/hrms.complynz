@@ -4,14 +4,14 @@ import { api, fileToBase64, getAuthToken } from "../lib/api";
 import { ConfigHint } from "../lib/ConfigHint";
 import { openHtml } from "../lib/openHtml";
 import { Card, Chip, ErrorNote, Field, Page, inr } from "../lib/ui";
-import { RULE_PRESETS, TEMPLATE_PRESETS } from "../../../shared/hr/presets";
+import { RULE_PRESETS, TEMPLATE_PRESETS, isPresetRow } from "../../../shared/hr/presets";
 
 type Me = { email: string; employeeId: string | null; roles: string[] };
 type RunRow = { id: string; month: string; status: string; lockedAt: string | null; lockedBy: string | null; headcount: number; netPayPaise: number; exceptionCount: number };
 type Totals = { headcount: number; grossPaidPaise: number; deductionsPaise: number; reimbursementsPaise: number; netPayPaise: number; employerContributionsPaise: number };
 type Line = { code: string; name: string; amount: number };
 type RunDetail = {
-  id: string; month: string; status: string; lockedBy: string | null; lockedAt: string | null; ruleEffectiveFrom: string; totals: Totals;
+  id: string; month: string; status: string; lockedBy: string | null; lockedAt: string | null; ruleId: string | null; ruleSource: string | null; ruleEffectiveFrom: string; totals: Totals;
   exceptions: { employeeId: string; code: string; name: string; message: string }[];
   payslips: { id: string; code: string; name: string; paidDays: number; calendarDays: number; netPayPaise: number }[];
 };
@@ -22,7 +22,8 @@ type CompanyBankInfo = { bankName: string; branch: string; city: string; ifsc: s
 type Component = { code: string; name: string; calc: { type: "fixed"; amount: number } | { type: "percent"; of: string; bps: number } | { type: "balance" }; pfWage?: boolean; taxable?: boolean };
 type Employee = { id: string; code: string; fullName: string };
 type Signatory = { id: string; email: string; displayName: string; designation: string; hasSignature: boolean; hasStamp: boolean };
-type RuleRow = { id: string; effectiveFrom: string; source: string; createdBy: string; rules: Rules };
+type RuleRow = { id: string; effectiveFrom: string; source: string; createdBy: string; createdAt: string; rules: Rules; usedBy?: { month: string; status: string }[] };
+type RulesResp = { current: RuleRow | null; history: RuleRow[] };
 type Rules = {
   pf: { enabled: boolean; employeeBps: number; employerBps: number; wageCeilingPaise: number | null };
   esi?: { enabled: boolean; employeeBps: number; employerBps: number; wageCeilingPaise: number };
@@ -38,6 +39,23 @@ const rupeesToPaise = (s: string) => Math.round(Number(s) * 100);
 const bpsPct = (b: number) => `${(b / 100).toFixed(2)}%`;
 const statusTone = (s: string) => (s === "draft" ? "warn" : s === "paid" ? "ok" : "info") as "warn" | "ok" | "info";
 const tableWrap = { overflowX: "auto" as const };
+const ruleSummary = (r: Rules) => [r.pf.enabled ? `PF ${bpsPct(r.pf.employeeBps)}` : "no PF", r.esi?.enabled ? "ESI" : "no ESI", r.tds.enabled ? "TDS" : "no TDS", r.professionalTax.enabled ? "PT" : "no PT"].join(", ");
+const ruleLabel = (h: RuleRow) => `From ${h.effectiveFrom}: ${ruleSummary(h.rules)}${h.source ? ` (${h.source.length > 40 ? h.source.slice(0, 40) + "…" : h.source})` : ""}`;
+/** Rule sets a run for this month may use, newest first. history is already sorted by effective date then newest added. */
+const eligibleFor = (history: RuleRow[], month: string) => history.filter((h) => h.effectiveFrom <= `${month}-01`);
+
+/** Lets the admin pick the rule set for a run. Empty value means "the newest one effective for the month". */
+function RuleSetPicker({ month, value, onChange, history, label = "Statutory rule set" }: { month: string; value: string; onChange: (v: string) => void; history: RuleRow[]; label?: string }) {
+  const options = month ? eligibleFor(history, month) : [];
+  return (
+    <Field label={label}>
+      <select value={value} onChange={(e) => onChange(e.target.value)} disabled={!options.length}>
+        <option value="">{options.length ? `Newest for the month (${ruleLabel(options[0])})` : "No rule set covers this month"}</option>
+        {options.map((h) => <option key={h.id} value={h.id}>{ruleLabel(h)}</option>)}
+      </select>
+    </Field>
+  );
+}
 
 export default function Payroll() {
   const me = useQuery({ queryKey: ["me"], queryFn: () => api<Me>("/me") });
@@ -181,11 +199,13 @@ function ImportPast({ strip }: { strip: OverviewData["strip"] }) {
 function Runs({ canRun }: { canRun: boolean }) {
   const qc = useQueryClient();
   const [month, setMonth] = useState(thisMonth());
+  const [ruleSetId, setRuleSetId] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
   const runs = useQuery({ queryKey: ["payroll-runs"], queryFn: () => api<RunRow[]>("/payroll/runs") });
+  const rules = useQuery({ queryKey: ["payroll-rules"], queryFn: () => api<RulesResp>("/payroll/rules") });
   const create = useMutation({
-    mutationFn: () => api<{ runId: string }>("/payroll/runs", { body: { month } }),
-    onSuccess: (r) => { qc.invalidateQueries({ queryKey: ["payroll-runs"] }); setOpenId(r.runId); },
+    mutationFn: () => api<{ runId: string }>("/payroll/runs", { body: { month, ruleSetId: ruleSetId || null } }),
+    onSuccess: (r) => { qc.invalidateQueries({ queryKey: ["payroll-runs"] }); qc.invalidateQueries({ queryKey: ["payroll-run", r.runId] }); qc.invalidateQueries({ queryKey: ["payroll-rules"] }); setOpenId(r.runId); },
   });
   return (
     <>
@@ -193,10 +213,11 @@ function Runs({ canRun }: { canRun: boolean }) {
         <Card>
           <h2>Create or rebuild a draft run</h2>
           <div className="grid" style={{ alignItems: "end" }}>
-            <Field label="Month"><input type="month" value={month} onChange={(e) => setMonth(e.target.value)} /></Field>
+            <Field label="Month"><input type="month" value={month} onChange={(e) => { setMonth(e.target.value); setRuleSetId(""); }} /></Field>
+            <RuleSetPicker month={month} value={ruleSetId} onChange={setRuleSetId} history={rules.data?.history ?? []} />
             <div><button className="btn p" disabled={!month || create.isPending} onClick={() => create.mutate()}>{create.isPending ? "Building…" : "Create draft run"}</button></div>
           </div>
-          <p className="k">Uses the statutory rules effective for that month. Rebuilding an existing draft replaces its payslips. A locked month cannot be rebuilt.</p>
+          <p className="k">Pick which statutory rule set to use, or leave it on the newest one effective for that month. Rebuilding an existing draft replaces its payslips. A locked month cannot be rebuilt.</p>
           <ErrorNote error={create.error} />
         </Card>
       )}
@@ -213,17 +234,18 @@ function Runs({ canRun }: { canRun: boolean }) {
           </tbody></table></div>
         )}
       </Card>
-      {openId && <RunDetailView id={openId} canRun={canRun} />}
+      {openId && <RunDetailView id={openId} canRun={canRun} history={rules.data?.history ?? []} />}
     </>
   );
 }
 
-function RunDetailView({ id, canRun }: { id: string; canRun: boolean }) {
+function RunDetailView({ id, canRun, history }: { id: string; canRun: boolean; history: RuleRow[] }) {
   const qc = useQueryClient();
   const d = useQuery({ queryKey: ["payroll-run", id], queryFn: () => api<RunDetail>(`/payroll/runs/${id}`) });
   const [ack, setAck] = useState(false);
-  const refresh = () => { qc.invalidateQueries({ queryKey: ["payroll-run", id] }); qc.invalidateQueries({ queryKey: ["payroll-runs"] }); };
-  const recompute = useMutation({ mutationFn: () => api(`/payroll/runs/${id}/recompute`, { method: "POST", body: {} }), onSuccess: () => { setAck(false); refresh(); } });
+  const [pick, setPick] = useState("");
+  const refresh = () => { qc.invalidateQueries({ queryKey: ["payroll-run", id] }); qc.invalidateQueries({ queryKey: ["payroll-runs"] }); qc.invalidateQueries({ queryKey: ["payroll-rules"] }); };
+  const recompute = useMutation({ mutationFn: () => api(`/payroll/runs/${id}/recompute`, { method: "POST", body: pick ? { ruleSetId: pick } : {} }), onSuccess: () => { setAck(false); setPick(""); refresh(); } });
   const lock = useMutation({ mutationFn: (acknowledgeExceptions: boolean) => api(`/payroll/runs/${id}/lock`, { body: { acknowledgeExceptions } }), onSuccess: refresh });
   if (d.isLoading) return <Card><p>Loading…</p></Card>;
   if (d.error || !d.data) return <ErrorNote error={d.error} />;
@@ -232,7 +254,7 @@ function RunDetailView({ id, canRun }: { id: string; canRun: boolean }) {
   return (
     <Card>
       <div className="pagehead"><h2 style={{ margin: 0 }}>{monthLabel(run.month)} <Chip tone={statusTone(run.status)}>{run.status}</Chip></h2>
-        <span className="k">Rules effective {run.ruleEffectiveFrom}{run.lockedAt ? ` · locked ${new Date(run.lockedAt).toLocaleDateString()} by ${run.lockedBy}` : ""}</span></div>
+        <span className="k">Rules effective {run.ruleEffectiveFrom}{run.ruleSource ? ` (${run.ruleSource.length > 50 ? run.ruleSource.slice(0, 50) + "…" : run.ruleSource})` : ""}{run.lockedAt ? ` · locked ${new Date(run.lockedAt).toLocaleDateString()} by ${run.lockedBy}` : ""}</span></div>
       <div className="grid">
         {([["Headcount", String(t.headcount)], ["Gross paid", inr(t.grossPaidPaise)], ["Deductions", inr(t.deductionsPaise)], ["Reimbursements", inr(t.reimbursementsPaise)], ["Net pay", inr(t.netPayPaise)], ["Employer contributions", inr(t.employerContributionsPaise)]] as const).map(([k, v]) =>
           <div key={k}><div className="k">{k}</div><div style={{ fontSize: 20, fontWeight: 600 }}>{v}</div></div>)}
@@ -252,9 +274,16 @@ function RunDetailView({ id, canRun }: { id: string; canRun: boolean }) {
       </tbody></table></div>
       {canRun && draft && (
         <div style={{ marginTop: 16 }}>
-          <div className="row-gap">
-            <button className="btn" disabled={recompute.isPending} onClick={() => recompute.mutate()}>{recompute.isPending ? "Recomputing…" : "Recompute draft"}</button>
+          <div className="grid" style={{ alignItems: "end" }}>
+            <Field label="Rule set for this draft">
+              <select value={pick} onChange={(e) => setPick(e.target.value)}>
+                <option value="">Keep the current one ({run.ruleEffectiveFrom}{(() => { const h = history.find((x) => x.id === run.ruleId); return h ? `: ${ruleSummary(h.rules)}` : ""; })()})</option>
+                {eligibleFor(history, run.month).filter((h) => h.id !== run.ruleId).map((h) => <option key={h.id} value={h.id}>Switch to {ruleLabel(h)}</option>)}
+              </select>
+            </Field>
+            <div><button className="btn" disabled={recompute.isPending} onClick={() => recompute.mutate()}>{recompute.isPending ? "Recomputing…" : pick ? "Recompute with this rule set" : "Recompute draft"}</button></div>
           </div>
+          <ErrorNote error={recompute.error} />
           {hasExc && (
             <label style={{ display: "flex", gap: 10, alignItems: "center", margin: "14px 0", minHeight: 44 }}>
               <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} />
@@ -376,7 +405,11 @@ function AdviceView({ id, canSign }: { id: string; canSign: boolean }) {
 // ------------------------------------------------------------------ Statutory rules
 export function RulesTab() {
   const qc = useQueryClient();
-  const rules = useQuery({ queryKey: ["payroll-rules"], queryFn: () => api<{ current: RuleRow | null; history: RuleRow[] }>("/payroll/rules") });
+  const rules = useQuery({ queryKey: ["payroll-rules"], queryFn: () => api<RulesResp>("/payroll/rules") });
+  const remove = useMutation({
+    mutationFn: (id: string) => api(`/payroll/rules/${id}`, { method: "DELETE" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["payroll-rules"] }); qc.invalidateQueries({ queryKey: ["payroll-overview"] }); },
+  });
   const blank = { effectiveFrom: "", source: "", pfOn: false, pfEmp: "", pfEr: "", pfCeil: "", tdsOn: false, slabs: "", stdDed: "", cess: "", rebThr: "", rebMax: "", ptOn: false, ptMonthly: "" };
   const [f, setF] = useState(blank);
   const [localErr, setLocalErr] = useState<string | null>(null);
@@ -402,26 +435,32 @@ export function RulesTab() {
   const submit = () => { setLocalErr(null); if (f.source.trim().length < 5) return setLocalErr("Source is required: say where these values were confirmed."); if (!f.effectiveFrom) return setLocalErr("Effective from date is required."); add.mutate(); };
   return (
     <>
-      <RulePresets have={new Set((rules.data?.history ?? []).map((h) => h.effectiveFrom))} />
+      <RulePresets history={rules.data?.history ?? []} />
       <Card>
         <h2>Rule sets</h2>
         <ErrorNote error={rules.error} />
         {rules.isLoading ? <p>Loading…</p> : !rules.data?.history.length ? <p className="k">No rule sets configured.</p> : (
-          <div style={tableWrap}><table className="t"><thead><tr><th>Effective from</th><th>PF</th><th>TDS</th><th>Prof. tax</th><th>ESI</th><th>Source</th><th>Added by</th></tr></thead><tbody>
+          <div style={tableWrap}><table className="t"><thead><tr><th>Effective from</th><th>PF</th><th>TDS</th><th>Prof. tax</th><th>ESI</th><th>Source</th><th>Added by</th><th>Used by</th><th></th></tr></thead><tbody>
             {rules.data.history.map((h) => (
               <tr key={h.id}><td>{h.effectiveFrom} {rules.data!.current?.id === h.id && <Chip tone="ok">Current</Chip>}</td>
                 <td>{h.rules.pf.enabled ? `${bpsPct(h.rules.pf.employeeBps)} / ${bpsPct(h.rules.pf.employerBps)}` : "Off"}</td>
                 <td>{h.rules.tds.enabled ? `${h.rules.tds.slabs.length} slabs, cess ${bpsPct(h.rules.tds.cessBps)}` : "Off"}</td>
                 <td>{!h.rules.professionalTax.enabled ? "Off" : h.rules.professionalTax.byState ? `By state: ${Object.keys(h.rules.professionalTax.byState).join(", ")}` : inr(h.rules.professionalTax.monthlyPaise) + "/mo"}</td>
                 <td>{h.rules.esi?.enabled ? `${bpsPct(h.rules.esi.employeeBps)} / ${bpsPct(h.rules.esi.employerBps)} up to ${inr(h.rules.esi.wageCeilingPaise).replace(/\.00$/, "")}` : "Off"}</td>
-                <td>{h.source}</td><td>{h.createdBy}</td></tr>
+                <td>{h.source}</td><td>{h.createdBy}</td>
+                <td>{h.usedBy?.length ? h.usedBy.map((u) => `${monthLabel(u.month)} (${u.status})`).join(", ") : <span className="k">No runs</span>}</td>
+                <td>{h.usedBy?.some((u) => u.status !== "draft")
+                  ? <span className="k" title="Locked or paid payroll was calculated with this rule set, so it is kept for the record">Kept: in use</span>
+                  : <button className="btn" disabled={remove.isPending} onClick={() => { if (window.confirm(`Remove the rule set effective from ${h.effectiveFrom} (${ruleSummary(h.rules)})? This cannot be undone.`)) remove.mutate(h.id); }}>Remove</button>}</td></tr>
             ))}
           </tbody></table></div>
         )}
+        <ErrorNote error={remove.error} />
+        <p className="k" style={{ marginTop: 8 }}>A rule set can be removed until a locked or paid payroll uses it. When several cover a month, a new run uses the newest unless you pick another under Runs.</p>
       </Card>
       <Card>
         <h2>Add a rule set</h2>
-        <p className="k">Rule sets are append-only. To revise, add a new one with a later effective date. Amounts in rupees; rates in percent.</p>
+        <p className="k">To revise, add a new rule set with a later effective date. Amounts in rupees; rates in percent.</p>
         <div className="grid">
           <Field label="Effective from"><input type="date" value={f.effectiveFrom} onChange={s("effectiveFrom")} /></Field>
           <Field label="Source (required): document, notification or URL where values were confirmed"><input value={f.source} onChange={s("source")} required /></Field>
@@ -466,7 +505,7 @@ const componentToRow = (c: Component): CompRow => ({
   value: c.calc.type === "fixed" ? String(c.calc.amount / 100) : c.calc.type === "percent" ? String(c.calc.bps / 100) : "", of: c.calc.type === "percent" ? c.calc.of : "gross",
 });
 
-function RulePresets({ have }: { have: Set<string> }) {
+function RulePresets({ history }: { history: RuleRow[] }) {
   const qc = useQueryClient();
   const add = useMutation({
     mutationFn: (k: string) => { const p = RULE_PRESETS.find((x) => x.key === k)!; return api("/payroll/rules", { body: { effectiveFrom: p.effectiveFrom, source: p.source, rules: p.rules } }); },
@@ -475,13 +514,13 @@ function RulePresets({ have }: { have: Set<string> }) {
   return (
     <Card>
       <div className="row-gap" style={{ justifyContent: "space-between", alignItems: "baseline" }}><h2 style={{ margin: 0 }}>Standard rule sets for India</h2><span className="k">Checked against official and payroll sources on 21 Nov 2026</span></div>
-      <p className="k" style={{ margin: "6px 0 12px" }}>Pick one and payroll is ready to run. Add both to cover months before and after the PF ceiling change. You can still add your own rule set below.</p>
+      <p className="k" style={{ margin: "6px 0 12px" }}>Pick one and payroll is ready to run. Add both dated sets to cover months before and after the PF ceiling change. If you add two for the same date, choose which one a run uses under Runs, or remove the one you do not need below.</p>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 12 }}>
         {RULE_PRESETS.map((p) => (
           <div key={p.key} style={{ border: "1px solid var(--line)", borderRadius: 14, padding: 14, display: "flex", flexDirection: "column", gap: 8 }}>
             <b>{p.name}</b><span className="k">{p.summary}</span><span className="k">Effective from {p.effectiveFrom}</span>
             <details><summary className="k" style={{ cursor: "pointer" }}>Sources</summary><ul className="k" style={{ margin: "6px 0 0", paddingLeft: 18, wordBreak: "break-word" }}>{p.sources.map((x) => <li key={x}>{x}</li>)}</ul></details>
-            <div style={{ marginTop: "auto" }}>{have.has(p.effectiveFrom) ? <Chip tone="ok">Added</Chip> : <button className="btn p" disabled={add.isPending} onClick={() => add.mutate(p.key)}>Use this</button>}</div>
+            <div style={{ marginTop: "auto" }}>{history.some((h) => isPresetRow(p, h)) ? <Chip tone="ok">Added</Chip> : <button className="btn p" disabled={add.isPending} onClick={() => add.mutate(p.key)}>Use this</button>}</div>
           </div>))}
       </div>
       <ErrorNote error={add.error} />

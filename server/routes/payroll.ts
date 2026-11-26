@@ -17,8 +17,9 @@ import { HttpError, parse, wrap } from "./util";
 import {
   MONTH_RE, componentsSchema, employmentGapX2, employmentWindow, fyStartMonth, lossOfPayX2, maskAccount, maskedRows, monthDays, monthEnd,
   monthStart, monthsRemainingInFy, nextAdviceRef, normaliseCalendar, renderAdviceHtml, renderPayslipHtml, rulesSchema, safeFileName,
-  sumTdsYtd, sumGrossYtd, totalsOf,
+  sumTdsYtd, sumGrossYtd, totalsOf, eligibleRuleSets, runsUsingRuleSet,
 } from "./payrollHelpers";
+import { sameRules } from "../../shared/hr/presets";
 
 const r = Router();
 
@@ -37,8 +38,20 @@ const todayIst = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((s) => !Number.isNaN(Date.parse(s)), "Invalid date");
 
 // ============================================================ statutory rules
-async function rulesForMonth(month: string) {
-  const [row] = await db.select().from(schema.statutoryRules).where(lte(schema.statutoryRules.effectiveFrom, monthStart(month))).orderBy(desc(schema.statutoryRules.effectiveFrom), desc(schema.statutoryRules.createdAt)).limit(1);
+/**
+ * The rule set a run for this month uses. With a chosen id it must exist and be effective on or before the
+ * month's first day; without one it is the newest such set (latest effective date, then most recently added).
+ */
+async function rulesForMonth(month: string, ruleSetId?: string | null) {
+  const all = await db.select().from(schema.statutoryRules);
+  const eligible = eligibleRuleSets(all, month);
+  let row = eligible[0];
+  if (ruleSetId) {
+    const chosen = all.find((x) => x.id === ruleSetId);
+    if (!chosen) throw new HttpError(404, "That rule set no longer exists. Pick another one.");
+    if (chosen.effectiveFrom > monthStart(month)) throw new HttpError(422, `The rule set effective from ${chosen.effectiveFrom} starts after ${monthStart(month)}, so it cannot be used for this month`);
+    row = chosen;
+  }
   if (!row) throw new HttpError(422, `No statutory rules are configured as effective on or before ${monthStart(month)}. Add them under Payroll > Statutory rules (with the source where the values were confirmed) before creating a payroll run.`);
   const parsed = rulesSchema.safeParse(row.rules);
   if (!parsed.success) throw new HttpError(422, "The stored statutory rules are invalid; add a corrected rule set");
@@ -47,19 +60,43 @@ async function rulesForMonth(month: string) {
 
 r.get("/payroll/rules", wrap(async (req, res) => {
   if (!canViewPayroll(req)) deny();
-  const history = await db.select().from(schema.statutoryRules).orderBy(desc(schema.statutoryRules.effectiveFrom), desc(schema.statutoryRules.createdAt));
+  const [history, runs] = await Promise.all([
+    db.select().from(schema.statutoryRules).orderBy(desc(schema.statutoryRules.effectiveFrom), desc(schema.statutoryRules.createdAt)),
+    db.select({ month: schema.payrollRuns.month, status: schema.payrollRuns.status, rulesSnapshot: schema.payrollRuns.rulesSnapshot }).from(schema.payrollRuns),
+  ]);
   const today = todayIst();
-  res.json({ current: history.find((h) => h.effectiveFrom <= today) ?? null, history });
+  res.json({
+    current: history.find((h) => h.effectiveFrom <= today) ?? null,
+    history: history.map((h) => ({ ...h, usedBy: runsUsingRuleSet(h, runs).map((x) => ({ month: x.month, status: x.status })).sort((a, b) => a.month.localeCompare(b.month)) })),
+  });
 }));
 
 r.post("/payroll/rules", wrap(async (req, res) => {
   if (!canViewPayroll(req)) deny();
   const body = parse(z.object({ effectiveFrom: isoDate, rules: rulesSchema, source: z.string().trim().min(5).max(500) }), req.body);
-  const [dup] = await db.select({ id: schema.statutoryRules.id }).from(schema.statutoryRules).where(eq(schema.statutoryRules.effectiveFrom, body.effectiveFrom)).limit(1);
-  if (dup) throw new HttpError(409, "A rule set already exists for that effective date; use a later date for a revision");
+  // Several sets may share an effective date (e.g. with and without PF); a run picks one. Only exact repeats are refused.
+  const sameDay = await db.select().from(schema.statutoryRules).where(eq(schema.statutoryRules.effectiveFrom, body.effectiveFrom));
+  if (sameDay.some((x) => sameRules(x.rules, body.rules))) throw new HttpError(409, "This rule set is already added with the same effective date and values");
   const [row] = await db.insert(schema.statutoryRules).values({ effectiveFrom: body.effectiveFrom, rules: body.rules, source: body.source, createdBy: actorOf(req).email }).returning();
   await logAudit(actorOf(req).email, "payroll.rules.create", "statutory_rules", row.id, { effectiveFrom: body.effectiveFrom, source: body.source });
   res.status(201).json(row);
+}));
+
+/** Remove a rule set nobody depends on. Refused while any payroll run (draft, locked or paid) was built from it. */
+r.delete("/payroll/rules/:id", wrap(async (req, res) => {
+  if (!canRunPayroll(req)) deny();
+  const id = idParam(req);
+  const [row] = await db.select().from(schema.statutoryRules).where(eq(schema.statutoryRules.id, id)).limit(1);
+  if (!row) throw new HttpError(404, "Rule set not found");
+  const runs = await db.select({ month: schema.payrollRuns.month, status: schema.payrollRuns.status, rulesSnapshot: schema.payrollRuns.rulesSnapshot }).from(schema.payrollRuns);
+  const used = runsUsingRuleSet(row, runs);
+  const final = used.filter((x) => x.status !== "draft").map((x) => x.month).sort();
+  const drafts = used.filter((x) => x.status === "draft").map((x) => x.month).sort();
+  if (final.length) throw new HttpError(409, `This rule set cannot be removed: locked or paid payroll for ${final.join(", ")} was calculated with it and must stay traceable.`);
+  if (drafts.length) throw new HttpError(409, `The draft run for ${drafts.join(", ")} uses this rule set. Rebuild that draft with another rule set under Runs, then remove this one.`);
+  await db.delete(schema.statutoryRules).where(eq(schema.statutoryRules.id, id));
+  await logAudit(actorOf(req).email, "payroll.rules.delete", "statutory_rules", id, { effectiveFrom: row.effectiveFrom, source: row.source, createdBy: row.createdBy, rules: row.rules });
+  res.json({ ok: true });
 }));
 
 /** Minimal employee list for the payroll screens, so finance can pick people without seeing personal details. */
@@ -289,14 +326,14 @@ r.get("/payroll/preview", wrap(async (req, res) => {
 
 // ============================================================ payroll runs
 interface RunException { employeeId: string; code: string; name: string; message: string }
-interface RunSnapshot { rules: StatutoryRules; ruleEffectiveFrom: string; exceptions: RunException[]; builtAt: string }
+interface RunSnapshot { rules: StatutoryRules; ruleId?: string; ruleSource?: string | null; ruleEffectiveFrom: string; exceptions: RunException[]; builtAt: string }
 type SlipResult = SalaryResult & { meta: { month: string; lopDaysX2: number; outsideEmploymentDaysX2: number; reimbursementClaimIds: string[]; compensationId: string } };
 
 function snapshotOf(run: { rulesSnapshot: unknown }): RunSnapshot { return run.rulesSnapshot as RunSnapshot; }
 
 /** Build (or rebuild) a draft run. Statutory rules must exist or this throws before anything is written. */
-async function buildDraft(month: string, actorEmail: string) {
-  const { row: ruleRow, rules } = await rulesForMonth(month);
+async function buildDraft(month: string, actorEmail: string, ruleSetId?: string | null) {
+  const { row: ruleRow, rules } = await rulesForMonth(month, ruleSetId);
   const [existing] = await db.select().from(schema.payrollRuns).where(eq(schema.payrollRuns.month, month)).limit(1);
   if (existing && existing.status !== "draft") throw new HttpError(409, "This month is locked and cannot be rebuilt");
 
@@ -351,7 +388,7 @@ async function buildDraft(month: string, actorEmail: string) {
     }
   }
 
-  const snapshot: RunSnapshot = { rules, ruleEffectiveFrom: ruleRow.effectiveFrom, exceptions, builtAt: new Date().toISOString() };
+  const snapshot: RunSnapshot = { rules, ruleId: ruleRow.id, ruleSource: ruleRow.source, ruleEffectiveFrom: ruleRow.effectiveFrom, exceptions, builtAt: new Date().toISOString() };
   const runId = await db.transaction(async (tx) => {
     let id: string;
     if (existing) {
@@ -368,7 +405,7 @@ async function buildDraft(month: string, actorEmail: string) {
     }
     return id;
   });
-  return { runId, rebuilt: !!existing, exceptions, totals: totalsOf(slips.map((s) => s.result)) };
+  return { runId, ruleSetId: ruleRow.id, rebuilt: !!existing, exceptions, totals: totalsOf(slips.map((s) => s.result)) };
 }
 
 async function runDetail(id: string) {
@@ -381,9 +418,9 @@ async function runDetail(id: string) {
 
 r.post("/payroll/runs", wrap(async (req, res) => {
   if (!canRunPayroll(req)) deny();
-  const { month } = parse(z.object({ month: z.string().regex(MONTH_RE) }), req.body);
-  const out = await buildDraft(month, actorOf(req).email);
-  await logAudit(actorOf(req).email, out.rebuilt ? "payroll.run.rebuild" : "payroll.run.create", "payroll_run", out.runId, { month, headcount: out.totals.headcount, exceptions: out.exceptions.length });
+  const { month, ruleSetId } = parse(z.object({ month: z.string().regex(MONTH_RE), ruleSetId: uuid.nullish() }), req.body);
+  const out = await buildDraft(month, actorOf(req).email, ruleSetId);
+  await logAudit(actorOf(req).email, out.rebuilt ? "payroll.run.rebuild" : "payroll.run.create", "payroll_run", out.runId, { month, ruleSetId: out.ruleSetId, headcount: out.totals.headcount, exceptions: out.exceptions.length });
   res.status(out.rebuilt ? 200 : 201).json(out);
 }));
 
@@ -392,8 +429,13 @@ r.post("/payroll/runs/:id/recompute", wrap(async (req, res) => {
   const [run] = await db.select().from(schema.payrollRuns).where(eq(schema.payrollRuns.id, idParam(req))).limit(1);
   if (!run) throw new HttpError(404, "Payroll run not found");
   if (run.status !== "draft") throw new HttpError(409, "Locked runs are immutable");
-  const out = await buildDraft(run.month, actorOf(req).email);
-  await logAudit(actorOf(req).email, "payroll.run.rebuild", "payroll_run", run.id, { month: run.month });
+  const { ruleSetId } = parse(z.object({ ruleSetId: uuid.nullish() }), req.body ?? {});
+  // Keep the rule set this draft was built with unless a different one is chosen (or it has since been removed).
+  let keep: string | null = null;
+  const prev = snapshotOf(run).ruleId;
+  if (!ruleSetId && prev) { const [still] = await db.select({ id: schema.statutoryRules.id }).from(schema.statutoryRules).where(eq(schema.statutoryRules.id, prev)).limit(1); keep = still?.id ?? null; }
+  const out = await buildDraft(run.month, actorOf(req).email, ruleSetId ?? keep);
+  await logAudit(actorOf(req).email, "payroll.run.rebuild", "payroll_run", run.id, { month: run.month, ruleSetId: out.ruleSetId });
   res.json(out);
 }));
 
@@ -411,7 +453,7 @@ r.get("/payroll/runs/:id", wrap(async (req, res) => {
   const snap = snapshotOf(run);
   res.json({
     id: run.id, month: run.month, status: run.status, lockedBy: run.lockedBy, lockedAt: run.lockedAt, createdBy: run.createdBy, createdAt: run.createdAt,
-    rules: snap.rules, ruleEffectiveFrom: snap.ruleEffectiveFrom, builtAt: snap.builtAt,
+    rules: snap.rules, ruleId: snap.ruleId ?? null, ruleSource: snap.ruleSource ?? null, ruleEffectiveFrom: snap.ruleEffectiveFrom, builtAt: snap.builtAt,
     totals: totalsOf(slips.map((x) => x.s.result as SalaryResult)), exceptions: snap.exceptions ?? [],
     payslips: slips.map((x) => ({ id: x.s.id, employeeId: x.s.employeeId, code: x.code, name: x.name, paidDays: x.s.paidDays / 2, calendarDays: x.s.calendarDays, netPayPaise: x.s.netPayPaise, result: x.s.result })),
   });
