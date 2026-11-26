@@ -28,6 +28,10 @@ import care from "./routes/care";
 const app = express();
 app.disable("x-powered-by");
 app.use(compression()); // gzip API JSON and the app's JS/CSS (roughly 3x smaller)
+// Candidate onboarding sends up to 6 documents in one request as base64 (x4/3), so it gets a larger limit than
+// the rest of the API. The client keeps the raw total under 17 MB. Any proxy in front (nginx client_max_body_size)
+// must allow at least this much, see docs/engineering/deploy-upload-limits.md.
+app.use("/api/public/onboarding", express.json({ limit: "25mb" }));
 app.use(express.json({ limit: "12mb" }));
 app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
@@ -85,7 +89,8 @@ app.get(/^\/(?!api).*/, (_req, res) => res.sendFile(path.join(dist, "index.html"
 app.use((err: Error & { status?: number }, _req: Request, res: Response, _next: NextFunction) => {
   const status = err instanceof HttpError ? err.status : err.status ?? 500;
   if (status >= 500) console.error(err);
-  res.status(status).json({ error: status >= 500 ? "Something went wrong" : err.message });
+  const message = status === 413 ? "The upload is too large. Please use smaller files and try again." : err.message;
+  res.status(status).json({ error: status >= 500 ? "Something went wrong" : message });
 });
 
 app.listen(env.PORT, () => {
