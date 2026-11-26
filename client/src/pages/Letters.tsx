@@ -26,6 +26,7 @@ function Actions({ l, ceo, onDone }: { l: Letter; ceo: boolean; onDone: () => vo
     {l.status === "approved" && <button className="btn p" disabled={act.isPending} onClick={() => go("issue")}>Issue</button>}
     {l.status === "issued" && l.candidateId && (l.type === "offer_short" || l.type === "offer_full") && <Link className="btn" href="/hiring">Share link in Hiring</Link>}
     {["draft", "pending_approval", "approved"].includes(l.status) && <button className="btn" disabled={act.isPending} onClick={() => window.confirm("Withdraw this letter?") && go("void")}>Withdraw</button>}
+    {(l.status === "draft" || l.status === "pending_approval") && <button className="btn" disabled={act.isPending} onClick={() => { if (window.confirm("Discard this draft? It is deleted so you can prepare it again.")) { setErr(null); api(`/letters/${l.id}`, { method: "DELETE" }).then(onDone, setErr); } }}>Discard draft</button>}
     <ErrorNote error={err} />
   </div>;
 }
