@@ -20,7 +20,7 @@ const tone = (s: string) => (s === "accepted" || s === "joined" || s === "issued
 const STEPS = [
   { key: "details", label: "Personal details", hint: "Name, date of birth, phone, address" },
   { key: "kyc", label: "PAN", hint: "Stored encrypted; shown to HR masked" },
-  { key: "bank", label: "Bank details", hint: "Bank name, account number, IFSC" },
+  { key: "bank", label: "Bank details", hint: "Bank name, account number (typed twice), IFSC, and a cheque, passbook or banking screenshot as proof" },
   { key: "documents", label: "Document uploads", hint: "Photo, PAN card, ID, address proof, other" },
 ];
 const typeLabel = (t: string) => (t === "offer_short" ? "Offer, one page" : t === "offer_full" ? "Offer, full" : t);
@@ -186,7 +186,7 @@ function Onboarding({ c }: { c: Candidate }) {
           {Object.entries(o.submission.personal ?? {}).map(([k, v]) => <><dt className="k" key={k + "k"}>{PERSONAL_LABEL[k] ?? k}</dt><dd key={k} style={{ margin: 0 }}>{String(v)}</dd></>)}
           {o.submission.panMasked && <><dt className="k">PAN</dt><dd style={{ margin: 0 }}>{o.submission.panMasked}</dd></>}
           {o.submission.bankName && <><dt className="k">Bank</dt><dd style={{ margin: 0 }}>{o.submission.bankName}, IFSC {o.submission.ifsc}, account {o.submission.accountMasked}</dd></>}
-          <dt className="k">Documents</dt><dd style={{ margin: 0 }}>{o.submission.documents.length ? o.submission.documents.map((d) => `${d.kind}: ${d.name}`).join("; ") : "None"}</dd>
+          <dt className="k">Documents</dt><dd style={{ margin: 0 }}>{o.submission.documents.length ? o.submission.documents.map((d) => `${d.kind === "bank_proof" ? "bank proof" : d.kind}: ${d.name}`).join("; ") : "None"}</dd>
         </dl>}
         {o.submission && o.completedAt && <NdaDetails key={o.submission.submittedAt ?? o.id} c={c} o={o} />}
       </div>)}

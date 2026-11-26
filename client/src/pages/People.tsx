@@ -5,6 +5,8 @@ import { api, fileToBase64 } from "../lib/api";
 import { openAuthed } from "../lib/openHtml";
 import { Card, Chip, ErrorNote, Field, Page, inr } from "../lib/ui";
 import { CompensationEditor } from "./CompensationEditor";
+import { AccountNumberInput } from "../lib/AccountNumberInput";
+import { accountConfirmError } from "../../../shared/hr/accountConfirm";
 
 type Me = { email: string; employeeId: string | null; roles: string[] };
 type Dir = { id: string; code: string; fullName: string; designation: string | null; department: string | null; workEmail: string; status?: string; managerId: string | null };
@@ -12,6 +14,7 @@ type Detail = Dir & {
   access: string; departmentId?: string | null; designationId?: string | null; locationId?: string | null; location?: string | null; joiningDate?: string; employmentType?: string; lastWorkingDay?: string | null;
   phone?: string | null; personalEmail?: string | null; dob?: string | null; gender?: string | null;
   panMasked?: string | null; accountMasked?: string | null; bankName?: string | null; ifsc?: string | null;
+  bankVerifiedAt?: string | null; bankVerifiedBy?: string | null;
 };
 type Doc = { id: string; kind: string; name: string; mime: string; sizeBytes: number; createdAt: string };
 type Comp = { id: string; effectiveFrom: string; monthlyGrossPaise: number; reason: string | null };
@@ -19,19 +22,68 @@ type MgrChange = { id: string; fromManagerId: string | null; toManagerId: string
 type EmpAsset = { assignmentId: string; issuedOn: string; returnedOn: string | null; current: boolean; asset: { tag: string; category: string; model: string | null } };
 type Named = { id: string; name: string };
 const today = () => new Date().toISOString().slice(0, 10);
-const KIND: Record<string, string> = { pan: "PAN", aadhaar: "Aadhaar", photo: "Photo" };
+const KIND: Record<string, string> = { pan: "PAN", aadhaar: "Aadhaar", bank_proof: "Bank proof", photo: "Photo" };
+
+/** Masked account number with a button to show the full one (HR admin, super admin, or the person themselves). */
+function AccountReveal({ id, masked }: { id: string; masked: string }) {
+  const [show, setShow] = useState(false);
+  const q = useQuery({ queryKey: ["employee-bank", id], enabled: show, queryFn: () => api<{ accountNumber: string | null }>(`/employees/${id}/bank`) });
+  return (
+    <span className="row-gap" style={{ alignItems: "center", flexWrap: "wrap" }}>
+      <code>{show && q.data?.accountNumber ? q.data.accountNumber : masked}</code>
+      <button type="button" className="btn" aria-pressed={show} disabled={show && q.isLoading} onClick={() => setShow(!show)}>{show ? "Hide" : "Show"}</button>
+      <ErrorNote error={q.error} />
+    </span>
+  );
+}
+
+type BankRow = { id: string; code: string; fullName: string; status: string; bankName: string | null; ifsc: string | null; account: string | null; bankVerifiedAt: string | null; hasProof: boolean };
+/** Bank details of every employee, for HR admin and super admin. Full numbers on request; that view is audited. */
+function BankDetailsList({ filter }: { filter: string }) {
+  const [full, setFull] = useState(false);
+  const q = useQuery({ queryKey: ["bank-details", full], queryFn: () => api<{ full: boolean; employees: BankRow[] }>(`/bank-details${full ? "?full=1" : ""}`) });
+  const rows = (q.data?.employees ?? []).filter((e) => `${e.fullName} ${e.code} ${e.bankName ?? ""} ${e.ifsc ?? ""}`.toLowerCase().includes(filter.toLowerCase()));
+  const missing = rows.filter((e) => !e.account).length;
+  const pending = rows.filter((e) => e.account && !e.bankVerifiedAt).length;
+  return (
+    <>
+      <div className="row-gap" style={{ justifyContent: "space-between", alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
+        <p className="k" style={{ margin: 0 }}>{full ? "Showing full account numbers. This view is recorded in the audit log." : "Account numbers are masked."}{missing ? ` ${missing} without an account number.` : ""}{pending ? ` ${pending} not yet approved.` : ""}</p>
+        <button type="button" className="btn" aria-pressed={full} onClick={() => setFull(!full)}>{full ? "Mask account numbers" : "Show full account numbers"}</button>
+      </div>
+      <ErrorNote error={q.error} />
+      {q.isLoading && <p>Loading…</p>}
+      <div style={{ overflowX: "auto", marginTop: 12 }}>
+        <table className="t"><caption className="k" style={{ textAlign: "left" }}>{rows.length} {rows.length === 1 ? "person" : "people"}</caption>
+          <thead><tr><th scope="col">Name</th><th scope="col">Code</th><th scope="col">Bank</th><th scope="col">Account number</th><th scope="col">IFSC</th><th scope="col">Approval</th><th scope="col">Status</th></tr></thead>
+          <tbody>{rows.map((e) => (
+            <tr key={e.id}><td><Link href={`/people/${e.id}`}>{e.fullName}</Link></td><td>{e.code}</td><td>{e.bankName ?? <span className="k">Not provided</span>}</td>
+              <td>{e.account ? <code>{e.account}</code> : <Link href={`/people/${e.id}?fix=bank`}>Add</Link>}</td><td>{e.ifsc ?? <span className="k">Not provided</span>}</td>
+              <td>{!e.account ? null : e.bankVerifiedAt ? <Chip tone="ok">Approved</Chip> : <Link href={`/people/${e.id}#bank-approval`}><Chip tone="warn">{e.hasProof ? "Awaiting approval" : "No proof"}</Chip></Link>}</td>
+              <td><Chip tone={e.status === "active" ? "ok" : e.status === "notice" ? "warn" : "mute"}>{e.status}</Chip></td></tr>))}</tbody></table>
+      </div>
+    </>
+  );
+}
 
 function List({ admin }: { admin: boolean }) {
   const [, nav] = useLocation();
   const [qstr, setQstr] = useState("");
   const [adding, setAdding] = useState(false);
+  const [view, setView] = useState<"people" | "bank">("people");
   const q = useQuery({ queryKey: ["employees"], queryFn: () => api<{ scope: string; employees: Dir[] }>("/employees") });
   const rows = (q.data?.employees ?? []).filter((e) => `${e.fullName} ${e.code} ${e.workEmail} ${e.department ?? ""} ${e.designation ?? ""}`.toLowerCase().includes(qstr.toLowerCase()));
   return (
     <Page title="People" actions={admin && <button className="btn p" aria-expanded={adding} onClick={() => setAdding(!adding)}>Add employee</button>}>
       {adding && <AddEmployee onDone={(id) => { setAdding(false); nav(`/people/${id}`); }} />}
       <Card>
-        <Field label="Search by name, code, email or department"><input type="search" value={qstr} onChange={(e) => setQstr(e.target.value)} /></Field>
+        {admin && (
+          <div className="row-gap" role="group" aria-label="View" style={{ marginBottom: 12 }}>
+            <button type="button" className={view === "people" ? "btn p" : "btn"} aria-pressed={view === "people"} onClick={() => setView("people")}>People</button>
+            <button type="button" className={view === "bank" ? "btn p" : "btn"} aria-pressed={view === "bank"} onClick={() => setView("bank")}>Bank details</button>
+          </div>)}
+        <Field label={view === "bank" ? "Search by name, code, bank or IFSC" : "Search by name, code, email or department"}><input type="search" value={qstr} onChange={(e) => setQstr(e.target.value)} /></Field>
+        {view === "bank" ? <BankDetailsList filter={qstr} /> : <>
         <ErrorNote error={q.error} />
         {q.isLoading && <p>Loading…</p>}
         <div style={{ overflowX: "auto", marginTop: 12 }}>
@@ -41,7 +93,7 @@ function List({ admin }: { admin: boolean }) {
               <tr key={e.id}><td><Link href={`/people/${e.id}`}>{e.fullName}</Link><span className="k" style={{ display: "block" }}>{e.workEmail}</span></td>
                 <td>{e.code}</td><td>{e.designation}</td><td>{e.department}</td>
                 <td>{e.status && <Chip tone={e.status === "active" ? "ok" : e.status === "notice" ? "warn" : "mute"}>{e.status}</Chip>}</td></tr>))}</tbody></table>
-        </div>
+        </div></>}
       </Card>
     </Page>
   );
@@ -60,10 +112,12 @@ function AddEmployee({ onDone }: { onDone: (id: string) => void }) {
   const qc = useQueryClient();
   const refs = useRefs();
   const emps = useQuery({ queryKey: ["employees"], queryFn: () => api<{ employees: Dir[] }>("/employees") });
-  const [f, setF] = useState({ fullName: "", workEmail: "", personalEmail: "", phone: "", dob: "", gender: "", joiningDate: today(), departmentId: "", designationId: "", locationId: "", managerId: "", employmentType: "full_time", pan: "", bankName: "", accountNumber: "", ifsc: "" });
+  const [f, setF] = useState({ fullName: "", workEmail: "", personalEmail: "", phone: "", dob: "", gender: "", joiningDate: today(), departmentId: "", designationId: "", locationId: "", managerId: "", employmentType: "full_time", pan: "", bankName: "", accountNumber: "", accountConfirm: "", ifsc: "" });
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
   const m = useMutation({
     mutationFn: () => {
+      const mismatch = accountConfirmError(f.accountNumber, f.accountConfirm);
+      if (mismatch) throw new Error(mismatch);
       const body: Record<string, unknown> = { fullName: f.fullName, workEmail: f.workEmail, joiningDate: f.joiningDate, employmentType: f.employmentType };
       for (const k of ["personalEmail", "phone", "dob", "gender", "departmentId", "designationId", "locationId", "managerId", "pan", "bankName", "accountNumber", "ifsc"] as const) if (f[k]) body[k] = f[k];
       return api<{ id: string }>("/employees", { method: "POST", body });
@@ -92,7 +146,7 @@ function AddEmployee({ onDone }: { onDone: (id: string) => void }) {
           <div className="grid">
             <Field label="PAN"><input value={f.pan} onChange={(e) => setF({ ...f, pan: e.target.value.toUpperCase() })} autoComplete="off" /></Field>
             <Field label="Bank name"><input value={f.bankName} onChange={set("bankName")} /></Field>
-            <Field label="Account number"><input inputMode="numeric" value={f.accountNumber} onChange={set("accountNumber")} autoComplete="off" /></Field>
+            <AccountNumberInput label="Account number" value={f.accountNumber} confirm={f.accountConfirm} onChange={(v) => setF({ ...f, accountNumber: v })} onConfirm={(v) => setF({ ...f, accountConfirm: v })} />
             <Field label="IFSC"><input value={f.ifsc} onChange={(e) => setF({ ...f, ifsc: e.target.value.toUpperCase() })} /></Field>
           </div></details>
         <ErrorNote error={m.error} />
@@ -115,7 +169,7 @@ function Documents({ id, canUpload }: { id: string; canUpload: boolean }) {
   return (
     <Card>
       <h2>Documents</h2>
-      <p className="k">PAN, Aadhaar and photo. PDF, PNG, JPEG or WebP up to 10 MB. Every view of an ID document is logged.</p>
+      <p className="k">PAN, Aadhaar, bank proof (cancelled cheque, passbook page or banking screenshot) and photo. PDF, PNG, JPEG or WebP up to 10 MB. Every view of an ID or bank document is logged.</p>
       <ErrorNote error={docs.error ?? err} />
       {docs.data?.length === 0 && <p className="k">No documents uploaded.</p>}
       {docs.data?.map((d) => (
@@ -126,7 +180,7 @@ function Documents({ id, canUpload }: { id: string; canUpload: boolean }) {
       {canUpload && (
         <form onSubmit={(e) => { e.preventDefault(); if (file) up.mutate(); }} style={{ marginTop: 12 }}>
           <div className="grid">
-            <Field label="Document type"><select value={kind} onChange={(e) => setKind(e.target.value)}><option value="pan">PAN</option><option value="aadhaar">Aadhaar</option><option value="photo">Photo</option></select></Field>
+            <Field label="Document type"><select value={kind} onChange={(e) => setKind(e.target.value)}><option value="pan">PAN</option><option value="aadhaar">Aadhaar</option><option value="bank_proof">Bank proof (cheque, passbook or screenshot)</option><option value="photo">Photo</option></select></Field>
             <Field label="File"><input type="file" required accept="application/pdf,image/png,image/jpeg,image/webp" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></Field>
           </div>
           <ErrorNote error={up.error} />
@@ -192,11 +246,13 @@ function BankEditor({ d }: { d: Detail }) {
   const qc = useQueryClient();
   const fromAdvice = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("fix") === "bank";
   const [open, setOpen] = useState(fromAdvice);
-  const [f, setF] = useState({ bankName: d.bankName ?? "", accountNumber: "", ifsc: d.ifsc ?? "" });
+  const [f, setF] = useState({ bankName: d.bankName ?? "", accountNumber: "", accountConfirm: "", ifsc: d.ifsc ?? "" });
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => { if (fromAdvice) ref.current?.scrollIntoView({ behavior: "smooth", block: "start" }); }, [fromAdvice]);
   const m = useMutation({
     mutationFn: () => {
+      const mismatch = accountConfirmError(f.accountNumber, f.accountConfirm);
+      if (mismatch) throw new Error(mismatch);
       const body: Record<string, string> = {};
       if (f.bankName.trim() !== (d.bankName ?? "")) body.bankName = f.bankName.trim();
       if (f.ifsc.trim().toUpperCase() !== (d.ifsc ?? "")) body.ifsc = f.ifsc.trim().toUpperCase();
@@ -204,14 +260,14 @@ function BankEditor({ d }: { d: Detail }) {
       if (!Object.keys(body).length) throw new Error("Nothing changed");
       return api(`/employees/${d.id}`, { method: "PATCH", body });
     },
-    onSuccess: () => { setOpen(false); setF((x) => ({ ...x, accountNumber: "" })); for (const k of ["employee", "employees", "audit"]) qc.invalidateQueries({ queryKey: [k] }); },
+    onSuccess: () => { setOpen(false); setF((x) => ({ ...x, accountNumber: "", accountConfirm: "" })); for (const k of ["employee", "employees", "audit"]) qc.invalidateQueries({ queryKey: [k] }); },
   });
   return (
     <div ref={ref} id="bank">
       <Card>
         <div className="row-gap" style={{ justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ margin: 0 }}>Bank details for salary</h2>
-          {!open && <button className="btn" onClick={() => { setF({ bankName: d.bankName ?? "", accountNumber: "", ifsc: d.ifsc ?? "" }); m.reset(); setOpen(true); }}>Edit bank details</button>}
+          {!open && <button className="btn" onClick={() => { setF({ bankName: d.bankName ?? "", accountNumber: "", accountConfirm: "", ifsc: d.ifsc ?? "" }); m.reset(); setOpen(true); }}>Edit bank details</button>}
         </div>
         <p className="k">Used in the bank advice. Account {d.accountMasked ?? "not provided"}. Changes are recorded in the audit log.</p>
         {m.isSuccess && !open && <div className="note ok">Bank details saved.</div>}
@@ -219,8 +275,8 @@ function BankEditor({ d }: { d: Detail }) {
           <form onSubmit={(e) => { e.preventDefault(); m.mutate(); }}>
             <div className="grid">
               <Field label="Bank name"><input maxLength={120} value={f.bankName} onChange={(e) => setF({ ...f, bankName: e.target.value })} /></Field>
-              <Field label={d.accountMasked ? "New account number (leave blank to keep the current one)" : "Account number"}>
-                <input inputMode="numeric" autoComplete="off" pattern="[0-9 ]{9,22}" title="9 to 18 digits" value={f.accountNumber} onChange={(e) => setF({ ...f, accountNumber: e.target.value })} /></Field>
+              <AccountNumberInput label={d.accountMasked ? "New account number (leave blank to keep the current one)" : "Account number"}
+                value={f.accountNumber} confirm={f.accountConfirm} onChange={(v) => setF({ ...f, accountNumber: v })} onConfirm={(v) => setF({ ...f, accountConfirm: v })} />
               <Field label="IFSC"><input maxLength={11} placeholder="HDFC0001234" value={f.ifsc} onChange={(e) => setF({ ...f, ifsc: e.target.value.toUpperCase() })} /></Field>
             </div>
             <ErrorNote error={m.error} />
@@ -231,6 +287,38 @@ function BankEditor({ d }: { d: Detail }) {
           </form>)}
       </Card>
     </div>
+  );
+}
+
+/** Bank account approval: HR admin checks the uploaded proof against the details, then approves. Changing the details clears it. */
+function BankApproval({ d, admin, own }: { d: Detail; admin: boolean; own: boolean }) {
+  const qc = useQueryClient();
+  const docs = useQuery({ queryKey: ["docs", d.id], enabled: admin || own, queryFn: () => api<Doc[]>(`/employees/${d.id}/documents`) });
+  const [err, setErr] = useState<unknown>(null);
+  const proofs = (docs.data ?? []).filter((x) => x.kind === "bank_proof");
+  const m = useMutation({
+    mutationFn: () => api(`/employees/${d.id}/bank/verify`, { method: "POST", body: {} }),
+    onSuccess: () => { for (const k of ["employee", "bank-details", "audit"]) qc.invalidateQueries({ queryKey: [k] }); },
+  });
+  return (
+    <div id="bank-approval"><Card>
+      <div className="row-gap" style={{ justifyContent: "space-between", alignItems: "center" }}>
+        <h2 style={{ margin: 0 }}>Bank account approval</h2>
+        {d.bankVerifiedAt ? <Chip tone="ok">Approved</Chip> : <Chip tone="warn">Not approved</Chip>}
+      </div>
+      {d.bankVerifiedAt
+        ? <p className="k">Approved by {d.bankVerifiedBy} on {new Date(d.bankVerifiedAt).toLocaleDateString("en-IN")}. Any change to the bank name, account number or IFSC clears this and needs a fresh approval.</p>
+        : <p className="k">{proofs.length ? "Check the proof below against the bank name, account number and IFSC, then approve." : "No proof uploaded yet. Upload a cancelled cheque, passbook front page or banking screenshot under Documents."}</p>}
+      {proofs.map((p) => (
+        <div key={p.id} className="row-gap" style={{ justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderTop: "1px solid var(--line)" }}>
+          <span>{p.name} <span className="k">{new Date(p.createdAt).toLocaleDateString("en-IN")}</span></span>
+          <button className="btn" aria-label={`View bank proof ${p.name}`} onClick={() => openAuthed(`/files/${p.id}`).catch(setErr)}>View</button>
+        </div>))}
+      {admin && !own && !d.bankVerifiedAt && (
+        <p><button className="btn p" disabled={!proofs.length || !d.accountMasked || !d.ifsc || m.isPending} onClick={() => m.mutate()}>{m.isPending ? "Approving…" : "Approve bank details"}</button></p>)}
+      {admin && own && !d.bankVerifiedAt && <p className="k">Another HR admin must approve your own bank details.</p>}
+      <ErrorNote error={m.error ?? err ?? docs.error} />
+    </Card></div>
   );
 }
 
@@ -296,11 +384,12 @@ function Detail({ id, admin, myId }: { id: string; admin: boolean; myId: string 
               <dl style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 12, margin: 0 }}>
                 <div><dt className="k">PAN</dt><dd style={{ margin: 0 }}>{d.panMasked ?? "Not provided"}</dd></div>
                 <div><dt className="k">Bank</dt><dd style={{ margin: 0 }}>{d.bankName ?? "Not provided"}</dd></div>
-                <div><dt className="k">Account number</dt><dd style={{ margin: 0 }}>{d.accountMasked ?? "Not provided"}</dd></div>
+                <div><dt className="k">Account number</dt><dd style={{ margin: 0 }}>{d.accountMasked ? <AccountReveal id={d.id} masked={d.accountMasked} /> : "Not provided"}</dd></div>
                 <div><dt className="k">IFSC</dt><dd style={{ margin: 0 }}>{d.ifsc ?? "Not provided"}</dd></div>
               </dl>
-              {admin && !own && <p className="k">Viewing sensitive details is recorded in the audit log.</p>}
+              {admin && !own && <p className="k">Viewing sensitive details, including the full account number, is recorded in the audit log.</p>}
             </Card>)}
+          {(d.accountMasked || d.bankName || d.ifsc) && <BankApproval d={d} admin={admin} own={own} />}
           {admin && <BankEditor key={d.id} d={d} />}
           {(admin || own) && <Documents id={id} canUpload />}
           {admin && <ManagerCard id={id} current={d.managerId} names={names} />}

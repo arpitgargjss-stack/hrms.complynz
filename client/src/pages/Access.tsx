@@ -10,7 +10,7 @@ const ROLE_LABEL: Record<string, string> = { super_admin: "Super admin", hr_admi
 const MATRIX: [string, [string, string, string, string, string][]][] = [
   ["People", [
     ["Own profile and documents", "Yes", "Yes", "Yes", "Yes"], ["Work details of others", "All", "No", "Direct reports", "Directory card only"],
-    ["Org chart", "Yes", "Yes", "Yes", "Yes"], ["ID documents (PAN, Aadhaar)", "All, logged", "Own", "Own", "Own"]]],
+    ["Org chart", "Yes", "Yes", "Yes", "Yes"], ["ID documents (PAN, Aadhaar)", "All, logged", "Own", "Own", "Own"], ["Full bank account number", "All, logged", "Own", "Own", "Own"]]],
   ["Pay", [
     ["Compensation and salary history", "All, logged", "All, logged", "Own", "Own"], ["Run payroll and lock", "Yes", "No", "No", "No"],
     ["Generate bank advice", "Yes", "Yes", "No", "No"], ["Sign documents with stamp and signature", "No", "Own signature only", "No", "No"]]],

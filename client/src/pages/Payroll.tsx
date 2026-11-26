@@ -6,6 +6,8 @@ import { PAYROLL_UNLOCK_ENABLED } from "../../../shared/hr/payrollTesting";
 import { ConfigHint } from "../lib/ConfigHint";
 import { CompensationEditor } from "./CompensationEditor";
 import { openHtml } from "../lib/openHtml";
+import { AccountNumberInput } from "../lib/AccountNumberInput";
+import { accountConfirmError } from "../../../shared/hr/accountConfirm";
 import { Card, Chip, ErrorNote, Field, Page, inr } from "../lib/ui";
 import { RULE_PRESETS, TEMPLATE_PRESETS, isPresetRow } from "../../../shared/hr/presets";
 
@@ -467,6 +469,8 @@ function AdviceView({ id, canSign }: { id: string; canSign: boolean }) {
   const d = useQuery({ queryKey: ["bank-advice", id], queryFn: () => api<AdviceDetail>(`/bank-advices/${id}`) });
   const [f, setF] = useState({ bank: "", branch: "", city: "", ifsc: "", debitAccount: "", date: today() });
   const cb = useQuery({ queryKey: ["company-bank"], queryFn: () => api<CompanyBankInfo>("/payroll/company-bank") }).data;
+  const [debitConfirm, setDebitConfirm] = useState("");
+  const debitMismatch = accountConfirmError(f.debitAccount, debitConfirm);
   const [err, setErr] = useState<string | null>(null);
   const sign = useMutation({ mutationFn: () => api(`/bank-advices/${id}/sign`, { method: "POST", body: {} }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["bank-advice", id] }); qc.invalidateQueries({ queryKey: ["bank-advices"] }); } });
   if (d.isLoading) return <Card><p>Loading…</p></Card>;
@@ -503,12 +507,12 @@ function AdviceView({ id, canSign }: { id: string; canSign: boolean }) {
         <Field label="Branch"><input value={f.branch} onChange={set("branch")} placeholder={cb?.branch || ""} /></Field>
         <Field label="City"><input value={f.city} onChange={set("city")} placeholder={cb?.city || ""} /></Field>
         <Field label="IFSC"><input value={f.ifsc} onChange={set("ifsc")} placeholder={cb?.ifsc || ""} /></Field>
-        <Field label="Debit account number"><input value={f.debitAccount} onChange={set("debitAccount")} inputMode="numeric" placeholder={cb?.accountMasked ? `Saved ${cb.accountMasked}` : ""} /></Field>
+        <AccountNumberInput label="Debit account number" value={f.debitAccount} confirm={debitConfirm} onChange={(v) => setF({ ...f, debitAccount: v })} onConfirm={setDebitConfirm} placeholder={cb?.accountMasked ? `Saved ${cb.accountMasked}` : undefined} />
         <Field label="Date"><input type="date" value={f.date} onChange={set("date")} /></Field>
       </div>
       <div className="row-gap" style={{ marginTop: 16 }}>
-        <button className="btn p" disabled={!ok} onClick={() => openHtml(`/bank-advices/${id}/html?${qs()}`).catch((e) => setErr((e as Error).message))}>Open printable letter</button>
-        <button className="btn" disabled={!ok} onClick={csv}>Download CSV</button>
+        <button className="btn p" disabled={!ok || !!debitMismatch} onClick={() => openHtml(`/bank-advices/${id}/html?${qs()}`).catch((e) => setErr((e as Error).message))}>Open printable letter</button>
+        <button className="btn" disabled={!ok || !!debitMismatch} onClick={csv}>Download CSV</button>
         {canSign && !a.signedAt && <button className="btn p" disabled={!ok || sign.isPending} onClick={() => { if (confirm(`Sign ${a.refNo} for ${inr(a.totalPaise)}? This cannot be undone.`)) sign.mutate(); }}>{sign.isPending ? "Signing…" : "Sign"}</button>}
       </div>
       {err && <div className="note bad" role="alert" style={{ marginTop: 12 }}>{err}</div>}
@@ -733,9 +737,10 @@ export function CompanyBank() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["company-bank"], queryFn: () => api<CompanyBankInfo>("/payroll/company-bank"), retry: false });
   const [f, setF] = useState<{ bankName: string; branch: string; city: string; ifsc: string; accountNo: string } | null>(null);
+  const [acctConfirm, setAcctConfirm] = useState("");
   const save = useMutation({
     mutationFn: (b: NonNullable<typeof f>) => api<CompanyBankInfo>("/payroll/company-bank", { method: "PUT", body: b }),
-    onSuccess: () => { setF(null); qc.invalidateQueries({ queryKey: ["company-bank"] }); },
+    onSuccess: () => { setF(null); setAcctConfirm(""); qc.invalidateQueries({ queryKey: ["company-bank"] }); },
   });
   if (q.error || !q.data) return null;
   const d = q.data, v = f ?? { bankName: d.bankName, branch: d.branch, city: d.city, ifsc: d.ifsc, accountNo: "" };
@@ -748,12 +753,12 @@ export function CompanyBank() {
       <Field label="Branch"><input value={v.branch} onChange={set("branch")} /></Field>
       <Field label="City"><input value={v.city} onChange={set("city")} /></Field>
       <Field label="IFSC"><input value={v.ifsc} onChange={set("ifsc")} placeholder="HDFC0001234" /></Field>
-      <Field label={d.accountMasked ? `Account number (saved ${d.accountMasked})` : "Account number"}>
-        <input value={v.accountNo} onChange={set("accountNo")} inputMode="numeric" autoComplete="off" placeholder={d.accountMasked ? "Blank keeps the saved number" : ""} /></Field>
+      <AccountNumberInput label={d.accountMasked ? `Account number (saved ${d.accountMasked})` : "Account number"} value={v.accountNo} confirm={acctConfirm}
+        onChange={(x) => setF({ ...v, accountNo: x })} onConfirm={setAcctConfirm} placeholder={d.accountMasked ? "Blank keeps the saved number" : undefined} />
     </div>
     <div className="row-gap" style={{ marginTop: 12 }}>
-      <button className="btn p" disabled={!f || save.isPending || !v.bankName.trim()} onClick={() => save.mutate(v)}>{save.isPending ? "Saving…" : "Save bank account"}</button>
-      {f && <button className="btn" onClick={() => setF(null)}>Discard changes</button>}
+      <button className="btn p" disabled={!f || save.isPending || !v.bankName.trim() || !!accountConfirmError(v.accountNo, acctConfirm)} onClick={() => save.mutate(v)}>{save.isPending ? "Saving…" : "Save bank account"}</button>
+      {f && <button className="btn" onClick={() => { setF(null); setAcctConfirm(""); }}>Discard changes</button>}
       {d.updatedAt && <span className="k">Last changed by {d.updatedBy} on {new Date(d.updatedAt).toLocaleDateString("en-IN")}</span>}
     </div>
     <ErrorNote error={save.error} />

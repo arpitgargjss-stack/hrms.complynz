@@ -29,3 +29,15 @@ test("admin configuration: HR admin, finance admin and super admin edit; others 
   assert.equal(scopeFor(["manager"], "settings.manage"), "none");
   assert.equal(scopeFor(["team_member"], "settings.manage"), "none");
 });
+
+test("bank details: HR admin and super admin see everyone's, others only their own", () => {
+  const superRoles = ["super_admin", ...SUPER_ADMIN_IMPLIES] as const;
+  assert.equal(scopeFor(superRoles, "bank.read"), "all");
+  assert.equal(scopeFor(["hr_admin"], "bank.read"), "all");
+  assert.equal(scopeFor(["team_member", "manager"], "bank.read"), "own");
+  assert.equal(scopeFor(["team_member", "finance_signatory"], "bank.read"), "own");
+  assert.equal(scopeFor(["team_member"], "bank.read"), "own");
+  const me = { employeeId: "e1", directReportIds: ["e2"] };
+  assert.equal(canAccess(scopeFor(["team_member", "manager"], "bank.read"), me, "e2"), false);
+  assert.equal(canAccess(scopeFor(["team_member"], "bank.read"), me, "e1"), true);
+});

@@ -9,7 +9,7 @@ import { ProfileForm } from "./CompleteProfile";
 import "../gz.css";
 
 type Me = { email: string; employeeId: string | null; roles: string[] };
-type Emp = { fullName: string; code: string; workEmail: string; designation: string | null; department: string | null; location: string | null; joiningDate: string; employmentType: string; status: string; phone?: string | null; personalEmail?: string | null; panMasked?: string | null; accountMasked?: string | null; bankName?: string | null; ifsc?: string | null; managerId: string | null;
+type Emp = { fullName: string; code: string; workEmail: string; designation: string | null; department: string | null; location: string | null; joiningDate: string; employmentType: string; status: string; phone?: string | null; personalEmail?: string | null; panMasked?: string | null; accountMasked?: string | null; bankName?: string | null; ifsc?: string | null; bankVerifiedAt?: string | null; managerId: string | null;
   photoFileId: string | null; dob?: string | null; gender?: string | null; currentAddress?: string | null; emergencyContactName?: string | null; emergencyContactRelation?: string | null; emergencyContactPhone?: string | null };
 const GENDER: Record<string, string> = { male: "Male", female: "Female", other: "Other", undisclosed: "Prefer not to say" };
 type Consent = { key: string; label: string; required: boolean; status: string; noticeVersion: string | null; at: string | null };
@@ -28,6 +28,8 @@ export default function Profile() {
   const assets = useQuery({ queryKey: ["my-assets"], enabled: !!id, queryFn: () => api<MyAsset[]>("/me/assets") });
   const [err, setErr] = useState<unknown>(null);
   const [editing, setEditing] = useState(false);
+  const [showAcct, setShowAcct] = useState(false);
+  const bank = useQuery({ queryKey: ["employee-bank", id], enabled: !!id && showAcct, queryFn: () => api<{ accountNumber: string | null }>(`/employees/${id}/bank`) });
   const toggle = useMutation({
     mutationFn: (v: { key: string; granted: boolean }) => api(`/me/consents/${v.key}`, { method: "PUT", body: { granted: v.granted, noticeVersion: NOTICE } }),
     onSuccess: () => { setErr(null); qc.invalidateQueries({ queryKey: ["consents"] }); qc.invalidateQueries({ queryKey: ["home"] }); },
@@ -36,10 +38,11 @@ export default function Profile() {
   const vibe = useQuery({ queryKey: ["vibe-me"], enabled: !!id, queryFn: () => api<{ key: string; content: { text?: string } | null }[]>("/vibe/me") });
   const status = vibe.data?.find((x) => x.key === "status")?.content?.text;
   const e = emp.data;
+  const acct = showAcct && bank.data?.accountNumber ? bank.data.accountNumber : e?.accountMasked;
   const work: Tile[] = e ? [["id", "Employee code", e.code], ["mail", "Work email", e.workEmail], ["cal", "Date of joining", fmtDate(e.joiningDate)], ["brief", "Employment type", cap(e.employmentType.replace("_", " "))], ["pin", "Location", e.location]] : [];
   const personal: Tile[] = e ? [["cake", "Date of birth", fmtDate(e.dob)], ["user", "Gender", e.gender ? GENDER[e.gender] ?? e.gender : null], ["phone", "Phone", e.phone], ["mail", "Personal email", e.personalEmail], ["home", "Current address", e.currentAddress],
     ["heart", "Emergency contact", e.emergencyContactName ? `${e.emergencyContactName}${e.emergencyContactRelation ? ` (${e.emergencyContactRelation})` : ""}${e.emergencyContactPhone ? ` · ${e.emergencyContactPhone}` : ""}` : null],
-    ["card", "PAN", e.panMasked], ["bank", "Bank account", e.accountMasked ? `${e.bankName ?? ""} ${e.accountMasked}`.trim() : null], ["bank", "IFSC", e.ifsc]] : [];
+    ["card", "PAN", e.panMasked], ["bank", "Bank account", acct ? `${e.bankName ?? ""} ${acct}`.trim() : null], ["bank", "IFSC", e.ifsc], ["bank", "Bank approval", e.accountMasked ? (e.bankVerifiedAt ? "Approved by HR" : "Waiting for HR to check your proof") : null]] : [];
   return (
     <div className="gz" style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       <ErrorNote error={me.error ?? emp.error} />
@@ -67,7 +70,7 @@ export default function Profile() {
       )}
       {e && !editing && <>
         <TileGroup title="Work" tiles={work} />
-        <TileGroup title="Personal and pay" tiles={personal} foot={<>PAN and account numbers are always shown masked. To upload PAN or Aadhaar, open <Link href={`/people/${id}`}>your people record</Link>.</>} />
+        <TileGroup title="Personal and pay" tiles={personal} foot={<>PAN and account numbers are shown masked.{e.accountMasked && <> <button type="button" className="gz-btn sm" onClick={() => setShowAcct(!showAcct)} aria-pressed={showAcct}>{showAcct ? "Hide account number" : "Show full account number"}</button></>} To upload PAN, Aadhaar or bank proof (cheque, passbook or banking screenshot), open <Link href={`/people/${id}`}>your people record</Link>.<ErrorNote error={bank.error} /></>} />
       </>}
       {id && (
         <section className="gz-card">
