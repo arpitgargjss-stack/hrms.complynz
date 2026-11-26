@@ -239,7 +239,7 @@ function Runs({ canRun }: { canRun: boolean }) {
           </tbody></table></div>
         )}
       </Card>
-      {openId && <RunDetailView key={openId} id={openId} canRun={canRun} history={rules.data?.history ?? []} onDeleted={() => { setOpenId(null); create.reset(); }} />}
+      {openId && <RunDetailView id={openId} canRun={canRun} history={rules.data?.history ?? []} onDeleted={() => { setOpenId(null); create.reset(); }} />}
     </>
   );
 }
@@ -251,11 +251,11 @@ function RunDetailView({ id, canRun, history, onDeleted }: { id: string; canRun:
   const [pick, setPick] = useState("");
   const refresh = () => { qc.invalidateQueries({ queryKey: ["payroll-run", id] }); qc.invalidateQueries({ queryKey: ["payroll-runs"] }); qc.invalidateQueries({ queryKey: ["payroll-rules"] }); };
   const recompute = useMutation({ mutationFn: () => api(`/payroll/runs/${id}/recompute`, { method: "POST", body: pick ? { ruleSetId: pick } : {} }), onSuccess: () => { setAck(false); setPick(""); refresh(); } });
-  const lock = useMutation({ mutationFn: (acknowledgeExceptions: boolean) => api(`/payroll/runs/${id}/lock`, { body: { acknowledgeExceptions } }), onSuccess: refresh });
-  const remove = useMutation({
+  const del = useMutation({
     mutationFn: () => api(`/payroll/runs/${id}`, { method: "DELETE" }),
-    onSuccess: () => { qc.removeQueries({ queryKey: ["payroll-run", id] }); qc.invalidateQueries({ queryKey: ["payroll-runs"] }); qc.invalidateQueries({ queryKey: ["payroll-rules"] }); onDeleted(); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["payroll-runs"] }); qc.invalidateQueries({ queryKey: ["payroll-rules"] }); qc.invalidateQueries({ queryKey: ["payroll-overview"] }); qc.removeQueries({ queryKey: ["payroll-run", id] }); onDeleted(); },
   });
+  const lock = useMutation({ mutationFn: (acknowledgeExceptions: boolean) => api(`/payroll/runs/${id}/lock`, { body: { acknowledgeExceptions } }), onSuccess: refresh });
   if (d.isLoading) return <Card><p>Loading…</p></Card>;
   if (d.error || !d.data) return <ErrorNote error={d.error} />;
   const run = d.data, hasExc = run.exceptions.length > 0, draft = run.status === "draft";
@@ -292,7 +292,6 @@ function RunDetailView({ id, canRun, history, onDeleted }: { id: string; canRun:
             </Field>
             <div><button className="btn" disabled={recompute.isPending} onClick={() => recompute.mutate()}>{recompute.isPending ? "Recomputing…" : pick ? "Recompute with this rule set" : "Recompute draft"}</button></div>
           </div>
-          <ErrorNote error={recompute.error} />
           {hasExc && (
             <label style={{ display: "flex", gap: 10, alignItems: "center", margin: "14px 0", minHeight: 44 }}>
               <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} />
@@ -304,14 +303,14 @@ function RunDetailView({ id, canRun, history, onDeleted }: { id: string; canRun:
               onClick={() => { if (confirm(`Lock ${monthLabel(run.month)}? A locked run cannot be changed and marks its reimbursement claims as paid.`)) lock.mutate(hasExc); }}>
               {lock.isPending ? "Locking…" : "Lock run"}
             </button>
-            <button className="btn" disabled={remove.isPending}
-              onClick={() => { if (confirm(`Delete the draft run for ${monthLabel(run.month)}? Its draft payslips are discarded. You can create a new draft any time.`)) remove.mutate(); }}>
-              {remove.isPending ? "Deleting…" : "Delete draft"}
+            <button className="btn" disabled={del.isPending} onClick={() => { if (confirm(`Delete the ${monthLabel(run.month)} draft and its ${run.payslips.length} payslip(s)? You can create it again later.`)) del.mutate(); }}>
+              {del.isPending ? "Deleting…" : "Delete draft"}
             </button>
           </div>
+          <ErrorNote error={del.error} />
         </div>
       )}
-      <ErrorNote error={recompute.error} /><ErrorNote error={lock.error} /><ErrorNote error={remove.error} />
+      <ErrorNote error={recompute.error} /><ErrorNote error={lock.error} />
       {lock.isSuccess && <div className="note ok">Run locked. You can now generate the bank advice.</div>}
     </Card>
   );

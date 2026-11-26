@@ -439,19 +439,20 @@ r.post("/payroll/runs/:id/recompute", wrap(async (req, res) => {
   res.json(out);
 }));
 
-/** Discard a draft run and its payslips. Locked or paid runs stay, since payslips and bank advice depend on them. */
+/** Throw away a draft run and its payslips. Locked, paid and imported months are never deleted here. */
 r.delete("/payroll/runs/:id", wrap(async (req, res) => {
   if (!canRunPayroll(req)) deny();
-  const id = idParam(req);
-  const month = await db.transaction(async (tx) => {
-    const [run] = await tx.select().from(schema.payrollRuns).where(eq(schema.payrollRuns.id, id)).for("update");
-    if (!run) throw new HttpError(404, "Payroll run not found");
-    if (run.status !== "draft") throw new HttpError(409, "Only draft runs can be deleted. Locked and paid runs are kept for the record.");
-    await tx.delete(schema.payslips).where(eq(schema.payslips.runId, id));
-    await tx.delete(schema.payrollRuns).where(and(eq(schema.payrollRuns.id, id), eq(schema.payrollRuns.status, "draft")));
-    return run.month;
+  const [run] = await db.select().from(schema.payrollRuns).where(eq(schema.payrollRuns.id, idParam(req))).limit(1);
+  if (!run) throw new HttpError(404, "Payroll run not found");
+  if (run.status !== "draft") throw new HttpError(409, "Only draft runs can be deleted. Locked and paid months stay on record.");
+  const [adv] = await db.select({ id: schema.bankAdvices.id }).from(schema.bankAdvices).where(eq(schema.bankAdvices.runId, run.id)).limit(1);
+  if (adv) throw new HttpError(409, "This run has a bank advice, so it cannot be deleted");
+  await db.transaction(async (tx) => {
+    await tx.delete(schema.payslips).where(eq(schema.payslips.runId, run.id));
+    const gone = await tx.delete(schema.payrollRuns).where(and(eq(schema.payrollRuns.id, run.id), eq(schema.payrollRuns.status, "draft"))).returning({ id: schema.payrollRuns.id });
+    if (!gone.length) throw new HttpError(409, "This month was locked while deleting");
   });
-  await logAudit(actorOf(req).email, "payroll.run.delete", "payroll_run", id, { month });
+  await logAudit(actorOf(req).email, "payroll.run.delete", "payroll_run", run.id, { month: run.month, ruleId: snapshotOf(run).ruleId ?? null, ruleEffectiveFrom: snapshotOf(run).ruleEffectiveFrom });
   res.json({ ok: true });
 }));
 
