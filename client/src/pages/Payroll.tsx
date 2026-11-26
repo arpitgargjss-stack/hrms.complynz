@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, fileToBase64, getAuthToken } from "../lib/api";
 import { ConfigHint } from "../lib/ConfigHint";
+import { CompensationEditor } from "./CompensationEditor";
 import { openHtml } from "../lib/openHtml";
 import { Card, Chip, ErrorNote, Field, Page, inr } from "../lib/ui";
 import { RULE_PRESETS, TEMPLATE_PRESETS, isPresetRow } from "../../../shared/hr/presets";
@@ -9,7 +10,6 @@ import { RULE_PRESETS, TEMPLATE_PRESETS, isPresetRow } from "../../../shared/hr/
 type Me = { email: string; employeeId: string | null; roles: string[] };
 type RunRow = { id: string; month: string; status: string; lockedAt: string | null; lockedBy: string | null; headcount: number; netPayPaise: number; exceptionCount: number };
 type Totals = { headcount: number; grossPaidPaise: number; deductionsPaise: number; reimbursementsPaise: number; netPayPaise: number; employerContributionsPaise: number };
-type Line = { code: string; name: string; amount: number };
 type RunDetail = {
   id: string; month: string; status: string; lockedBy: string | null; lockedAt: string | null; ruleId: string | null; ruleSource: string | null; ruleEffectiveFrom: string; totals: Totals;
   exceptions: { employeeId: string; code: string; name: string; message: string }[];
@@ -20,7 +20,6 @@ type AdviceDetail = Advice & { month: string; integrity: "ok" | "changed"; rows:
 type Template = { id: string; name: string; components: Component[] };
 type CompanyBankInfo = { bankName: string; branch: string; city: string; ifsc: string; accountMasked: string | null; updatedBy: string | null; updatedAt: string | null };
 type Component = { code: string; name: string; calc: { type: "fixed"; amount: number } | { type: "percent"; of: string; bps: number } | { type: "balance" }; pfWage?: boolean; taxable?: boolean };
-type Employee = { id: string; code: string; fullName: string };
 type Signatory = { id: string; email: string; displayName: string; designation: string; hasSignature: boolean; hasStamp: boolean };
 type RuleRow = { id: string; effectiveFrom: string; source: string; createdBy: string; createdAt: string; rules: Rules; usedBy?: { month: string; status: string }[] };
 type RulesResp = { current: RuleRow | null; history: RuleRow[] };
@@ -72,7 +71,7 @@ export default function Payroll() {
       {tab === "advice" && <BankAdvice canSign={isFin} />}
       {tab === "rules" && <><ConfigHint tab="pay" label="Pay and money" /><RulesTab /></>}
       {tab === "templates" && canRun && <><ConfigHint tab="pay" label="Pay and money" /><Templates /></>}
-      {tab === "comp" && canRun && <Compensation />}
+      {tab === "comp" && canRun && <CompensationEditor />}
       {tab === "sign" && <Signatories isHr={isHr} isFin={isFin} />}
     </Page>
   );
@@ -204,7 +203,7 @@ function Runs({ canRun }: { canRun: boolean }) {
   const runs = useQuery({ queryKey: ["payroll-runs"], queryFn: () => api<RunRow[]>("/payroll/runs") });
   const rules = useQuery({ queryKey: ["payroll-rules"], queryFn: () => api<RulesResp>("/payroll/rules") });
   const create = useMutation({
-    mutationFn: () => api<{ runId: string }>("/payroll/runs", { body: { month, ruleSetId: ruleSetId || null } }),
+    mutationFn: (m: string) => api<{ runId: string; ruleSetId: string; rebuilt: boolean; exceptions: unknown[]; totals: Totals }>("/payroll/runs", { body: { month: m, ruleSetId: ruleSetId || null } }),
     onSuccess: (r) => { qc.invalidateQueries({ queryKey: ["payroll-runs"] }); qc.invalidateQueries({ queryKey: ["payroll-run", r.runId] }); qc.invalidateQueries({ queryKey: ["payroll-rules"] }); setOpenId(r.runId); },
   });
   return (
@@ -215,10 +214,16 @@ function Runs({ canRun }: { canRun: boolean }) {
           <div className="grid" style={{ alignItems: "end" }}>
             <Field label="Month"><input type="month" value={month} onChange={(e) => { setMonth(e.target.value); setRuleSetId(""); }} /></Field>
             <RuleSetPicker month={month} value={ruleSetId} onChange={setRuleSetId} history={rules.data?.history ?? []} />
-            <div><button className="btn p" disabled={!month || create.isPending} onClick={() => create.mutate()}>{create.isPending ? "Building…" : "Create draft run"}</button></div>
+            <div><button className="btn p" disabled={!month || create.isPending} onClick={() => create.mutate(month)}>{create.isPending ? "Building…" : "Create draft run"}</button></div>
           </div>
           <p className="k">Pick which statutory rule set to use, or leave it on the newest one effective for that month. Rebuilding an existing draft replaces its payslips. A locked month cannot be rebuilt.</p>
           <ErrorNote error={create.error} />
+          {create.isSuccess && (() => {
+            const used = rules.data?.history.find((h) => h.id === create.data.ruleSetId);
+            return <div className="note ok" style={{ marginTop: 12 }}>
+              {create.data.rebuilt ? "Rebuilt" : "Created"} the draft for {monthLabel(create.variables)} using the rule set effective {used ? `${used.effectiveFrom} (${ruleSummary(used.rules)})` : "for that month"}: {create.data.totals.headcount} payslip{create.data.totals.headcount === 1 ? "" : "s"}, net pay {inr(create.data.totals.netPayPaise)}{create.data.exceptions.length ? `, ${create.data.exceptions.length} exception(s)` : ""}. It is open below.
+            </div>;
+          })()}
         </Card>
       )}
       <Card>
@@ -234,7 +239,7 @@ function Runs({ canRun }: { canRun: boolean }) {
           </tbody></table></div>
         )}
       </Card>
-      {openId && <RunDetailView id={openId} canRun={canRun} history={rules.data?.history ?? []} onDeleted={() => setOpenId(null)} />}
+      {openId && <RunDetailView id={openId} canRun={canRun} history={rules.data?.history ?? []} onDeleted={() => { setOpenId(null); create.reset(); }} />}
     </>
   );
 }
@@ -612,66 +617,6 @@ export function Templates() {
         </div>
         <ErrorNote error={save.error} />
       </Card>
-    </>
-  );
-}
-
-// ------------------------------------------------------------------ Compensation
-function Compensation() {
-  const qc = useQueryClient();
-  const emps = useQuery({ queryKey: ["payroll-employees"], queryFn: () => api<{ employees: Employee[] }>("/payroll/employees") });
-  const tpls = useQuery({ queryKey: ["payroll-templates"], queryFn: () => api<Template[]>("/payroll/templates") });
-  const [empId, setEmpId] = useState("");
-  const [tplId, setTplId] = useState("");
-  const [gross, setGross] = useState("");
-  const [from, setFrom] = useState(today());
-  const [reason, setReason] = useState("");
-  const grossPaise = rupeesToPaise(gross || "0");
-  const history = useQuery({ queryKey: ["compensation", empId], enabled: !!empId, queryFn: () => api<{ id: string; effectiveFrom: string; monthlyGrossPaise: number; reason: string; templateId: string | null }[]>(`/employees/${empId}/compensation`) });
-  const preview = useQuery({
-    queryKey: ["payroll-preview", tplId, grossPaise], enabled: !!tplId && grossPaise > 0, retry: false,
-    queryFn: () => api<{ lines: Line[] | { earnings?: Line[] } }>(`/payroll/preview?gross=${grossPaise}&templateId=${tplId}`),
-  });
-  const save = useMutation({
-    mutationFn: () => api(`/employees/${empId}/compensation`, { body: { effectiveFrom: from, monthlyGrossPaise: grossPaise, templateId: tplId, reason } }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["compensation", empId] }); setReason(""); },
-  });
-  const raw = preview.data?.lines;
-  const lines: Line[] = Array.isArray(raw) ? raw : raw?.earnings ?? [];
-  return (
-    <>
-      <Card>
-        <h2>Compensation set-up</h2>
-        <ErrorNote error={emps.error} /><ErrorNote error={tpls.error} />
-        <div className="grid">
-          <Field label="Employee"><select value={empId} onChange={(e) => setEmpId(e.target.value)}><option value="">Select</option>{(emps.data?.employees ?? []).map((e) => <option key={e.id} value={e.id}>{e.fullName} ({e.code})</option>)}</select></Field>
-          <Field label="Salary template"><select value={tplId} onChange={(e) => setTplId(e.target.value)}><option value="">Select</option>{(tpls.data ?? []).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></Field>
-          <Field label="Monthly gross (rupees)"><input inputMode="decimal" value={gross} onChange={(e) => setGross(e.target.value)} /></Field>
-          <Field label="Effective from"><input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></Field>
-        </div>
-        <Field label="Reason (e.g. joining, annual revision)"><input value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
-        <h2 style={{ marginTop: 16 }}>Live preview</h2>
-        {!tplId || grossPaise <= 0 ? <p className="k">Choose a template and enter a gross to preview the monthly breakup.</p> : preview.isLoading ? <p>Calculating…</p> : preview.error ? <ErrorNote error={preview.error} /> : (
-          <div style={tableWrap}><table className="t"><thead><tr><th>Component</th><th>Monthly</th></tr></thead><tbody>
-            {lines.map((l) => <tr key={l.code}><td>{l.name}</td><td>{inr(l.amount)}</td></tr>)}
-            <tr><td><strong>Total</strong></td><td><strong>{inr(lines.reduce((s, l) => s + l.amount, 0))}</strong></td></tr>
-          </tbody></table></div>
-        )}
-        <div style={{ marginTop: 16 }}><button className="btn p" disabled={!empId || !tplId || grossPaise <= 0 || reason.trim().length < 3 || save.isPending} onClick={() => save.mutate()}>{save.isPending ? "Saving…" : "Save compensation"}</button></div>
-        <ErrorNote error={save.error} />
-        {save.isSuccess && <div className="note ok" style={{ marginTop: 12 }}>Compensation saved.</div>}
-      </Card>
-      {empId && (
-        <Card>
-          <h2>Compensation history</h2>
-          <ErrorNote error={history.error} />
-          {history.isLoading ? <p>Loading…</p> : !history.data?.length ? <p className="k">No compensation recorded.</p> : (
-            <div style={tableWrap}><table className="t"><thead><tr><th>Effective from</th><th>Monthly gross</th><th>Reason</th></tr></thead><tbody>
-              {history.data.map((h) => <tr key={h.id}><td>{h.effectiveFrom}</td><td>{inr(h.monthlyGrossPaise)}</td><td>{h.reason}</td></tr>)}
-            </tbody></table></div>
-          )}
-        </Card>
-      )}
     </>
   );
 }

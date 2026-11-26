@@ -81,6 +81,12 @@ app.use("/api", vibe);
 app.use("/api", buzz);
 app.use("/api", care);
 
+// Unknown API paths answer in JSON so the app shows a readable message instead of a bare "Not Found".
+// This usually means the browser has a newer build than the running server: restart the server after deploying.
+app.use("/api", (req, res) => {
+  res.status(404).json({ error: `The server does not know ${req.method} ${req.originalUrl.split("?")[0]}. If the app was just updated, restart the server so it runs the new code, then try again.` });
+});
+
 const dist = path.resolve("dist/client");
 app.use("/assets", express.static(path.join(dist, "assets"), { immutable: true, maxAge: "365d", fallthrough: false }));
 app.use(express.static(dist, { cacheControl: false }));

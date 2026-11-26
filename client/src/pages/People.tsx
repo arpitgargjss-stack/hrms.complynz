@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, fileToBase64 } from "../lib/api";
 import { openAuthed } from "../lib/openHtml";
 import { Card, Chip, ErrorNote, Field, Page, inr } from "../lib/ui";
+import { CompensationEditor } from "./CompensationEditor";
 
 type Me = { email: string; employeeId: string | null; roles: string[] };
 type Dir = { id: string; code: string; fullName: string; designation: string | null; department: string | null; workEmail: string; status?: string; managerId: string | null };
@@ -263,6 +264,7 @@ function Detail({ id, admin, myId }: { id: string; admin: boolean; myId: string 
               {!!comp.data?.length && <div style={{ overflowX: "auto" }}><table className="t"><thead><tr><th scope="col">Effective from</th><th scope="col">Monthly gross</th><th scope="col">Reason</th></tr></thead>
                 <tbody>{comp.data.map((c) => <tr key={c.id}><td>{c.effectiveFrom}</td><td>{inr(c.monthlyGrossPaise)}</td><td>{c.reason}</td></tr>)}</tbody></table></div>}
             </Card>)}
+          {admin && <CompensationEditor employeeId={id} />}
           {(admin || own) && (
             <Card><h2>Assets</h2>
               <ErrorNote error={assets.error} />
