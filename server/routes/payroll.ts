@@ -4,7 +4,7 @@ import { z } from "zod";
 import { and, asc, desc, eq, gte, inArray, lt, lte, sql } from "drizzle-orm";
 import { db, schema } from "../db";
 import { scopeFor, canAccess } from "../../shared/hr/access";
-import { computeSalary, resolveComponents, type ComponentDef, type SalaryResult, type StatutoryRules } from "../../shared/hr/payroll";
+import { computeSalary, overriddenGross, resolveComponents, MAX_MONTHLY_GROSS_PAISE, type ComponentDef, type SalaryOverride, type SalaryResult, type StatutoryRules } from "../../shared/hr/payroll";
 import { buildAdvice, toCsv, type AdviceRow } from "../../shared/hr/bankAdvice";
 import { paidDaysX2 } from "../../shared/hr/leave";
 import { decryptField, encryptField, safeEqualHex } from "../lib/crypto";
@@ -327,69 +327,94 @@ r.get("/payroll/preview", wrap(async (req, res) => {
 
 // ============================================================ payroll runs
 interface RunException { employeeId: string; code: string; name: string; message: string }
-interface RunSnapshot { rules: StatutoryRules; ruleId?: string; ruleSource?: string | null; ruleEffectiveFrom: string; exceptions: RunException[]; builtAt: string }
-type SlipResult = SalaryResult & { meta: { month: string; lopDaysX2: number; outsideEmploymentDaysX2: number; reimbursementClaimIds: string[]; compensationId: string } };
+interface RunSnapshot {
+  rules: StatutoryRules; ruleId?: string; ruleSource?: string | null; ruleEffectiveFrom: string; exceptions: RunException[]; builtAt: string;
+  /** Per-employee salary changes for this run only, keyed by employee id. Kept across rebuilds; the compensation record is untouched. */
+  overrides?: Record<string, SalaryOverride>;
+}
+type SlipOverrideMeta = SalaryOverride & { baseGrossPaise: number; grossPaise: number };
+type SlipResult = SalaryResult & { meta: { month: string; lopDaysX2: number; outsideEmploymentDaysX2: number; reimbursementClaimIds: string[]; compensationId: string; override?: SlipOverrideMeta } };
+type Emp = typeof schema.employees.$inferSelect;
+type BuiltSlip = { employeeId: string; paidDaysX2: number; result: SlipResult };
 
 function snapshotOf(run: { rulesSnapshot: unknown }): RunSnapshot { return run.rulesSnapshot as RunSnapshot; }
 
-/** Build (or rebuild) a draft run. Statutory rules must exist or this throws before anything is written. */
+const describeOverride = (o: SalaryOverride) => o.kind === "set" ? `set to ${o.amountPaise / 100}` : `${o.amountPaise >= 0 ? "+" : ""}${o.amountPaise / 100}`;
+
+/** People a run for this month covers: joined by month end and not gone before month start. */
+function inMonth(e: Emp, month: string) {
+  const mStart = monthStart(month), mEnd = monthEnd(month);
+  return e.joiningDate <= mEnd && (e.status !== "exited" || (e.lastWorkingDay != null && e.lastWorkingDay >= mStart));
+}
+
+/**
+ * Work out payslips for these employees for the month, from their latest compensation plus any per-run override.
+ * Used for a whole draft and for recomputing one person after an override changes.
+ */
+async function computeSlips(month: string, rules: StatutoryRules, emps: Emp[], overrides: Record<string, SalaryOverride>) {
+  const mStart = monthStart(month), mEnd = monthEnd(month), calendarDays = monthDays(month);
+  const ids = emps.map((e) => e.id);
+  const exceptions: RunException[] = [];
+  const slips: BuiltSlip[] = [];
+  if (!ids.length) return { slips, exceptions, calendarDays };
+
+  const stateOf = new Map((await db.select({ id: schema.locations.id, state: schema.locations.state }).from(schema.locations)).map((l) => [l.id, l.state]));
+  const comps = await db.select().from(schema.compensation).where(and(inArray(schema.compensation.employeeId, ids), lte(schema.compensation.effectiveFrom, mEnd)));
+  const compBy = new Map<string, typeof comps[number]>();
+  for (const c of comps) {
+    const cur = compBy.get(c.employeeId);
+    if (!cur || c.effectiveFrom > cur.effectiveFrom || (c.effectiveFrom === cur.effectiveFrom && c.createdAt > cur.createdAt)) compBy.set(c.employeeId, c);
+  }
+  const leaves = await db.select({ l: schema.leaveRequests }).from(schema.leaveRequests)
+    .innerJoin(schema.leaveTypes, eq(schema.leaveRequests.leaveTypeId, schema.leaveTypes.id))
+    .where(and(inArray(schema.leaveRequests.employeeId, ids), eq(schema.leaveRequests.status, "approved"), eq(schema.leaveTypes.paid, false), lte(schema.leaveRequests.fromDate, mEnd), gte(schema.leaveRequests.toDate, mStart)));
+  const claims = await db.select().from(schema.reimbClaims).where(and(inArray(schema.reimbClaims.employeeId, ids), eq(schema.reimbClaims.status, "approved"), lte(schema.reimbClaims.month, month)));
+  const [calRow] = await db.select().from(schema.workCalendar).orderBy(desc(schema.workCalendar.id)).limit(1);
+  const cal = normaliseCalendar(calRow?.settings);
+  const hols = await db.select().from(schema.holidays).where(and(gte(schema.holidays.date, mStart), lte(schema.holidays.date, mEnd)));
+  const holidays = hols.map((h) => ({ date: h.date, optional: h.optional ?? false }));
+  const prior = await db.select({ employeeId: schema.payslips.employeeId, result: schema.payslips.result }).from(schema.payslips)
+    .innerJoin(schema.payrollRuns, eq(schema.payslips.runId, schema.payrollRuns.id))
+    .where(and(inArray(schema.payslips.employeeId, ids), inArray(schema.payrollRuns.status, ["locked", "paid"]), gte(schema.payrollRuns.month, fyStartMonth(month)), lt(schema.payrollRuns.month, month)));
+  const priorBy = new Map<string, unknown[]>();
+  for (const p of prior) priorBy.set(p.employeeId, [...(priorBy.get(p.employeeId) ?? []), p.result]);
+
+  for (const e of emps) {
+    const ov = overrides[e.id];
+    const fail = (message: string) => exceptions.push({ employeeId: e.id, code: e.code, name: e.fullName, message: ov ? `${message} (salary adjustment ${describeOverride(ov)} is on this person)` : message });
+    try {
+      const comp = compBy.get(e.id);
+      if (!comp) { fail("No compensation effective for this month"); continue; }
+      const gross = overriddenGross(comp.monthlyGrossPaise, ov);
+      const win = employmentWindow(month, e.joiningDate, e.lastWorkingDay);
+      const outside = employmentGapX2(month, win);
+      const lop = lossOfPayX2(leaves.filter((x) => x.l.employeeId === e.id).map((x) => ({ fromDate: x.l.fromDate, toDate: x.l.toDate, halfDay: x.l.halfDay, days2: x.l.days2 })), win, cal, holidays);
+      const payableX2 = paidDaysX2(calendarDays, lop + outside);
+      const myClaims = claims.filter((c) => c.employeeId === e.id);
+      const reimb = myClaims.reduce((s, c) => s + c.amountPaise, 0);
+      const result = computeSalary({
+        monthlyGrossPaise: gross, components: comp.components as ComponentDef[], reimbursementsPaise: reimb,
+        calendarDays, paidDays: payableX2 / 2, rules, pt: { state: e.locationId ? stateOf.get(e.locationId) ?? null : null, gender: e.gender, month },
+        tds: { taxDeductedSoFarPaise: sumTdsYtd(priorBy.get(e.id) ?? []), taxableSoFarPaise: sumGrossYtd(priorBy.get(e.id) ?? []), monthsRemaining: monthsRemainingInFy(month) },
+      });
+      const override = ov ? { ...ov, baseGrossPaise: comp.monthlyGrossPaise, grossPaise: gross } : undefined;
+      slips.push({ employeeId: e.id, paidDaysX2: payableX2, result: { ...result, meta: { month, lopDaysX2: lop, outsideEmploymentDaysX2: outside, reimbursementClaimIds: myClaims.map((c) => c.id), compensationId: comp.id, ...(override ? { override } : {}) } } });
+    } catch (err) { fail((err as Error).message); }
+  }
+  return { slips, exceptions, calendarDays };
+}
+
+/** Build (or rebuild) a draft run. Statutory rules must exist or this throws before anything is written. Salary overrides on an existing draft carry over. */
 async function buildDraft(month: string, actorEmail: string, ruleSetId?: string | null) {
   const { row: ruleRow, rules } = await rulesForMonth(month, ruleSetId);
   const [existing] = await db.select().from(schema.payrollRuns).where(eq(schema.payrollRuns.month, month)).limit(1);
   if (existing && existing.status !== "draft") throw new HttpError(409, "This month is locked and cannot be rebuilt");
+  const overrides = existing ? snapshotOf(existing).overrides ?? {} : {};
 
-  const mStart = monthStart(month), mEnd = monthEnd(month), calendarDays = monthDays(month);
-  const allEmps = await db.select().from(schema.employees);
-  const stateOf = new Map((await db.select({ id: schema.locations.id, state: schema.locations.state }).from(schema.locations)).map((l) => [l.id, l.state]));
-  const emps = allEmps.filter((e) => e.joiningDate <= mEnd && (e.status !== "exited" || (e.lastWorkingDay != null && e.lastWorkingDay >= mStart)));
-  const ids = emps.map((e) => e.id);
+  const emps = (await db.select().from(schema.employees)).filter((e) => inMonth(e, month));
+  const { slips, exceptions, calendarDays } = await computeSlips(month, rules, emps, overrides);
 
-  const exceptions: RunException[] = [];
-  const slips: { employeeId: string; paidDaysX2: number; result: SlipResult }[] = [];
-
-  if (ids.length) {
-    const comps = await db.select().from(schema.compensation).where(and(inArray(schema.compensation.employeeId, ids), lte(schema.compensation.effectiveFrom, mEnd)));
-    const compBy = new Map<string, typeof comps[number]>();
-    for (const c of comps) {
-      const cur = compBy.get(c.employeeId);
-      if (!cur || c.effectiveFrom > cur.effectiveFrom || (c.effectiveFrom === cur.effectiveFrom && c.createdAt > cur.createdAt)) compBy.set(c.employeeId, c);
-    }
-    const leaves = await db.select({ l: schema.leaveRequests }).from(schema.leaveRequests)
-      .innerJoin(schema.leaveTypes, eq(schema.leaveRequests.leaveTypeId, schema.leaveTypes.id))
-      .where(and(inArray(schema.leaveRequests.employeeId, ids), eq(schema.leaveRequests.status, "approved"), eq(schema.leaveTypes.paid, false), lte(schema.leaveRequests.fromDate, mEnd), gte(schema.leaveRequests.toDate, mStart)));
-    const claims = await db.select().from(schema.reimbClaims).where(and(inArray(schema.reimbClaims.employeeId, ids), eq(schema.reimbClaims.status, "approved"), lte(schema.reimbClaims.month, month)));
-    const [calRow] = await db.select().from(schema.workCalendar).orderBy(desc(schema.workCalendar.id)).limit(1);
-    const cal = normaliseCalendar(calRow?.settings);
-    const hols = await db.select().from(schema.holidays).where(and(gte(schema.holidays.date, mStart), lte(schema.holidays.date, mEnd)));
-    const holidays = hols.map((h) => ({ date: h.date, optional: h.optional ?? false }));
-    const prior = await db.select({ employeeId: schema.payslips.employeeId, result: schema.payslips.result }).from(schema.payslips)
-      .innerJoin(schema.payrollRuns, eq(schema.payslips.runId, schema.payrollRuns.id))
-      .where(and(inArray(schema.payslips.employeeId, ids), inArray(schema.payrollRuns.status, ["locked", "paid"]), gte(schema.payrollRuns.month, fyStartMonth(month)), lt(schema.payrollRuns.month, month)));
-    const priorBy = new Map<string, unknown[]>();
-    for (const p of prior) priorBy.set(p.employeeId, [...(priorBy.get(p.employeeId) ?? []), p.result]);
-
-    for (const e of emps) {
-      const fail = (message: string) => exceptions.push({ employeeId: e.id, code: e.code, name: e.fullName, message });
-      try {
-        const comp = compBy.get(e.id);
-        if (!comp) { fail("No compensation effective for this month"); continue; }
-        const win = employmentWindow(month, e.joiningDate, e.lastWorkingDay);
-        const outside = employmentGapX2(month, win);
-        const lop = lossOfPayX2(leaves.filter((x) => x.l.employeeId === e.id).map((x) => ({ fromDate: x.l.fromDate, toDate: x.l.toDate, halfDay: x.l.halfDay, days2: x.l.days2 })), win, cal, holidays);
-        const payableX2 = paidDaysX2(calendarDays, lop + outside);
-        const myClaims = claims.filter((c) => c.employeeId === e.id);
-        const reimb = myClaims.reduce((s, c) => s + c.amountPaise, 0);
-        const result = computeSalary({
-          monthlyGrossPaise: comp.monthlyGrossPaise, components: comp.components as ComponentDef[], reimbursementsPaise: reimb,
-          calendarDays, paidDays: payableX2 / 2, rules, pt: { state: e.locationId ? stateOf.get(e.locationId) ?? null : null, gender: e.gender, month },
-          tds: { taxDeductedSoFarPaise: sumTdsYtd(priorBy.get(e.id) ?? []), taxableSoFarPaise: sumGrossYtd(priorBy.get(e.id) ?? []), monthsRemaining: monthsRemainingInFy(month) },
-        });
-        slips.push({ employeeId: e.id, paidDaysX2: payableX2, result: { ...result, meta: { month, lopDaysX2: lop, outsideEmploymentDaysX2: outside, reimbursementClaimIds: myClaims.map((c) => c.id), compensationId: comp.id } } });
-      } catch (err) { fail((err as Error).message); }
-    }
-  }
-
-  const snapshot: RunSnapshot = { rules, ruleId: ruleRow.id, ruleSource: ruleRow.source, ruleEffectiveFrom: ruleRow.effectiveFrom, exceptions, builtAt: new Date().toISOString() };
+  const snapshot: RunSnapshot = { rules, ruleId: ruleRow.id, ruleSource: ruleRow.source, ruleEffectiveFrom: ruleRow.effectiveFrom, exceptions, builtAt: new Date().toISOString(), overrides };
   const runId = await db.transaction(async (tx) => {
     let id: string;
     if (existing) {
@@ -406,7 +431,54 @@ async function buildDraft(month: string, actorEmail: string, ruleSetId?: string 
     }
     return id;
   });
-  return { runId, ruleSetId: ruleRow.id, rebuilt: !!existing, exceptions, totals: totalsOf(slips.map((s) => s.result)) };
+  const overridesApplied = slips.filter((s) => s.result.meta.override).length;
+  return { runId, ruleSetId: ruleRow.id, rebuilt: !!existing, exceptions, overridesApplied, totals: totalsOf(slips.map((s) => s.result)) };
+}
+
+/**
+ * Change (or clear, with null) one employee's salary in a draft run and recompute just their payslip.
+ * Only drafts (including a locked run put back to draft by the testing unlock) can be changed.
+ */
+async function setOverride(runId: string, employeeId: string, ov: SalaryOverride | null, actorEmail: string) {
+  const [run0] = await db.select().from(schema.payrollRuns).where(eq(schema.payrollRuns.id, runId)).limit(1);
+  if (!run0) throw new HttpError(404, "Payroll run not found");
+  if (run0.status !== "draft") throw new HttpError(409, "Salaries can only be changed while the run is a draft");
+  const [emp] = await db.select().from(schema.employees).where(eq(schema.employees.id, employeeId)).limit(1);
+  if (!emp || !inMonth(emp, run0.month)) throw new HttpError(404, "This employee is not part of this payroll month");
+  const snap0 = snapshotOf(run0);
+  const previous = snap0.overrides?.[employeeId] ?? null;
+  if (!ov && !previous) throw new HttpError(404, "There is no salary adjustment for this employee in this run");
+
+  // Recompute with the rules the draft was built with, so only this person's figures move.
+  const { slips, exceptions, calendarDays } = await computeSlips(run0.month, snap0.rules, [emp], ov ? { [employeeId]: ov } : {});
+  const slip = slips[0];
+  if (ov && !slip) throw new HttpError(422, `This change cannot be applied: ${(exceptions[0]?.message ?? "the payslip could not be worked out").replace(/ \(salary adjustment .*\)$/, "")}`);
+
+  return db.transaction(async (tx) => {
+    const [run] = await tx.select().from(schema.payrollRuns).where(eq(schema.payrollRuns.id, runId)).for("update");
+    if (!run || run.status !== "draft") throw new HttpError(409, "This run was locked while saving; nothing was changed");
+    const snap = snapshotOf(run);
+    const overrides = { ...(snap.overrides ?? {}) };
+    if (ov) overrides[employeeId] = ov; else delete overrides[employeeId];
+    const otherExc = (snap.exceptions ?? []).filter((x) => x.employeeId !== employeeId);
+    await tx.update(schema.payrollRuns).set({ rulesSnapshot: { ...snap, overrides, exceptions: [...otherExc, ...exceptions] } }).where(eq(schema.payrollRuns.id, runId));
+    const [before] = await tx.select({ id: schema.payslips.id, net: schema.payslips.netPayPaise, result: schema.payslips.result }).from(schema.payslips)
+      .where(and(eq(schema.payslips.runId, runId), eq(schema.payslips.employeeId, employeeId))).limit(1);
+    if (slip) {
+      const vals = { paidDays: slip.paidDaysX2, calendarDays, result: slip.result, netPayPaise: slip.result.netPayPaise };
+      if (before) await tx.update(schema.payslips).set(vals).where(eq(schema.payslips.id, before.id));
+      else await tx.insert(schema.payslips).values({ runId, employeeId, ...vals });
+    } else if (before) {
+      await tx.delete(schema.payslips).where(eq(schema.payslips.id, before.id));
+    }
+    const detail = {
+      month: run.month, employeeId, code: emp.code, name: emp.fullName, previous, override: ov,
+      baseGrossPaise: slip?.result.meta.override?.baseGrossPaise ?? null, grossPaise: slip?.result.grossFullPaise ?? null,
+      netBeforePaise: before?.net ?? null, netAfterPaise: slip?.result.netPayPaise ?? null,
+    };
+    await logAudit(actorEmail, ov ? "payroll.run.salary_override.set" : "payroll.run.salary_override.clear", "payroll_run", runId, detail);
+    return { ok: true, netPayPaise: slip?.result.netPayPaise ?? null, exception: exceptions[0]?.message ?? null };
+  });
 }
 
 async function runDetail(id: string) {
@@ -457,6 +529,26 @@ r.delete("/payroll/runs/:id", wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
+const overrideBody = z.object({
+  kind: z.enum(["adjust", "set"]),
+  amountPaise: z.number().int().min(-MAX_MONTHLY_GROSS_PAISE).max(MAX_MONTHLY_GROSS_PAISE),
+  reason: z.string().trim().min(3).max(500),
+}).refine((x) => x.kind === "set" ? x.amountPaise > 0 : x.amountPaise !== 0, { message: "Enter a non-zero change, or a positive amount to set", path: ["amountPaise"] });
+
+/** Change one employee's monthly gross for this draft only (their compensation record is not changed). */
+r.put("/payroll/runs/:id/overrides/:employeeId", wrap(async (req, res) => {
+  if (!canRunPayroll(req)) deny();
+  const b = parse(overrideBody, req.body);
+  const a = actorOf(req);
+  res.json(await setOverride(idParam(req), idParam(req, "employeeId"), { kind: b.kind, amountPaise: b.amountPaise, reason: b.reason, by: a.email, at: new Date().toISOString() }, a.email));
+}));
+
+/** Remove the salary change and go back to the compensation record for this employee. */
+r.delete("/payroll/runs/:id/overrides/:employeeId", wrap(async (req, res) => {
+  if (!canRunPayroll(req)) deny();
+  res.json(await setOverride(idParam(req), idParam(req, "employeeId"), null, actorOf(req).email));
+}));
+
 r.get("/payroll/runs", wrap(async (req, res) => {
   if (!canViewPayroll(req)) deny();
   const runs = await db.select().from(schema.payrollRuns).orderBy(desc(schema.payrollRuns.month));
@@ -473,7 +565,8 @@ r.get("/payroll/runs/:id", wrap(async (req, res) => {
     id: run.id, month: run.month, status: run.status, lockedBy: run.lockedBy, lockedAt: run.lockedAt, createdBy: run.createdBy, createdAt: run.createdAt,
     rules: snap.rules, ruleId: snap.ruleId ?? null, ruleSource: snap.ruleSource ?? null, ruleEffectiveFrom: snap.ruleEffectiveFrom, builtAt: snap.builtAt,
     totals: totalsOf(slips.map((x) => x.s.result as SalaryResult)), exceptions: snap.exceptions ?? [],
-    payslips: slips.map((x) => ({ id: x.s.id, employeeId: x.s.employeeId, code: x.code, name: x.name, paidDays: x.s.paidDays / 2, calendarDays: x.s.calendarDays, netPayPaise: x.s.netPayPaise, result: x.s.result })),
+    payslips: slips.map((x) => { const r0 = x.s.result as SlipResult; return { id: x.s.id, employeeId: x.s.employeeId, code: x.code, name: x.name, paidDays: x.s.paidDays / 2, calendarDays: x.s.calendarDays, netPayPaise: x.s.netPayPaise, grossFullPaise: r0.grossFullPaise, override: r0.meta?.override ?? null, result: x.s.result }; }),
+    overrides: snap.overrides ?? {},
   });
 }));
 

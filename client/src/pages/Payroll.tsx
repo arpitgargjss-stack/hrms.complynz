@@ -15,8 +15,10 @@ type Totals = { headcount: number; grossPaidPaise: number; deductionsPaise: numb
 type RunDetail = {
   id: string; month: string; status: string; lockedBy: string | null; lockedAt: string | null; ruleId: string | null; ruleSource: string | null; ruleEffectiveFrom: string; totals: Totals;
   exceptions: { employeeId: string; code: string; name: string; message: string }[];
-  payslips: { id: string; code: string; name: string; paidDays: number; calendarDays: number; netPayPaise: number }[];
+  payslips: { id: string; employeeId: string; code: string; name: string; paidDays: number; calendarDays: number; netPayPaise: number; grossFullPaise: number; override: SlipOverride | null }[];
+  overrides: Record<string, Omit<SlipOverride, "baseGrossPaise" | "grossPaise">>;
 };
+type SlipOverride = { kind: "adjust" | "set"; amountPaise: number; reason: string; by: string; at: string; baseGrossPaise: number; grossPaise: number };
 type Advice = { id: string; runId: string; refNo: string; totalPaise: number; rowCount: number; contentHash: string; signedBy: string | null; signedAt: string | null; createdAt: string };
 type AdviceDetail = Advice & { month: string; integrity: "ok" | "changed"; rows: { srNo: number; name: string; bankName: string; accountNo: string; ifsc: string; amountPaise: number }[] };
 type Template = { id: string; name: string; components: Component[] };
@@ -277,10 +279,10 @@ function RunDetailView({ id, canRun, history, onDeleted }: { id: string; canRun:
         </div>
       )}
       <h2 style={{ marginTop: 16 }}>Payslips</h2>
-      <div style={tableWrap}><table className="t"><thead><tr><th>Code</th><th>Name</th><th>Paid days</th><th>Net pay</th><th></th></tr></thead><tbody>
+      {canRun && draft && <p className="k" style={{ marginTop: 0 }}>Use <b>Edit pay</b> to raise, cut or set one person's monthly gross for this month only. Their compensation record is not changed, and the change stays if you recompute the draft.</p>}
+      <div style={tableWrap}><table className="t"><thead><tr><th>Code</th><th>Name</th><th>Paid days</th><th>Monthly gross</th><th>Net pay</th><th></th></tr></thead><tbody>
         {run.payslips.map((p) => (
-          <tr key={p.id}><td>{p.code}</td><td>{p.name}</td><td>{p.paidDays} / {p.calendarDays}</td><td>{inr(p.netPayPaise)}</td>
-            <td><button className="btn" onClick={() => openHtml(`/payslips/${p.id}/html`).catch((e) => alert((e as Error).message))}>View</button></td></tr>
+          <PayslipRow key={p.id} p={p} runId={id} editable={canRun && draft} onSaved={refresh} />
         ))}
       </tbody></table></div>
       {canRun && draft && (
@@ -305,7 +307,7 @@ function RunDetailView({ id, canRun, history, onDeleted }: { id: string; canRun:
               onClick={() => { if (confirm(`Lock ${monthLabel(run.month)}? A locked run cannot be changed and marks its reimbursement claims as paid.`)) lock.mutate(hasExc); }}>
               {lock.isPending ? "Locking…" : "Lock run"}
             </button>
-            <button className="btn" disabled={del.isPending} onClick={() => { if (confirm(`Delete the ${monthLabel(run.month)} draft and its ${run.payslips.length} payslip(s)? You can create it again later.`)) del.mutate(); }}>
+            <button className="btn" disabled={del.isPending} onClick={() => { const n = Object.keys(run.overrides ?? {}).length; if (confirm(`Delete the ${monthLabel(run.month)} draft and its ${run.payslips.length} payslip(s)${n ? `, including ${n} salary adjustment${n > 1 ? "s" : ""}` : ""}? You can create it again later.`)) del.mutate(); }}>
               {del.isPending ? "Deleting…" : "Delete draft"}
             </button>
           </div>
@@ -317,6 +319,64 @@ function RunDetailView({ id, canRun, history, onDeleted }: { id: string; canRun:
       {/* TEMP: payroll unlock (testing only) */}
       {PAYROLL_UNLOCK_ENABLED && run.status === "locked" && <UnlockRun id={id} month={run.month} onDone={() => { lock.reset(); refresh(); qc.invalidateQueries({ queryKey: ["bank-advices"] }); qc.invalidateQueries({ queryKey: ["payroll-overview"] }); }} />}
     </Card>
+  );
+}
+
+/** One payslip row in a run, with an inline editor for a per-run salary change while the run is a draft. */
+function PayslipRow({ p, runId, editable, onSaved }: { p: RunDetail["payslips"][number]; runId: string; editable: boolean; onSaved: () => void }) {
+  const o = p.override;
+  const [open, setOpen] = useState(false);
+  const [kind, setKind] = useState<"adjust" | "set">(o?.kind ?? "adjust");
+  const [amount, setAmount] = useState(o ? String(o.amountPaise / 100) : "");
+  const [reason, setReason] = useState(o?.reason ?? "");
+  const base = o ? o.baseGrossPaise : p.grossFullPaise;
+  const paise = amount.trim() === "" || Number.isNaN(Number(amount)) ? null : rupeesToPaise(amount);
+  const next = paise == null ? null : kind === "set" ? paise : base + paise;
+  const done = () => { setOpen(false); onSaved(); };
+  const save = useMutation({ mutationFn: () => api(`/payroll/runs/${runId}/overrides/${p.employeeId}`, { method: "PUT", body: { kind, amountPaise: paise, reason } }), onSuccess: done });
+  const clear = useMutation({ mutationFn: () => api(`/payroll/runs/${runId}/overrides/${p.employeeId}`, { method: "DELETE" }), onSuccess: done });
+  const valid = paise != null && (kind === "set" ? paise > 0 : paise !== 0) && next != null && next > 0 && reason.trim().length >= 3;
+  const what = o ? (o.kind === "set" ? `Set to ${inr(o.amountPaise)}` : `${o.amountPaise > 0 ? "+" : ""}${inr(o.amountPaise)}`) : "";
+  return (
+    <>
+      <tr>
+        <td>{p.code}</td><td>{p.name}</td><td>{p.paidDays} / {p.calendarDays}</td>
+        <td>{inr(p.grossFullPaise)}{o && <> <span title={`${what} on ${inr(o.baseGrossPaise)}. ${o.reason} (by ${o.by}, ${new Date(o.at).toLocaleString()})`}><Chip tone="info">Adjusted {what}</Chip></span>
+          <div className="k" style={{ fontSize: 12 }}>Compensation {inr(o.baseGrossPaise)} · {o.reason} · {o.by}</div></>}</td>
+        <td>{inr(p.netPayPaise)}</td>
+        <td style={{ whiteSpace: "nowrap" }}>
+          <button className="btn" onClick={() => openHtml(`/payslips/${p.id}/html`).catch((e) => alert((e as Error).message))}>View</button>
+          {editable && <> <button className="btn" onClick={() => setOpen(!open)} aria-expanded={open}>{open ? "Close" : "Edit pay"}</button></>}
+        </td>
+      </tr>
+      {open && (
+        <tr><td colSpan={6}>
+          <div className="grid" style={{ alignItems: "end" }}>
+            <Field label="Change">
+              <select value={kind} onChange={(e) => setKind(e.target.value as "adjust" | "set")}>
+                <option value="adjust">Increase or reduce by (₹)</option>
+                <option value="set">Set monthly gross to (₹)</option>
+              </select>
+            </Field>
+            <Field label={kind === "set" ? "New monthly gross, ₹" : "Amount, ₹ (use minus to reduce, e.g. -10000)"}>
+              <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={kind === "set" ? "e.g. 60000" : "e.g. 5000 or -10000"} />
+            </Field>
+            <Field label="Reason (kept in the audit log)">
+              <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} placeholder="e.g. October increment approved by CEO" />
+            </Field>
+          </div>
+          <p className="k" style={{ margin: "8px 0" }}>
+            Compensation gross {inr(base)}{next != null && next !== base ? <> → <b>{inr(next)}</b> for this month</> : ""}. Loss of pay, PF, ESI, professional tax and TDS are worked out again from the new gross.
+            {next != null && next <= 0 && <b> The gross cannot go to zero or below.</b>}
+          </p>
+          <div className="row-gap">
+            <button className="btn p" disabled={!valid || save.isPending} onClick={() => save.mutate()}>{save.isPending ? "Saving…" : "Save and recompute"}</button>
+            {o && <button className="btn" disabled={clear.isPending} onClick={() => { if (confirm(`Remove the salary adjustment for ${p.name} and go back to ${inr(o.baseGrossPaise)}?`)) clear.mutate(); }}>{clear.isPending ? "Removing…" : "Remove adjustment"}</button>}
+          </div>
+          <ErrorNote error={save.error} /><ErrorNote error={clear.error} />
+        </td></tr>
+      )}
+    </>
   );
 }
 

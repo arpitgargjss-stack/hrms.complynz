@@ -237,3 +237,23 @@ export function computeSalary(input: SalaryInput): SalaryResult {
     netPayPaise: net, pfWagePaise: pfWage,
   };
 }
+
+/**
+ * A per-employee change to the monthly gross for one draft payroll run, made in the payroll view without touching the
+ * employee's compensation record. "adjust" adds a signed amount to the compensation gross (e.g. +5,000 or -10,000);
+ * "set" replaces it with a fixed amount. The result is still the full-month gross, so loss of pay, PF, ESI, PT and TDS
+ * are all worked out from it as usual.
+ */
+export interface SalaryOverride { kind: "adjust" | "set"; amountPaise: Paise; reason: string; by: string; at: string }
+
+export const MAX_MONTHLY_GROSS_PAISE = 100_000_000_00;
+
+/** The monthly gross a draft uses for an employee once their override (if any) is applied. Throws when the result is not a usable gross. */
+export function overriddenGross(baseGrossPaise: Paise, o: Pick<SalaryOverride, "kind" | "amountPaise"> | null | undefined): Paise {
+  if (!o) return baseGrossPaise;
+  if (!Number.isInteger(o.amountPaise)) throw new Error("Adjustment amount must be a whole number of paise");
+  const next = o.kind === "set" ? o.amountPaise : baseGrossPaise + o.amountPaise;
+  if (next <= 0) throw new Error(`The adjusted monthly gross would be zero or less; use a smaller reduction`);
+  if (next > MAX_MONTHLY_GROSS_PAISE) throw new Error("The adjusted monthly gross is too large");
+  return next;
+}
