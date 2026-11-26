@@ -1,11 +1,15 @@
 import { useEffect, useState } from "react";
 import { useRoute } from "wouter";
 import { fileToBase64, publicApi } from "../lib/api";
+import { fmtSize, shrinkImage } from "../lib/shrinkImage";
 
 type Info = { valid: boolean; maskedEmail?: string; steps?: string[]; completed?: boolean };
-type Doc = { kind: "pan" | "aadhaar" | "photo" | "other"; name: string; mime: string; file: File };
+type Doc = { kind: "pan" | "aadhaar" | "photo" | "other"; name: string; mime: string; file: Blob };
 const KINDS: { k: Doc["kind"]; l: string }[] = [{ k: "photo", l: "Photo" }, { k: "pan", l: "PAN card" }, { k: "aadhaar", l: "Aadhaar (first 8 digits masked) or other ID" }, { k: "other", l: "Other (address proof, certificates)" }];
-const MAX = 10 * 1024 * 1024;
+const MAX = 10 * 1024 * 1024; // per file, matches server/lib/files.ts
+// All documents travel in one request. Keep the total under the server's 25 MB body limit once base64-encoded (x4/3).
+const TOTAL_MAX = 17 * 1024 * 1024;
+const ALLOWED = new Set(["application/pdf", "image/png", "image/jpeg", "image/webp"]);
 const wrapStyle = { maxWidth: 680, margin: "0 auto", padding: "16px 16px 48px" } as const;
 
 function Shell({ children }: { children: React.ReactNode }) {
@@ -28,6 +32,8 @@ export default function Onboarding() {
   const [pan, setPan] = useState("");
   const [bank, setBank] = useState({ bankName: "", accountNumber: "", ifsc: "" });
   const [docs, setDocs] = useState<Doc[]>([]);
+  const [preparing, setPreparing] = useState(false);
+  const total = docs.reduce((n, d) => n + d.file.size, 0);
 
   useEffect(() => { if (token) publicApi<Info>(`/onboarding/${t}`).then(setInfo).catch((e: Error) => setLoadErr(e.message)); }, [token, t]);
   async function run(fn: () => Promise<void>) { setBusy(true); setErr(""); try { await fn(); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); } }
@@ -47,11 +53,18 @@ export default function Onboarding() {
     } });
     setDone(true);
   });
-  function addFiles(kind: Doc["kind"], files: FileList | null) {
+  async function addFiles(kind: Doc["kind"], files: FileList | null) {
     const f = files?.[0]; if (!f) return;
-    if (f.size > MAX) { setErr("That file is larger than 10 MB. Please choose a smaller one."); return; }
     if (docs.length >= 6) { setErr("You can upload up to 6 documents."); return; }
-    setErr(""); setDocs([...docs, { kind, name: f.name.slice(0, 120), mime: f.type || "application/octet-stream", file: f }]);
+    if (!ALLOWED.has(f.type)) { setErr(`"${f.name}" is not a PDF, PNG, JPEG or WebP file. Please choose another file.`); return; }
+    setErr(""); setPreparing(true);
+    try {
+      // Phone photos are shrunk here so a few camera shots never exceed the upload limit.
+      const s = await shrinkImage(f);
+      if (s.blob.size > MAX) { setErr(`"${f.name}" is ${fmtSize(s.blob.size)}. Each file must be 10 MB or less. Please choose a smaller file.`); return; }
+      if (total + s.blob.size > TOTAL_MAX) { setErr(`Adding "${f.name}" (${fmtSize(s.blob.size)}) would make your documents ${fmtSize(total + s.blob.size)} in total. The limit is ${fmtSize(TOTAL_MAX)}. Please use a smaller file, for example a compressed PDF.`); return; }
+      setDocs((cur) => [...cur, { kind, name: s.name.slice(0, 120), mime: s.mime, file: s.blob }]);
+    } finally { setPreparing(false); }
   }
 
   if (loadErr) return <Shell><div className="card"><h1>Something went wrong</h1><p role="alert">{loadErr}</p></div></Shell>;
@@ -91,10 +104,11 @@ export default function Onboarding() {
           <label className="fld"><span>IFSC</span><input required pattern="[A-Za-z]{4}0[A-Za-z0-9]{6}" title="Format: ABCD0123456" maxLength={11} autoCapitalize="characters" autoComplete="off" value={bank.ifsc} onChange={(e) => setBank({ ...bank, ifsc: e.target.value.toUpperCase() })} /></label></div>}
         {has("documents") && <div className="card"><h2>Documents</h2>
           <p className="k">PDF, PNG, JPEG or WebP, up to 10 MB each, up to 6 files. Mask the first 8 digits of your Aadhaar.</p>
-          {KINDS.map((k) => <label key={k.k} className="fld"><span>{k.l}</span><input type="file" accept="application/pdf,image/png,image/jpeg,image/webp" onChange={(e) => { addFiles(k.k, e.target.files); e.target.value = ""; }} /></label>)}
-          {docs.length > 0 && <ul style={{ paddingLeft: 20 }}>{docs.map((d, i) => <li key={i} style={{ margin: "6px 0" }}>{KINDS.find((k) => k.k === d.kind)?.l}: {d.name} <button type="button" className="btn" onClick={() => setDocs(docs.filter((_, j) => j !== i))}>Remove</button></li>)}</ul>}</div>}
+          {KINDS.map((k) => <label key={k.k} className="fld"><span>{k.l}</span><input type="file" accept="application/pdf,image/png,image/jpeg,image/webp" disabled={preparing} onChange={(e) => { addFiles(k.k, e.target.files); e.target.value = ""; }} /></label>)}
+          {docs.length > 0 && <ul style={{ paddingLeft: 20 }}>{docs.map((d, i) => <li key={i} style={{ margin: "6px 0" }}>{KINDS.find((k) => k.k === d.kind)?.l}: {d.name} <span className="k">({fmtSize(d.file.size)})</span> <button type="button" className="btn" onClick={() => setDocs(docs.filter((_, j) => j !== i))}>Remove</button></li>)}</ul>}
+          {preparing && <p className="k" role="status">Preparing your file…</p>}</div>}
         {err && <div className="note bad" role="alert">{err}</div>}
-        <button className="btn p" style={{ width: "100%" }} disabled={busy}>{busy ? "Submitting…" : "Submit details"}</button>
+        <button className="btn p" style={{ width: "100%" }} disabled={busy || preparing}>{busy ? "Submitting…" : "Submit details"}</button>
         <p className="k">You can submit only once, so please check everything first.</p>
       </form>
     </Shell>
