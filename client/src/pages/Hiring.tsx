@@ -14,7 +14,7 @@ type Letter = { id: string; type: string; refNo: string; status: string; reviewN
 type Onb = { id: string; steps: string[]; expiresAt: string; completedAt: string | null; createdAt: string; checklist?: LinkChecklist | null; submission: null | {
   personal: Record<string, unknown> | null; panMasked: string | null; accountMasked: string | null; bankName: string | null; ifsc: string | null;
   documents: { fileId: string; kind: string; name: string }[]; submittedAt: string | null } };
-type Shared = { linkPath: string; expiresAt: string; emailed: boolean };
+type Shared = { linkPath: string; expiresAt: string; emailed: boolean; emailRequested?: boolean };
 
 const tone = (s: string) => (s === "accepted" || s === "joined" || s === "issued" ? "ok" : s === "offered" ? "info" : s === "declined" ? "bad" : s === "draft" ? "warn" : "mute") as "ok" | "info" | "bad" | "warn" | "mute";
 const STEPS = [
@@ -31,7 +31,7 @@ function CopyLink({ shared, title }: { shared: Shared; title: string }) {
   return (
     <div className="note ok" role="status">
       <strong>{title}</strong>
-      <p style={{ margin: "6px 0" }}>Shown once. Copy it now; it cannot be retrieved later. Expires {shared.expiresAt.slice(0, 10)}. {shared.emailed ? "An email was sent to the candidate." : "Email was not sent, so share the link yourself."}</p>
+      <p style={{ margin: "6px 0" }}>Shown once. Copy it now; it cannot be retrieved later. Expires {shared.expiresAt.slice(0, 10)}. {shared.emailed ? "An email with this link was sent to the candidate." : shared.emailRequested === false ? "No email was sent. Share the link yourself, or use Email to candidate." : "The email could not be sent, so share the link yourself."}</p>
       <div className="row-gap"><input readOnly value={url} aria-label="Link" style={{ flex: "1 1 260px" }} onFocus={(e) => e.currentTarget.select()} />
         <button className="btn p" onClick={async () => { try { await navigator.clipboard.writeText(url); setCopied(true); } catch { setCopied(false); } }}>{copied ? "Copied" : "Copy link"}</button></div>
     </div>
@@ -105,7 +105,7 @@ function Letters({ c }: { c: Candidate }) {
   const issue = useMutation({ mutationFn: (a: { id: string; step: string }) => api(`/letters/${a.id}/${a.step}`, { method: "POST", body: {} }), onSuccess: refresh });
   const me = useQuery({ queryKey: ["me"], queryFn: () => api<{ roles: string[] }>("/me") });
   const ceo = !!me.data?.roles.includes("super_admin");
-  const share = useMutation({ mutationFn: (id: string) => api<Shared>(`/letters/${id}/share`, { method: "POST", body: {} }), onSuccess: (s) => { setShared(s); refresh(); } });
+  const share = useMutation({ mutationFn: (a: { id: string; sendEmail: boolean }) => api<Shared>(`/letters/${a.id}/share`, { method: "POST", body: { sendEmail: a.sendEmail } }), onSuccess: (s) => { setShared(s); refresh(); } });
   const list = letters.data ?? [];
   const issued = list.find((l) => l.status === "issued" && (l.type === "offer_short" || l.type === "offer_full"));
   // Withdrawn letters do not count: once both formats are withdrawn (or discarded), HR can make a fresh pair.
@@ -124,8 +124,11 @@ function Letters({ c }: { c: Candidate }) {
       </tbody></table></div>}
       <ErrorNote error={issue.error ?? discard.error} />
       {issued && <div style={{ marginTop: 12 }}>
-        <p className="k">One acceptance link covers both offer formats. The candidate verifies by a code sent to {c.email}.</p>
-        <button className="btn p" disabled={share.isPending} onClick={() => share.mutate(issued.id)}>Share acceptance link</button>
+        <p className="k">One acceptance link covers both offer formats. Email it to {c.email}, or get the link to share yourself. Either way the candidate verifies by a code sent to {c.email}. Each click makes a new link.</p>
+        <div className="row-gap">
+          <button className="btn p" disabled={share.isPending} onClick={() => { if (window.confirm(`Email the offer acceptance link to ${c.email}?`)) share.mutate({ id: issued.id, sendEmail: true }); }}>Email to candidate</button>
+          <button className="btn" disabled={share.isPending} onClick={() => share.mutate({ id: issued.id, sendEmail: false })}>Get share link</button>
+        </div>
         <ErrorNote error={share.error} />
       </div>}
       {shared && <CopyLink shared={shared} title="Acceptance link created" />}
