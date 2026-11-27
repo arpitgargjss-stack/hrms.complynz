@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { KIND_LABEL, candidateSteps, type ChecklistItem, type LinkChecklist } from "../../../shared/hr/onboardingChecklist";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LETTER_STATUS_LABEL, letterDef } from "../../../shared/hr/letters";
@@ -10,7 +10,7 @@ import { Card, Chip, ErrorNote, Field, Page } from "../lib/ui";
 import { openHtml } from "../lib/openHtml";
 
 type Candidate = { id: string; fullName: string; email: string; phone: string | null; position: string | null; status: string; expectedJoining: string | null };
-type Letter = { id: string; type: string; refNo: string; status: string; reviewNote?: string | null };
+type Letter = { id: string; type: string; refNo: string; status: string; reviewNote?: string | null; payload?: Record<string, unknown> | null };
 type Onb = { id: string; steps: string[]; expiresAt: string; completedAt: string | null; createdAt: string; checklist?: LinkChecklist | null; submission: null | {
   personal: Record<string, unknown> | null; panMasked: string | null; accountMasked: string | null; bankName: string | null; ifsc: string | null;
   documents: { fileId: string; kind: string; name: string }[]; submittedAt: string | null } };
@@ -81,6 +81,17 @@ function Letters({ c }: { c: Candidate }) {
   const [shared, setShared] = useState<Shared | null>(null);
   // Next employee code, today's date for the NDA, and what the candidate gave in onboarding (address, NDA details). Typed values win.
   useEffect(() => { api<{ values?: Record<string, unknown> }>(`/letters/prefill?candidateId=${c.id}`).then((r) => setForm((cur) => ({ ...Object.fromEntries(Object.entries(r.values ?? {}).filter(([, v]) => v != null && v !== "")), ...Object.fromEntries(Object.entries(cur).filter(([, v]) => v != null && v !== "")) }))).catch(() => {}); }, [c.id]);
+  // A new offer after a withdrawal starts from the last withdrawn offer's terms, minus dates that are now stale. Typed values win.
+  const seeded = useRef(false);
+  useEffect(() => {
+    if (seeded.current || !letters.data) return;
+    seeded.current = true;
+    const last = letters.data.filter((l) => l.status === "void" && (l.type === "offer_full" || l.type === "offer_short"))
+      .sort((a, b) => (a.type === b.type ? 0 : a.type === "offer_full" ? -1 : 1))[0];
+    if (!last?.payload) return;
+    const { ndaDate: _n, validUntil: _v, ...terms } = last.payload as Record<string, unknown>;
+    setForm((cur) => ({ ...cur, ...Object.fromEntries(Object.entries(terms).filter(([k, v]) => v != null && v !== "" && (cur[k] == null || cur[k] === ""))) }));
+  }, [letters.data]);
   const refresh = () => { qc.invalidateQueries({ queryKey: ["letters", c.id] }); qc.invalidateQueries({ queryKey: ["candidates"] }); };
   const create = useMutation({
     mutationFn: async () => {
@@ -97,7 +108,10 @@ function Letters({ c }: { c: Candidate }) {
   const share = useMutation({ mutationFn: (id: string) => api<Shared>(`/letters/${id}/share`, { method: "POST", body: {} }), onSuccess: (s) => { setShared(s); refresh(); } });
   const list = letters.data ?? [];
   const issued = list.find((l) => l.status === "issued" && (l.type === "offer_short" || l.type === "offer_full"));
-  const hasOffers = list.some((l) => l.type === "offer_short") && list.some((l) => l.type === "offer_full");
+  // Withdrawn letters do not count: once both formats are withdrawn (or discarded), HR can make a fresh pair.
+  const live = (type: string) => list.some((l) => l.type === type && l.status !== "void");
+  const hasOffers = live("offer_short") && live("offer_full");
+  const withdrawn = !hasOffers && list.some((l) => l.status === "void" && (l.type === "offer_short" || l.type === "offer_full"));
   return (
     <Card><h2>Offer letters</h2>
       {list.length > 0 && <div style={{ overflowX: "auto" }}><table className="t"><thead><tr><th>Letter</th><th>Ref</th><th>Status</th><th></th></tr></thead><tbody>
@@ -116,6 +130,7 @@ function Letters({ c }: { c: Candidate }) {
       </div>}
       {shared && <CopyLink shared={shared} title="Acceptance link created" />}
       {!hasOffers && <form onSubmit={(e) => { e.preventDefault(); create.mutate(); }} style={{ marginTop: 12 }}>
+        {withdrawn && <p className="note">The earlier offer was withdrawn. Check the terms below, copied from it, and create a new pair. The withdrawn letters stay above for the record.</p>}
         <p className="k">Creates both the one-page and the full offer letter from these terms. Blank fields show as highlighted placeholders. Both go to the CEO for approval before they can be issued.</p>
         <div className="grid">{OFFER_FIELDS.map((f) => <Field key={f.key} label={f.label}><FieldInput f={f} v={form[f.key]} set={(x) => setForm({ ...form, [f.key]: x })} />{f.hint && <span className="k">{f.hint}</span>}</Field>)}</div>
         <ErrorNote error={create.error} />
