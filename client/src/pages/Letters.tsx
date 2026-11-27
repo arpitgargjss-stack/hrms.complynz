@@ -16,6 +16,11 @@ const day = (s: string | null) => (s ? new Date(s).toLocaleDateString("en-IN", {
 
 function Actions({ l, ceo, onDone }: { l: Letter; ceo: boolean; onDone: () => void }) {
   const [err, setErr] = useState<unknown>(null);
+  const [mailed, setMailed] = useState<string | null>(null);
+  const email = useMutation({
+    mutationFn: () => api<{ emailed: boolean }>(`/letters/${l.id}/share`, { method: "POST", body: { sendEmail: true } }),
+    onSuccess: (r) => { setMailed(r.emailed ? "Emailed to the candidate." : "The email could not be sent. Use Share link in Hiring to copy the link instead."); onDone(); }, onError: setErr,
+  });
   const act = useMutation({ mutationFn: (a: { path: string; body?: unknown }) => api(`/letters/${l.id}/${a.path}`, { method: "POST", body: a.body ?? {} }), onSuccess: onDone, onError: setErr });
   const go = (path: string, body?: unknown) => { setErr(null); act.mutate({ path, body }); };
   return <div className="row-gap" onClick={(e) => e.stopPropagation()}>
@@ -24,9 +29,12 @@ function Actions({ l, ceo, onDone }: { l: Letter; ceo: boolean; onDone: () => vo
     {ceo && (l.status === "draft" || l.status === "pending_approval") && <button className="btn p" disabled={act.isPending} onClick={() => go("approve")}>Approve</button>}
     {ceo && l.status === "pending_approval" && <button className="btn" disabled={act.isPending} onClick={() => { const note = window.prompt("What should change?"); if (note) go("reject", { note }); }}>Send back</button>}
     {l.status === "approved" && <button className="btn p" disabled={act.isPending} onClick={() => go("issue")}>Issue</button>}
-    {l.status === "issued" && l.candidateId && (l.type === "offer_short" || l.type === "offer_full") && <Link className="btn" href="/hiring">Share link in Hiring</Link>}
+    {l.status === "issued" && l.candidateId && (l.type === "offer_short" || l.type === "offer_full") && <>
+      <button className="btn p" disabled={email.isPending} onClick={() => { if (window.confirm(`Email the offer acceptance link to ${l.recipient}?`)) { setErr(null); setMailed(null); email.mutate(); } }}>Email to candidate</button>
+      <Link className="btn" href="/hiring">Share link in Hiring</Link></>}
     {["draft", "pending_approval", "approved"].includes(l.status) && <button className="btn" disabled={act.isPending} onClick={() => window.confirm("Withdraw this letter?") && go("void")}>Withdraw</button>}
     {(l.status === "draft" || l.status === "pending_approval") && <button className="btn" disabled={act.isPending} onClick={() => { if (window.confirm("Discard this draft? It is deleted so you can prepare it again.")) { setErr(null); api(`/letters/${l.id}`, { method: "DELETE" }).then(onDone, setErr); } }}>Discard draft</button>}
+    {mailed && <span className="k" role="status">{mailed}</span>}
     <ErrorNote error={err} />
   </div>;
 }

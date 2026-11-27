@@ -282,9 +282,11 @@ const DEFAULT_OFFER_TEMPLATE = {
 
 r.post("/letters/:id/share", wrap(async (req, res) => {
   need(req, "letters.generate", "all");
-  const b = parse(z.object({ recipientEmail: z.string().trim().toLowerCase().email().max(200).optional() }), req.body ?? {});
+  // sendEmail: false creates the link for HR to share themselves; omitted or true also emails it to the candidate.
+  const b = parse(z.object({ recipientEmail: z.string().trim().toLowerCase().email().max(200).optional(), sendEmail: z.boolean().optional() }), req.body ?? {});
   const [l] = await db.select().from(A.letters).where(eq(A.letters.id, idParam(req))).limit(1);
   if (!l) throw new HttpError(404, "Not found");
+  // A letter can be issued only after the CEO approves it, so this also keeps unapproved offers from being emailed.
   if (l.status !== "issued") throw new HttpError(409, "Issue the letter before sharing");
   const who = await recipientName(l);
   const email = b.recipientEmail ?? who.email;
@@ -298,9 +300,10 @@ r.post("/letters/:id/share", wrap(async (req, res) => {
   const vars = { name: who.name || "there", link: env.HR_APP_URL.replace(/\/$/, "") + linkPath, expiry: expiresAt.toISOString().slice(0, 10) };
   // Templates edited in Configuration may also use company placeholders such as {{company.legal_name}}.
   const all = { ...(await textPlaceholderValues()), ...vars };
-  const sent = await sendEmail({ to: email, subject: fillEmail(t.subject, all), text: fillEmail(t.body, all) });
-  await logAudit(req.actor!.email, "letter.share", "letter", l.id, { expiresAt, emailed: sent });
-  res.status(201).json({ linkPath, expiresAt, emailed: sent }); // the only time the link path is returned
+  const emailRequested = b.sendEmail !== false;
+  const sent = emailRequested ? await sendEmail({ to: email, subject: fillEmail(t.subject, all), text: fillEmail(t.body, all) }) : false;
+  await logAudit(req.actor!.email, "letter.share", "letter", l.id, { expiresAt, emailRequested, emailed: sent });
+  res.status(201).json({ linkPath, expiresAt, emailRequested, emailed: sent }); // the only time the link path is returned
 }));
 
 // ---------- onboarding pipeline ----------
